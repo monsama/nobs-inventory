@@ -590,10 +590,18 @@ export function sourceMark(o, k){
 /* Once the field is fixed to a source (or kept as typed), the person has decided: no dot. A value kept from by hand does not count. */
 export function sourcesDisagree(o, k){
   const f = o.vals && o.vals[k]; if (!f || fieldFixed(o, k)) return false;
-  const vals = new Set(Object.entries(f).filter(([src]) => src !== 'hand').map(([, [v]]) => String(v)));
-  if (!vals.size) return false;
-  return vals.size > 1 || (o[k] != null && o[k] !== '' && !vals.has(String(o[k])));
+  const list = Object.entries(f).filter(([src]) => src !== 'hand').map(([, [v]]) => String(v));
+  if (!list.length) return false;
+  if (o[k] != null && o[k] !== '') list.push(String(o[k]));
+  /* An operating system is compared by its name without build numbers, and a name that only says less agrees: AD's
+     "Windows 11 Pro (10.0.26200)" and Intune's "Windows 11 (10.0.26200.9711)" are one system; Pro and Enterprise are not. */
+  if (k === 'os'){
+    const n = list.map(osWords);
+    return n.some(a => n.some(b => !(a === b || a.startsWith(b + ' ') || b.startsWith(a + ' '))));
+  }
+  return new Set(list).size > 1;
 }
+const osWords = v => v.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/\b\d+(\.\d+)+\b/g, ' ').replace(/\s+/g, ' ').trim();
 export { SRC_ICON };
 /* The source picker (srcpick.js) draws what a click on a mark shows when the field has values from the sources. */
 let srcPicker = null;

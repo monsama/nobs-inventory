@@ -10,7 +10,7 @@ import { readSecret } from './secrets.js';
 import { stamp, typeFor, modelFor } from './feed.js';
 import { checkAddress } from './validate.js';
 import { fillField, officeLocations, profileFields, noteValue, pickOf } from './fill.js';
-import { managedBy } from '../public/js/intune.js';
+import { graphOsName, managedBy } from '../public/js/intune.js';
 import { isPlaceholderSerial } from '../public/js/serials.js';
 import { loginCore, mergeSamePeople } from '../public/js/people-match.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
@@ -171,7 +171,7 @@ export function toRecords(devices, managed) {
       join: JOIN[d.trustType] || clean(d.trustType), managed: managedBy(m.managementAgent), ...(d.accountEnabled === false ? { disabled: true } : {}),
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
-      owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean([m.operatingSystem, m.osVersion].filter(Boolean).join(' ')),
+      owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean(graphOsName(m.operatingSystem, m.osVersion)),
       platform: clean(m.operatingSystem), lastCheckIn: clean(m.lastSyncDateTime), lastSignIn: clean(d.approximateLastSignInDateTime),
       model: makerModel(m.manufacturer, m.model), mac: macOf(m.wiFiMacAddress) || macOf(m.ethernetMacAddress),
       ram: gb(m.physicalMemoryInBytes), disk: gb(m.totalStorageSpaceInBytes), free: gb(m.freeStorageSpaceInBytes),

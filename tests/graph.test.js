@@ -376,3 +376,11 @@ test('a placeholder serial from Intune is dropped, so it does not tie devices to
   const recs = toRecords([], [{ id: 'm1', deviceName: 'PC-A', serialNumber: 'To be filled by O.E.M.', managementAgent: 'mdm' }, { id: 'm2', deviceName: 'PC-B', serialNumber: 'Default string', managementAgent: 'mdm' }, { id: 'm3', deviceName: 'PC-C', serialNumber: 'CZC1234', managementAgent: 'mdm' }]);
   assert.deepEqual(recs.map(r => r.serial), ['', '', 'CZC1234']);
 });
+
+test('Intune\'s Windows build is named like AD names it: Windows 11 from build 22000 on', async () => {
+  const { graphOsName } = await import('../public/js/intune.js');
+  assert.equal(graphOsName('Windows', '10.0.26200.9711'), 'Windows 11 (10.0.26200.9711)');
+  assert.equal(graphOsName('Windows', '10.0.19045.5737'), 'Windows 10 (10.0.19045.5737)');
+  assert.equal(graphOsName('iOS', '18.1'), 'iOS 18.1');
+  assert.equal(graphOsName('Windows', ''), 'Windows');
+});
