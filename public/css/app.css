@@ -1990,3 +1990,10 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 /* "Group by" and its list stay together when the toolbar wraps. */
 .tb-grp{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .ho-warn{color:var(--warntext)}
+
+/* A floor plan area's menu (right-click), and the bar while drawing for one area. */
+.pl-ctx{position:fixed;z-index:300;min-width:210px;padding:4px 0;background:var(--in);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);display:flex;flex-direction:column}
+.pl-ctx-h{padding:4px 12px 6px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--bd2);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.pl-ctx button{justify-content:flex-start;border:0;border-radius:0;background:transparent;padding:0 12px;width:100%;font-weight:400}
+.pl-ctx button:hover,.pl-ctx button:focus-visible{background:var(--hover);outline:none}
+.pl-adding{font-size:13px;white-space:nowrap}
