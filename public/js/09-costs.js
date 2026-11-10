@@ -117,7 +117,7 @@ export function contractModal(c, preset = []){
   const opt = (map, v) => Object.entries(map).map(([k, l]) => html`<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`);
   modal(html`<div class="mh">${isNew ? 'New contract' : cur.name}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="ctName">Name</label><input id="ctName" maxlength="120" value="${cur.name}" placeholder="e.g. Switch maintenance HPE">
+      <label for="ctName">Name</label><input id="ctName" maxlength="120" value="${cur.name}" placeholder="e.g. Switch maintenance">
       <label for="ctKind">Kind</label><select id="ctKind">${opt(CONTRACT_KINDS, cur.kind)}</select>
       <label for="ctSupplier">Supplier</label>${rawHtml(comboHtml(String(html`<input id="ctSupplier" data-combo="supplier" maxlength="120" value="${cur.supplier || ''}" placeholder="Type or pick a company">`), 'ctSupplier'))}
       <label for="ctCost">Cost (${COSTS.currency || 'CHF'})</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
@@ -256,8 +256,8 @@ export function licencesPanel(){
       <td class="num">${l.cost > 0 ? html`${rawHtml(money(l.cost))} <span class="muted">${PERIODS[l.per || 'year']}</span>` : ''}</td><td>${l.end ? dayText(l.end) : ''}</td><td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-lic="${l.id}"`), l.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-licdel="${l.id}"`), l.name)) : ''}</span></td></tr>`;
   });
   const over = licencesOver().length;
-  return String(html`<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length}${over ? ` · ${over} over-used` : ''}</span></div>
-    <p class="note">A licence counts the devices, not retired, with software whose name holds the licence's name. “Microsoft 365 Apps” counts every package named so, whatever its version.</p>
+  return String(html`<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length} ${COSTS.licences.length === 1 ? 'licence' : 'licences'}${over ? `, ${over} over-used` : ''}</span></div>
+    <p class="note">A licence counts the devices, not retired, with software whose name holds the licence's name. “Office Suite” counts every package named so, whatever its version.</p>
     ${rows.length ? html`<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:44px"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th><th aria-label="Edit"></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
     ${isAdmin() ? html`<div class="addrel"><span class="grow"></span><button id="licNew" class="primary">New licence</button></div>` : ''}</div>`);
 }

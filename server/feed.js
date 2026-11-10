@@ -292,6 +292,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const seen = stamp(now);
   const counts = { created: 0, updated: 0, linked: 0, unchanged: 0 };
   const pairs = [];
+  /* The devices this push has updated so far (a second record merged into one of them is then left alone). */
+  const matched = new Set();
   const locs = s.locs || [];
   let taken = null;   /* codes and ids in use, read when the first new device is made */
   /* How many wait in To review: a push cannot add more than REVIEW_MAX there (a wrong or stolen token would fill the inventory). */
@@ -334,6 +336,26 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   s.objs.forEach(index);
   /* The names this push brings, so a DNS-named record is known as a second record also when it comes before the device
      it stands for (after Clear inventory, both are new). */
+  /* A device and a record merged into it as the same device (a reinstall) can both still come from Lansweeper: of the two,
+     only the one scanned last updates the device (the merged one on the same day), so they never overwrite each other's
+     values in turn. superseded holds the asset ids left alone in this push. */
+  const superseded = new Set();
+  {
+    const refOf = r => r && r.ref != null ? String(r.ref).trim() : '';
+    const scanOf = new Map(records.map(r => [refOf(r), dayOf(r && r.scanned) || ''])).set('', '');
+    const best = new Map();
+    for (const r of records) {
+      const ref = refOf(r), o = ref && byAsset.get(ref);
+      if (!o) continue;
+      const t = o.excluded && o.review && o.review.merged ? s.objs.find(x => x.id === o.review.merged) : o;
+      if (!t || t.excluded || t.detached || (o !== t && (t.accessories || []).some(a => lc(a.seenAs) === lc(o.name)))) continue;
+      const cand = { ref, day: scanOf.get(ref), merged: o !== t }, had = best.get(t.id);
+      if (!had) { best.set(t.id, cand); continue; }
+      const wins = cand.day > had.day || (cand.day === had.day && cand.merged && !had.merged);
+      superseded.add(wins ? had.ref : ref);
+      if (wins) best.set(t.id, cand);
+    }
+  }
   const pushed = new Set(records.map(r => lc(r.name)).filter(n => n && !(byName.get(n) || []).some(o => o.status === 'retired' || o.excluded)));
   /* DNS-named records come last, so with mergeTwins on the device they stand for is already here, also when both are new. */
   const dnsNamed = r => (!r.serial || isPlaceholderSerial(r.serial)) && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name);
@@ -366,8 +388,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     if (found && found.excluded && found.review && found.review.merged) {
       const t = s.objs.find(o => o.id === found.review.merged);
       const asDock = t && (t.accessories || []).some(a => lc(a.seenAs) === lc(found.name));
-      if (t && !asDock && !t.excluded && !t.detached) found = t;
+      if (t && !asDock && !t.excluded && !t.detached && !(ref && superseded.has(ref)) && !matched.has(t.id)) found = t;
     }
+    /* The device's own record when a record merged into it was scanned later (above): the later one updates it. */
+    if (found && !found.excluded && ref && superseded.has(ref)) { counts.superseded = (counts.superseded || 0) + 1; continue; }
     /* A retired device is kept for the record: no sync changes it. */
     if (found && found.status === 'retired') { counts.retired = (counts.retired || 0) + 1; continue; }
     /* An object excluded from sync, or detached from it, is left as it is. */
@@ -432,7 +456,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       if (obj.review) counts.review = (counts.review || 0) + 1;
       continue;
     }
-    pairs.push({ r, obj: found });
+    pairs.push({ r, obj: found }); matched.add(found.id);
     const wasLinked = !!found.feed;
     /* linked: when this inventory's device was first matched to the Lansweeper asset. */
     if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen, linked: seen, assetType: r.assetType || '' };

@@ -30,7 +30,7 @@ const subnetFromEditor = ed => {
 /* The editor of one subnet, for a new one or one in the list. A note says what was filled in from Lansweeper. */
 const subnetEditorHtml = (n, key, hint = null) => html`<div class="sn-edit" data-sub="${key}">
     <div class="sn-grid">
-      <label>Name<input data-sn maxlength="60" value="${n.name || ''}" placeholder="e.g. Office Bern"></label>
+      <label>Name<input data-sn maxlength="60" value="${n.name || ''}" placeholder="e.g. Head office"></label>
       <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${n.cidr || ''}"></label>
       <label>VLAN<select data-sv><option value="">None</option>${VLANS.map(v => html`<option value="${v.vid}" ${v.vid === n.vid ? 'selected' : ''}>${v.vid} · ${v.name}</option>`)}</select></label>
       <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${n.gateway || ''}"></label>
@@ -237,7 +237,7 @@ export function renderSetLocs(){
     <section class="panelbox locpanel"><div class="hdr">Sites <span class="cnt">${SITES.length}</span></div>
       <div class="lrows"><div class="lrow head"><span>Site</span><span class="n">Devices</span><span></span></div>
         ${SITES.length ? SITES.map((x, i) => siteRow(x, i)) : html`<p class="note lempty">No sites yet. Add the first one below.</p>`}</div>
-      <div class="lpanel-add"><input id="nsName" placeholder="New site, e.g. Basel" aria-label="New site"><button id="nsAdd">Add site</button></div>
+      <div class="lpanel-add"><input id="nsName" placeholder="New site, e.g. Branch office" aria-label="New site"><button id="nsAdd">Add site</button></div>
       <p class="note lnote" id="nsMsg">A site is a town or a building.</p></section>
     <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
       <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Devices</span><span></span></div>
@@ -381,7 +381,7 @@ export function renameSite(old, value){
    Settings again and offers Undo, which renames it back. */
 export function renameLoc(old, value){
   const name = cleanLoc(value);
-  if (!name){ toast('Use the form Site / Room, e.g. Basel / Lager'); renderSetLocs(); return; }
+  if (!name){ toast('Use the form Site / Room, e.g. Branch office / Store room'); renderSetLocs(); return; }
   if (name !== old && LOCS.includes(name)){ toast(name + ' already exists.'); renderSetLocs(); return; }
   if (name === old) return;
   LOCS[LOCS.indexOf(old)] = name;

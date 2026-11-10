@@ -241,6 +241,9 @@ export function bindHiddenHits(){
   if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; view(); };
 }
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
+/* The filter drawer on a phone closes like a menu: Escape, or a tap beside it. */
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('side-open') && !$('#modalHost').childElementCount){ document.body.classList.remove('side-open'); $('#sideBtn').focus(); } });
+document.addEventListener('pointerdown', e => { if (!document.body.classList.contains('side-open')) return; const t = evEl(e); if (t.closest && !t.closest('#side, #sideBtn')) document.body.classList.remove('side-open'); }, true);
 document.addEventListener('click', e => { if (evEl(e).closest && evEl(e).closest('[data-empty-new]')) newObjModal(); });
 document.addEventListener('click', async e => {
   const b = evEl(e).closest && evEl(e).closest('#reloadBtn'); if (!b || b.disabled) return;
@@ -263,7 +266,7 @@ export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To re
 const OWN_TABS = ['mine', 'cards', 'table'];
 export const tabAllowed = id => !FIXED_TABS[id] || (ownOnly() ? OWN_TABS.includes(id) : id !== 'mine');
 /** @type {Record<string, [string, string[]]>} */
-export const TAB_GROUPS = { devices: ['Devices', ['cards', 'table']], business: ['Contracts', ['contracts', 'sw', 'contacts']] };
+export const TAB_GROUPS = { devices: ['Devices', ['cards', 'table']], business: ['Contracts & software', ['contracts', 'sw', 'contacts']] };
 const TAB_GROUP_OF = Object.fromEntries(Object.entries(TAB_GROUPS).flatMap(([g, [, m]]) => m.map(id => [id, g])));
 const groupLast = g => { const m = TAB_GROUPS[g][1], l = (st.tabLast || {})[g]; return m.includes(l) && tabAllowed(l) ? l : m.find(tabAllowed) || m[0]; };
 /* The switch over a grouped view (Cards | Table, Contracts | Software | Contacts): put first in the toolbar. */
@@ -296,7 +299,7 @@ export function renderTabs(){
   const viewTab = id => {
     const g = TAB_GROUP_OF[id], members = g ? TAB_GROUPS[g][1] : [id], open = g ? (members.includes(st.tab) ? st.tab : groupLast(g)) : id;
     const on = members.includes(st.tab) || (id === 'review' && st.scope && LIST_TABS.includes(st.tab));
-    return `<button class="tab ${on ? 'active' : ''}" draggable="true" data-tab="${open}">${g ? TAB_GROUPS[g][0] : FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
+    return `<button class="tab ${on ? 'active' : ''}" draggable="true" data-tab="${open}"${on ? ' aria-current="page"' : ''}>${g ? TAB_GROUPS[g][0] : FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
   };
   /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
   /* Sync (admins) and To review sit on their own at the right end of the bar: actions and an inbox, not views. */

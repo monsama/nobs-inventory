@@ -41,7 +41,11 @@ export function registerSyncRoutes(app, ctx) {
       const pinned = getAppSecret(db, SECRET_KEY, 'ldapLoginHost');
       if (host && pinned && pinned !== host) {
         const mine = typeof req.body.confirm === 'string' ? req.body.confirm : '';
+        /* Wrong tries count with those of the own-password change, so the confirmation cannot be guessed. */
+        const keys = ['me:' + req.user.id];
+        if (throttle.blocked(keys)) throw new HttpError(429, 'Too many tries. Try again in 15 minutes.');
         if (!mine || mine.length > 256 || !checkLocalPassword(db, req.user.id, mine)) {
+          if (mine) throttle.recordFailure(keys);
           audit(db, req.user.id, `directory sign-in move to ${host.split('|')[0]} not confirmed`);
           return res.status(403).json({ error: mine ? 'That is not your password.' : 'Directory sign-in moves to another server: confirm with your own password.', confirm: true, from: pinned.split('|')[0], to: host.split('|')[0] });
         }

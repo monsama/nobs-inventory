@@ -135,6 +135,13 @@ try {
   const fit = await p.evaluate(() => { const s = document.querySelector('#plStage'), c = document.querySelector('#plCanvas').getBoundingClientRect(); return [c.width <= s.clientWidth + 1, c.height <= s.clientHeight + 1]; });
   assert.deepEqual(fit, [true, true], 'Fit does not show the whole plan');
 
+  // 3b. The area menu from the keyboard: the ⋯ on the area's name opens it, Esc closes it and gives the focus back
+  await p.locator('[data-amenu="ar1"]').focus(); await p.keyboard.press('Enter');
+  await p.waitForSelector('#plCtx [data-ctx="edit"]');
+  assert.equal(await p.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-ctx')), 'more', 'the first item has the focus');
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#plCtx').count(), 0, 'Esc leaves the menu open');
+  assert.equal(await p.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-amenu')), 'ar1', 'the focus is not back on the ⋯');
   // 4. Print: a window with the plan, the text and the devices by area
   const [win] = await Promise.all([p.waitForEvent('popup'), (async () => { await p.click('#plMenu .menu-btn'); await p.click('#plPrint'); })()]);
   await win.waitForLoadState();

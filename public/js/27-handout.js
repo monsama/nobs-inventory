@@ -150,7 +150,7 @@ export function handOutModal(ids){
   /* In a store room: "where it is now" would list it there while someone uses it, so where it goes is asked for. */
   const stores = new Set(Object.values(st.stockRooms || {}));
   const inStore = list.every(o => o.loc && stores.has(o.loc)) ? list[0].loc : '';
-  if (inStore){ const o0 = $('#hoLoc').options[0]; o0.textContent = `Leave it in the store room (${inStore})`; }
+  if (inStore){ const o0 = $('#hoLoc').options[0], rooms = new Set(list.map(o => o.loc)); o0.textContent = rooms.size > 1 ? `Leave them in their store rooms (${rooms.size})` : `Leave ${list.length > 1 ? 'them' : 'it'} in the store room (${inStore})`; }
   let storeOk = false;
   const ok0 = $('#hoOk').onclick;
   $('#hoOk').onclick = e => {

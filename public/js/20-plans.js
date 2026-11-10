@@ -354,6 +354,8 @@ export function renderPlans(){
   /* Pins that cover each other are grouped; a device dragged out of a group's list is moved like one from the side list. */
   groupPins(c, (id, e, label, onMove) => { if (!isAdmin()) return; listDragDone = false; planListDrag = {id, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label, onMove}; });
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); const a = plan.areas.find(x => x.id === b.dataset.area); if (a) areaRemoveModal(plan, a); });
+  /* The ⋯ on an area's name: the same menu, under it, also from the keyboard. */
+  c.querySelectorAll('[data-amenu]').forEach(b => b.onclick = e => { e.stopPropagation(); const a = plan.areas.find(x => x.id === /** @type {HTMLElement} */ (b).dataset.amenu); if (!a) return; const r = b.getBoundingClientRect(); areaMenu(plan, a, r.left, r.bottom + 2); });
   /* Right-click an area (or hold a finger on it): its menu, where it was clicked. */
   if (isAdmin()) c.oncontextmenu = e => {
     const el = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-area-drag],[data-area-tag]')); if (!el) return;
@@ -374,10 +376,11 @@ export function renderPlans(){
     planAreaDrag = {area, planId: plan.id, rects, pins, before: areaGeom(area), pinSnap: snapshot(pins.map(p => byId(p.id))), x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
     /* A finger held still on an area opens its menu, as a right-click does. */
     if (e.pointerType === 'touch'){
-      const x0 = e.clientX, y0 = e.clientY, stop = () => { clearTimeout(t); removeEventListener('pointermove', far); removeEventListener('pointerup', stop); };
+      const x0 = e.clientX, y0 = e.clientY, stop = () => { clearTimeout(t); removeEventListener('pointermove', far); removeEventListener('pointerup', stop); removeEventListener('pointercancel', stop); removeEventListener('contextmenu', stop, true); };
       const far = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) stop(); };
       const t = setTimeout(() => { stop(); planAreaDrag = null; areaMenu(plan, area, x0, y0); }, 550);
-      addEventListener('pointermove', far); addEventListener('pointerup', stop);
+      /* A pan the browser takes over, or its own long-press menu (which opens this one already), ends the wait. */
+      addEventListener('pointermove', far); addEventListener('pointerup', stop); addEventListener('pointercancel', stop); addEventListener('contextmenu', stop, true);
     }
   });
   /* The grip on a rectangle of the chosen area (one of several) moves only that rectangle; devices placed inside it
@@ -497,7 +500,7 @@ export function areaPartCorners(rects){
 /* The name of an area and its ×, placed at the top left of the area; on every further part of it, the name again. */
 export function areaTag(a, removable, count = 0){
   const rects = areaRects(a), [first, ...more] = areaPartCorners(rects), r = rects[first];
-  return String(html`${more.map(i => html`<div class="pl-area-tag pl-area-more ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${rects[i].x}%;top:${rects[i].y}%" aria-hidden="true"><span>${a.name}</span></div>`)}<div class="pl-area-tag ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${a.name}</span>${count ? html`<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? html`<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${a.name}" title="Remove area">×</button>` : ''}</div>`);
+  return String(html`${more.map(i => html`<div class="pl-area-tag pl-area-more ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${rects[i].x}%;top:${rects[i].y}%" aria-hidden="true"><span>${a.name}</span></div>`)}<div class="pl-area-tag ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${a.name}</span>${count ? html`<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? html`<button class="pl-x" data-amenu="${a.id}" aria-haspopup="menu" aria-label="Menu of area ${a.name}" title="Area menu (also on right-click)">⋯</button><button class="pl-x" data-area="${a.id}" aria-label="Remove area ${a.name}" title="Remove area">×</button>` : ''}</div>`);
 }
 /* The devices that go with a pin, in its card: "In this rack" for a rack, "Attached" for anything else. */
 function ridersHtml(o){
@@ -831,9 +834,12 @@ function printPlan(plan){
 }
 /* An area's menu, at the point it was right-clicked: draw more of it, edit, duplicate, remove. Closed by a pick, a click
    elsewhere, Esc or scrolling; arrow keys move through it. */
-function closeAreaMenu(){ const m = document.getElementById('plCtx'); if (m) m.remove(); }
+/* The open menu's own clean-up (its window listeners), so a second menu never leaves the first one's behind. */
+let areaMenuDone = null;
+function closeAreaMenu(){ if (areaMenuDone){ const d = areaMenuDone; areaMenuDone = null; d(); return; } const m = document.getElementById('plCtx'); if (m) m.remove(); }
 function areaMenu(plan, area, x, y){
   closeAreaMenu();
+  const opener = /** @type {HTMLElement|null} */ (document.activeElement);
   const m = document.createElement('div');
   m.id = 'plCtx'; m.className = 'pl-ctx'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', `Area ${area.name}`);
   m.innerHTML = String(html`<div class="pl-ctx-h">${area.name}</div>
@@ -849,12 +855,13 @@ function areaMenu(plan, area, x, y){
   const items = [...m.querySelectorAll('button')];
   const off = ev => { if (!m.contains(/** @type {Node} */ (ev.target))) done(); };
   const key = ev => {
-    if (ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); done(); return; }
+    if (ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); done(); if (opener && opener !== document.body && document.contains(opener)) opener.focus(); return; }
     if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
     ev.preventDefault(); const i = items.indexOf(/** @type {HTMLButtonElement} */ (document.activeElement));
     items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
   };
-  const done = () => { removeEventListener('pointerdown', off, true); removeEventListener('keydown', key, true); removeEventListener('scroll', done, true); closeAreaMenu(); };
+  const done = () => { if (areaMenuDone === done) areaMenuDone = null; removeEventListener('pointerdown', off, true); removeEventListener('keydown', key, true); removeEventListener('scroll', done, true); m.remove(); };
+  areaMenuDone = done;
   setTimeout(() => { addEventListener('pointerdown', off, true); addEventListener('scroll', done, true); }, 0);
   addEventListener('keydown', key, true);
   m.onclick = ev => {

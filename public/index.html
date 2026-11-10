@@ -10,9 +10,9 @@
 </head>
 <body>
 
-<div id="bar">
+<header id="bar">
   <button id="sideBtn" class="icon" title="Filters" aria-label="Show filters"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-  <div id="brand"><img class="logo" src="logo.svg" alt=""><span><b>NOBS</b> <span class="word">Inventory</span></span></div>
+  <h1 id="brand"><img class="logo" src="logo.svg" alt=""><span><b>NOBS</b> <span class="word">Inventory</span></span></h1>
   <div class="gs" id="gsBox"><input id="search" type="search" placeholder="Search everything…  Ctrl+K" aria-label="Search everything: devices, people, contacts, contracts, rooms" autocomplete="off"><ul id="gsList" class="gs-list" role="listbox" aria-label="Search results" hidden></ul></div>
   <button id="newBtn" class="primary" aria-label="New device"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="hide-n">New device</span></button>
   <div class="grow"></div>
@@ -25,7 +25,7 @@
   </div>
   <div id="bellPop" class="menubox bell-pop" popover role="dialog" aria-label="Notifications"></div>
   <button id="setBtn" class="icon" title="Settings" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
-</div>
+</header>
 
 <div id="main">
   <aside id="side" aria-label="Filters">
@@ -59,13 +59,13 @@
     <div class="sidegroup" id="adgList" hidden></div></section>
   </aside>
 
-  <section id="content">
+  <main id="content">
     <nav id="tabsbar" aria-label="Views"></nav>
     <nav id="objbar" aria-label="Open devices" hidden></nav>
     <div id="toolbar" class="toolbar"></div>
     <div id="fbar" class="fbar" hidden aria-label="Active filters"></div>
     <div id="view" class="view"></div>
-  </section>
+  </main>
 </div>
 
 <footer class="statusbar">

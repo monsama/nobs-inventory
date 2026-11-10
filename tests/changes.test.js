@@ -262,3 +262,20 @@ test('factory reset also removes Graph certificates with their keys and the entr
     assert.equal(count('backups'), 0, 'backups go when asked');
   } finally { await srv.close(); }
 });
+
+test('a relation stored before the relation rule can still have its port changed; a new one still follows the rule', async () => {
+  const srv = await startServer();
+  try {
+    const { loadState, saveState } = await import('../server/state.js');
+    const s = loadState(srv.db);
+    s.objs.push(pc('p1', 'PC1'), { ...pc('s1', 'SW1'), type: 'switch', ports: 24 }, pc('p2', 'PC2'));
+    s.rels.push({ id: 'r1', from: 'p1', to: 's1', kind: 'uplink', port: 3, vlan: null });
+    saveState(srv.db, s);
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const revs = (await load(srv, a.cookie)).revs;
+    const moved = await put(srv, a.cookie, { puts: [{ kind: 'rel', id: 'r1', value: { from: 'p1', to: 's1', kind: 'uplink', port: 5, vlan: null }, base: revs['rel|r1'] ?? 0 }], dels: [] });
+    assert.equal(moved.status, 200, moved.text);
+    const added = await put(srv, a.cookie, { puts: [{ kind: 'rel', id: 'r2', value: { from: 'p2', to: 's1', kind: 'uplink', port: 6, vlan: null }, base: 0 }], dels: [] });
+    assert.equal(added.status, 400);
+  } finally { await srv.close(); }
+});

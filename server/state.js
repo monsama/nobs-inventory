@@ -697,7 +697,7 @@ export function applyChanges(db, body, guard = () => {}) {
     else if (c.kind === 'history') delete s.history[c.id];
     else if (c.kind === 'setting') delete s[c.id];
   }
-  const codes = {};
+  const codes = {}, keptRels = new Set();
   for (const c of okPuts) {
     const v = c.value;
     if (c.kind === 'object') {
@@ -709,6 +709,9 @@ export function applyChanges(db, body, guard = () => {}) {
     } else if (c.kind === 'rel') {
       const rid = String(c.id); const v2 = { ...v, id: rid };
       const i = s.rels.findIndex(r => String(r.id) === rid);
+      /* Only its port or VLAN changed: the relation stays what it was, so the rule for new ones is not asked again of it
+         (one stored before the rule could otherwise never have its port changed). */
+      if (i >= 0 && ['kind', 'from', 'to'].every(k => s.rels[i][k] === v2[k])) keptRels.add(rid);
       if (i >= 0) s.rels[i] = v2; else s.rels.push(v2);
     } else if (c.kind === 'user') {
       const v2 = { ...v, id: c.id };
@@ -729,7 +732,7 @@ export function applyChanges(db, body, guard = () => {}) {
   const sizeOf = db.prepare('SELECT LENGTH(data) AS n FROM docs WHERE kind = ? AND id = ?');
   const delta = okPuts.reduce((t, c) => t + JSON.stringify(c.value).length - ((sizeOf.get(c.kind, c.id) || {}).n || 0), 0);
   if (storedBytes + delta > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
-  try { checkState(s, { size: false, newRels: new Set(okPuts.filter(c => c.kind === 'rel').map(c => String(c.id))) }); }
+  try { checkState(s, { size: false, newRels: new Set(okPuts.filter(c => c.kind === 'rel' && !keptRels.has(String(c.id))).map(c => String(c.id))) }); }
   catch (e) {
     if (!conflicts.length) throw e;
     return { revs: {}, codes: {}, conflicts: [...puts, ...dels].map(c => docKey(c.kind, c.id)) };

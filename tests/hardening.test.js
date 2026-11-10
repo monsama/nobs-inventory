@@ -34,6 +34,8 @@ test('an icon cannot hide an attribute behind a > inside quotes; the directory s
   assert.match(ldapSettingsProblem({ loginAttr: 'ms-Mcs-AdmPwd' }), /LAPS or BitLocker/);
   assert.match(ldapSettingsProblem({ loginAttr: 'sAMAccountName', userFilter: '(objectClass=msFVE-RecoveryInformation)' }), /LAPS or BitLocker/);
   assert.match(ldapSettingsProblem({ loginAttr: 'cn)(x' }), /one attribute/);
+  assert.match(ldapSettingsProblem({ userFilter: '(&(cn=SRV1)(1.2.840.113556.1.8000.2554.50051=a*))' }), /by its number/);
+  assert.equal(ldapSettingsProblem({ userFilter: '(&(objectClass=person)(memberOf:1.2.840.113556.1.4.1941:=CN=G))' }), '');
   assert.equal(ldapSettingsProblem({ loginAttr: 'userPrincipalName', userFilter: '(objectClass=person)' }), '');
 });
 

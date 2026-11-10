@@ -19,13 +19,13 @@ export const linkCandidates = () => objs.filter(o => o.type !== 'rack' && o.stat
 export const plugOf = o => { const r = rels.find(x => x.from === o.id && ['connected','attached'].includes(x.kind)); return r ? byId(r.to) : null; };
 /* Examples for the name and model of each type, so the form says what is expected. */
 const EXAMPLES = {
-  pc: ['ZH-PC-0151', 'HP EliteDesk 800 G9 Mini'], notebook: ['ZH-NB-0151', 'Lenovo ThinkPad T14 Gen 5'], server: ['ZH-SRV-01', 'HPE ProLiant DL380 Gen11'],
-  vm: ['ZH-VM-APP01', 'Windows Server 2022'], switch: ['ZH-SW-2OG-01', 'Aruba 6300M 48G'], router: ['ZH-RT-01', 'Cisco ISR 1100'],
-  firewall: ['ZH-FW-01', 'Fortinet FortiGate 100F'], accesspoint: ['ZH-AP-2OG-01', 'Aruba AP-515'], printer: ['ZH-PRN-2OG-01', 'HP LaserJet Pro M404'],
-  monitor: ['MON-0412', 'Dell P2422H'], sip: ['Phone 2OG-12', 'Yealink T54W'], pbx: ['ZH-PBX-01', 'Alcatel-Lucent OXO Connect'],
-  rack: ['ZH-RACK-01', 'APC NetShelter SX 42U'], patch: ['ZH-PP-2OG-01', 'Cat6A, 24 ports'], plc: ['Line 3 PLC', 'Siemens S7-1500'],
-  camera: ['CAM-Entrance', 'Hikvision DS-2CD2643G1'], bmc: ['ZH-SRV-01-ILO', 'HPE iLO 6'], storage: ['ZH-NAS-01', 'Synology RS1221+'],
-  modem: ['ZH-MODEM-01', 'Zyxel VMG8825'], android: ['Phone A. Muster', 'Samsung Galaxy S24'], ios: ['iPhone A. Muster', 'iPhone 15'], mobile: ['Scanner 3', 'Zebra TC52'],
+  pc: ['PC-0151', 'Mini desktop, 16 GB'], notebook: ['NB-0151', '14" notebook, Gen 5'], server: ['SRV-01', '2U rack server'],
+  vm: ['VM-APP01', 'Windows Server 2022'], switch: ['SW-2OG-01', '48-port PoE switch'], router: ['RT-01', 'Branch router'],
+  firewall: ['FW-01', 'Next-generation firewall'], accesspoint: ['AP-2OG-01', 'Wi-Fi 6 access point'], printer: ['PRN-2OG-01', 'A4 laser printer'],
+  monitor: ['MON-0412', '24" monitor'], sip: ['Phone 2OG-12', 'Desk phone with display'], pbx: ['PBX-01', 'IP phone system'],
+  rack: ['RACK-01', '42U server rack'], patch: ['PP-2OG-01', 'Cat6A, 24 ports'], plc: ['Line 3 PLC', 'Modular PLC'],
+  camera: ['CAM-Entrance', '4 MP dome camera'], bmc: ['SRV-01-BMC', 'Server management board'], storage: ['NAS-01', '8-bay rack NAS'],
+  modem: ['MODEM-01', 'Fibre modem'], android: ['Phone A. Muster', 'Android phone'], ios: ['iPhone A. Muster', 'iPhone'], mobile: ['Scanner 3', 'Handheld scanner'],
 };
 /* How a new object of a type is connected: a monitor is attached to a computer, a virtual machine runs on a server, a rack
    or patch panel is not plugged into anything; everything else is plugged into a switch, patch panel, phone or computer. */
@@ -62,19 +62,19 @@ export function newObjModal(pre={}){
   modal(html`<div class="mh">${c ? 'Duplicate ' + c.code : 'New device'}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => html`<option value="${k}">${v.label}</option>`)}</select>
-      <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">
+      <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. PC-0151">
       <label for="nLoc">Location</label><select id="nLoc"><option value="">No location</option>${LOCS.map(l => html`<option>${l}</option>`)}</select>
       ${!LOCS.length && html`<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>`}
       <label for="nStatus">Status</label><select id="nStatus">${Object.entries(STATUS).filter(([k]) => k !== 'retired').map(([k, v]) => html`<option value="${k}">${v.label}</option>`)}</select>
       <label for="nUnits" hidden>Height (U)</label><input id="nUnits" type="number" min="1" max="60" value="42" hidden>
     </div><details class="nmore" id="nMore" ${c || pre.sw ? 'open' : ''}><summary>More details <span class="muted">model, serial number, user, where it is plugged in</span></summary><div class="form" style="padding:0">
-      <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
+      <label for="nModel">Model</label><input id="nModel" placeholder="e.g. Mini desktop, 16 GB">
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
       <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => html`<option value="${u.id}">${u.name}</option>`)}</select>
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
       ${outletField('nOutlet')}
-    </div></details><p class="note">The device gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
+    </div></details><p class="note">The device gets its own code (INV-…). If a data source (Lansweeper, AD, Intune) later finds the same serial number, it updates this device instead of adding a second one.</p></div>
     <div class="mf"><button id="nCancel">Cancel</button><button id="nOk" class="primary">Create</button></div>`, 'sm');
   if (c){ $('#nType').value = c.type; $('#nName').value = c.name.replace(/\d+$/, m => String(+m + 1).padStart(m.length, '0')); $('#nModel').value = c.model; $('#nLoc').value = c.loc; }
   if (pre.name) $('#nName').value = pre.name;
@@ -128,7 +128,7 @@ export function newObjModal(pre={}){
   $('#nOk').onclick = () => {
     if ($('#nUp').value || $('#nPort').value) $('#nMore').open = true;
     const name = $('#nName').value.trim();
-    if (!name){ $('#nName').focus(); $('#nName').placeholder = 'A name is needed, e.g. ZH-PC-0151'; return; }
+    if (!name){ $('#nName').focus(); $('#nName').placeholder = 'A name is needed, e.g. PC-0151'; return; }
     const upId = $('#nUp').value;
     if (upId && !$('#nPort').hidden && $('#nPort').value.trim()){
       const t = byId(upId), pp = $('#nPort').value.trim();

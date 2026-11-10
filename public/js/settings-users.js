@@ -110,7 +110,7 @@ function groupRolesHtml(){
   if (!isAdmin()) return '';
   const rules = groupRules(), by = g => USERS.filter(u => u.roleBy === g).length;
   return html`<div class="panelbox" id="groupRoles"><div class="hdr">Viewers from groups <span class="cnt">${rules.length || 'none'}</span></div>
-    <p class="note">A person in one of these groups may sign in and look (as a viewer), limited to the sites of the first group that matches; checked at each directory sync and sign-in. AD groups by name or distinguished name; Entra groups by their object ID, which Microsoft sign-in sends when the app registration includes the groups claim. Admins come from the directory's admin group. Out of every group again: No access.</p>
+    <p class="note">A person in one of these groups may sign in and look (as a viewer), limited to the sites of the first group that matches; checked at each directory sync and sign-in. AD groups by name or distinguished name; Entra groups by their object ID, which Microsoft sign-in sends when the app registration includes the groups claim. Admins come from the directory's admin group. Taken out of all of these groups: back to No access.</p>
     ${rules.length ? html`<table class="grid mini stack"><thead><tr><th>Group</th><th>Sites</th><th>Viewers now</th><th><span class="sr-only">Change or remove</span></th></tr></thead><tbody>${rules.map((r, i) => html`<tr>
       <td class="mono">${r.group}</td><td>${(r.sites || []).length ? r.sites.join(', ') : html`<span class="muted">All</span>`}</td><td class="n">${by(r.group)}</td>
       <td data-label=""><div class="gr-acts"><button type="button" class="mini" data-gredit="${i}">Change…</button><button type="button" class="mini" data-grdel="${i}" aria-label="Remove the group ${r.group}">Remove</button></div></td></tr>`)}</tbody></table>` : ''}
@@ -122,7 +122,7 @@ function groupRuleModal(i){
   const rules = groupRules(), r = i === null ? { group: '', sites: [] } : rules[i];
   const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
   modal(html`<div class="mh">${i === null ? 'Add a group' : 'Change the group'}</div><div class="mb"><div class="form">
-      <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${r.group}" placeholder="IT-Bern, CN=IT-Bern,OU=… or an Entra group ID" list="grKnown">
+      <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${r.group}" placeholder="IT-Staff, CN=IT-Staff,OU=… or an Entra group ID" list="grKnown">
       <datalist id="grKnown">${[...new Set(USERS.flatMap(u => u.groups || []))].sort().map(g => html`<option value="${g}">`)}</datalist>
       <span class="lbl">Sites</span><div class="usees-sites">${sites.length ? sites.map(n => html`<label class="pchk" style="width:auto"><input type="checkbox" data-grsite="${n}" ${(r.sites || []).includes(n) ? 'checked' : ''}> ${n}</label>`) : html`<span class="muted">No sites yet: the rule gives all sites.</span>`}</div>
     </div><p class="note" id="grSitesNote">No site ticked: all sites. It takes effect at the next directory sync or sign-in of each person.</p></div>
@@ -192,7 +192,7 @@ export function renderSetUsers(){
   const kindTabs = USERS.some(noAccess) ? html`<div class="settabs setsub ukinds" role="group" aria-label="Show">${Object.entries(KINDS).map(([k, [l, f]]) => html`<button type="button" class="tab${st.userKind === k ? ' active' : ''}" data-ukind="${k}" aria-pressed="${String(st.userKind === k)}">${l} <span class="cnt">${USERS.filter(f).length}</span></button>`)}</div>` : '';
   const filterBar = html`<div class="addrel ufilters"><input id="uQ" type="search" placeholder="Search name, login, e-mail…" value="${st.userQ || ''}" aria-label="Search the users" autocomplete="off">
     ${sel('uSrc', 'Source', st.userSrc || '', [['', 'All sources'], ['ldap', 'LDAP'], ['entra', 'Entra'], ['lansweeper', 'Lansweeper'], ['manual', 'Manual']])}
-    ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and not'], ['active', 'Active'], ['inactive', 'Deactivated']])}
+    ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and deactivated'], ['active', 'Active'], ['inactive', 'Deactivated']])}
     ${sel('uRole', 'Role', st.userRole || '', [['', 'All roles'], ['admin', 'Admin'], ['viewer', 'Viewer'], ['none', 'No access']])}
     <label class="pchk" style="width:auto"><input type="checkbox" id="uDevs" ${st.userDevs ? 'checked' : ''}> With devices</label>
     <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? html`<button type="button" class="link" id="uClear">Clear</button>` : ''}<button type="button" class="link u-helpbtn" id="uHelp">Roles and columns</button></div>`;
@@ -200,9 +200,9 @@ export function renderSetUsers(){
       ${fromDirectory(u) ? html`<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${profileTip(u)}">${u.name}${profileLine(u)}</td>` : html`<td><input data-uname="${i}" maxlength="80" value="${u.name}" aria-label="Name of ${u.name}"></td>`}${u.login ? html`<td class="mono">${u.login}</td>` : html`<td class="muted" title="No login: this person cannot sign in to the app (Set password… or Give a login name… in ⋯)">No sign-in</td>`}
       ${fromDirectory(u) ? html`<td>${u.dept || ''}</td>` : html`<td><input data-udept="${i}" maxlength="80" value="${u.dept || ''}" placeholder="Department" aria-label="Department of ${u.name}"></td>`}<td>${(u.groups || []).join(', ')}</td>
       <td><span class="usrcs">${rawHtml(sourceChips(u))}</span></td>
-      <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
+      <td class="n"><button type="button" class="link" data-devs="${i}" aria-label="${`Devices of ${u.name}: ${devicesOfUser(u.name)}`}">${devicesOfUser(u.name)}</button></td>
       <td><div class="urole"><select data-role="${i}" aria-label="Role of ${u.name}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.roleBy ? html`<span class="chip kept ugrp" title="Given by the group ${u.roleBy} (Roles from groups below); the next sync gives it again while they are in it">group</span>` : ''}${u.role === 'viewer' || u.role === 'editor' || !u.role ? html`<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${seesText(u)}</button>` : ''}</div></td>
-      <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
+      <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="${`${u.name} active`}"></td>
       <td class="umenu-c">${rawHtml(menuHtml('⋯', html`
         ${SERVER.on && u.source !== 'ldap' ? (u.login ? html`<button data-pw="${i}" title="Set this user's password">Set password…</button>` : html`<button data-login="${i}" title="Give this user a login name">Give a login name…</button>`) : ''}
         ${SERVER.on ? html`<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet…</button>${devicesOfUser(u.name) ? html`<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${u.name} has, as a PDF to tick off when they are handed back">Hand-back list (PDF)</a>` : ''}` : ''}

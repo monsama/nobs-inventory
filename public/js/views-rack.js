@@ -16,10 +16,10 @@ export function rackNewModal(){
   const n = racksList().length + 1;
   modal(html`<div class="mh">New rack</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="rnName">Name</label><input id="rnName" class="mono" maxlength="80" placeholder="e.g. ZH-RACK-${String(n).padStart(2, '0')}">
+      <label for="rnName">Name</label><input id="rnName" class="mono" maxlength="80" placeholder="e.g. RACK-${String(n).padStart(2, '0')}">
       <label for="rnLoc">Room</label><select id="rnLoc">${LOCS.length ? LOCS.map(l => html`<option>${l}</option>`) : html`<option value="">No rooms yet</option>`}</select>
       <label for="rnUnits">Height</label><div class="ctlrow"><input id="rnUnits" type="number" min="1" max="60" value="42" style="flex:none;width:90px"><span class="unit">U</span></div>
-      <label for="rnModel">Model</label><input id="rnModel" maxlength="120" placeholder="Optional, e.g. APC NetShelter SX 42U">
+      <label for="rnModel">Model</label><input id="rnModel" maxlength="120" placeholder="Optional, e.g. 42U server rack">
       <label for="rnSerial">Serial number</label><input id="rnSerial" class="mono" maxlength="80" placeholder="Optional">
     </div><p class="note" id="rnErr">Devices are mounted in it from Racks with Mount device…, or by dropping them on the rack on a floor plan.</p></div>
     <div class="mf"><button id="rnCancel">Cancel</button><button id="rnOk" class="primary">Add rack</button></div>`, 'sm');
@@ -80,7 +80,7 @@ export function renderRack(){
     <div class="rack" style="grid-template-rows:repeat(${rackUnits(R_)},24px)">${cells}</div>
     <div class="rackside">
       <div class="panelbox"><div class="hdr">${R_.name}</div>
-        <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${R_.loc}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
+        <dl class="lsbox plain"><dt>Location</dt><dd>${R_.loc}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
         <div class="addrel" style="flex-direction:column;align-items:stretch">${mounted.length ? mounted.map(o => html`<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + byId(o.ontop).name : 'U' + o.u + (o.h>1 ? '-' + (o.u+o.h-1) : '')}  ${o.name}</span></button>`) : html`<span class="muted">No devices in this rack yet. Use Mount device… above.</span>`}</div>
       </div>
     </div></div>`;

@@ -21,6 +21,8 @@ export const SECRET_ATTR = /ms-?mcs-?admpwd|mslaps-|msfve-/i;
 export function ldapSettingsProblem(config) {
   const attr = String(config.loginAttr || '');
   if (attr && !/^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(attr)) return 'The login attribute is the name of one attribute, such as sAMAccountName.';
+  /* An attribute named by its number (OID) in the filter could be one of them under another name. */
+  if (/\(\s*!?\s*\d+(\.\d+)+\s*[~<>:]?=/.test(String(config.userFilter || ''))) return 'The user filter names an attribute by its number. Name attributes by name, such as department.';
   if (SECRET_ATTR.test(attr) || SECRET_ATTR.test(String(config.userFilter || '')) || SECRET_ATTR.test(String(config.computerBase || ''))) return 'The directory settings name a LAPS or BitLocker attribute. The inventory never reads those.';
   return '';
 }

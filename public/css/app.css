@@ -223,8 +223,9 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-bar #plSideBtn.on{background:var(--sub);color:var(--linktext);border-color:var(--bd);font-weight:600}
 /* The plan bar's Show: as wide as its text, so the bar stays on one line. */
 .pl-bar #plShow{width:auto;min-width:0;max-width:180px}
-/* One line on a wide screen: entering Draw area (its hint, Done, Discard) never wraps the bar or moves the plan. */
-@media (min-width:761px){.pl-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}.pl-bar>*{flex-shrink:0}.pl-bar>.muted:last-child,.pl-bar .pl-drawhint{flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+/* One line on a wide screen: entering Draw area (its hint, Done, Discard) never wraps the bar or moves the plan. When the
+   buttons do not fit, the plan list, the draw hint and the counts shorten first, so no button is cut off at the edge. */
+@media (min-width:761px){.pl-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}.pl-bar>*{flex-shrink:0}.pl-bar>.muted:last-child,.pl-bar .pl-drawhint{flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pl-bar>select{flex-shrink:1;min-width:110px}.pl-bar .grow{flex:1 1 0;min-width:0}}
 .pl-drawhint{font-size:12.5px}@media (min-width:761px){.pl-bar .pl-drawhint{min-width:140px;flex-shrink:1}}
 /* Panning: Space held shows the hand, dragging shows it closed. */
 .pl-stage.can-pan,.pl-stage.can-pan *{cursor:grab!important}
@@ -316,7 +317,7 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 
 /* top bar */
 #bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(var(--edge), env(safe-area-inset-right, 0px)) 6px max(var(--gutter), env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
-#brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin-right:6px}
+#brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin:0 6px 0 0;font-size:inherit;line-height:inherit}
 #toolbar:empty{display:none}   /* a view with its own bar leaves no empty band above it */
 #brand .logo{width:24px;height:24px;flex:none;display:block}
 #brand b{font-weight:800;letter-spacing:.2px}
@@ -430,7 +431,18 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:10px;padding:12px}
 .card .kv{flex:1;align-content:start}
 
-.card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.card:focus-visible,.card:has(.card-open:focus-visible){outline:2px solid var(--accent);outline-offset:1px}
+/* The name opens the device: it reads as the name, not as a button; the card around it shows the focus. */
+.card button.card-open{background:none;border:0;padding:0;margin:0;height:auto;min-height:0;color:inherit;cursor:pointer;display:block;max-width:100%;text-align:left;filter:none}
+.card button.card-open:focus-visible{outline:none}
+.card button.cardtick{padding:0;min-height:0;filter:none}
+.card .cardtick:focus-visible{opacity:1;outline:2px solid var(--accent);outline-offset:1px}
+/* On a phone the name and the tick are as large to tap as any control (36px), the tick's box drawn inside its area. */
+@media (max-width:760px){.card button.card-open{min-height:36px;margin:-9px 0}
+ .card button.cardtick{width:36px;height:36px;top:-2px;right:-2px;border:0;background:transparent}
+ .card button.cardtick::before{content:"";position:absolute;left:10px;top:10px;width:16px;height:16px;box-sizing:border-box;border:1.5px solid var(--bd);border-radius:4px;background:var(--bg)}
+ .card.picked button.cardtick{background:transparent}.card.picked button.cardtick::before{background:var(--accent);border-color:var(--accent)}
+ .card.picked button.cardtick::after{left:15.5px;top:12.5px}}
 .card .ch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2)}
 .card .ch>.chip{align-self:flex-start;margin-top:-1px}
 
@@ -1311,7 +1323,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--accentbtn)}
 input.bad{border-color:var(--danger);outline-color:var(--danger)}
 .timefield{width:72px;text-align:center}
 /* On a phone what is tapped often is at least 36px high: review buttons, filter chips, a source mark's hit area, contact links. */
-@media (max-width:760px){.fsrc::before{content:"";position:absolute;inset:-8px}.cn-way{display:inline-flex;align-items:center;min-height:36px}}
+@media (max-width:760px){.fsrc::before{content:"";position:absolute;inset:-8px}.cn-way{display:inline-flex;align-items:center;gap:4px;min-height:36px}}
 .filepick{display:flex;align-items:center;gap:8px;min-width:0}.filepick>.muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 input[type=file]::file-selector-button{font:inherit;height:var(--ctl);padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
 /* Leftover colour outside plans and the map: shades of the one accent instead. */
@@ -1329,7 +1341,7 @@ input[type=file]::file-selector-button{font:inherit;height:var(--ctl);padding:0 
 .port{width:28px;height:26px;border:1px solid var(--portbd);background:var(--port);font-family:var(--mono);font-size:10px;color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0;position:relative;border-radius:var(--r-s)}
 .port.sel{outline:2px solid var(--fg);outline-offset:1px;outline-color:var(--accent)}
 .sfp{gap:4px}
-.rack .unit{margin:1px 4px;border-radius:var(--r-s);border:1px solid var(--bd);border-left:5px solid var(--c,#888);padding:2px 8px;display:flex;flex-direction:column;justify-content:center;cursor:pointer;min-width:0;overflow:hidden;z-index:1;background:var(--panel2)}
+.rack .unit{margin:2px 4px;border-radius:var(--r-s);border:1px solid var(--bd);border-left:5px solid var(--c,#888);padding:2px 8px;display:flex;flex-direction:column;justify-content:center;cursor:pointer;min-width:0;overflow:hidden;z-index:1;background:var(--panel2)}
 
 .settabs{display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--bd);overflow-x:auto;flex:none;background:transparent}
 /* Status chips side by side are one width, the widest one's, so a row of them reads as a set. */
@@ -1669,6 +1681,10 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 /* Stocktake: progress, the scan field, the devices by room to tick; the summary on finishing. */
 .stk{display:flex;flex-direction:column;gap:12px;padding:12px var(--gutter)}   /* in #view, which has its own scrollbar: the toolbar's gutter */
 .stk-pad{padding-left:12px;padding-right:12px}
+/* Starting a check: a form as wide as the others, not the whole screen. */
+.stk-new{max-width:760px}
+/* A box of plain facts (a rack's place, height and count): one font for all its values. */
+.lsbox.plain dd{font-family:inherit}
 .stk .panelbox{margin:0}
 .stk-prog{display:flex;align-items:center;gap:12px;padding-top:12px}.stk-prog .ov-qbar{max-width:420px}
 .stk-scanrow{display:flex;gap:8px;padding-top:10px}.stk-scanrow input{flex:1;min-width:0;height:40px;font-size:15px}
@@ -1768,7 +1784,9 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 table.stack,table.stack>tbody,table.stack>tbody>tr,table.stack>tbody>tr>td{display:block}table.stack>tbody>tr{border:1px solid var(--bd2);border-radius:8px;margin:0 0 8px;padding:6px 10px}
 table.stack>tbody>tr>td{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;align-items:center;border:0!important;padding:3px 0!important;white-space:normal;overflow:visible}
 table.stack>tbody>tr>td::before{content:attr(data-label);color:var(--muted);font:12px system-ui,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:0}table.stack>tbody>tr>td[data-label=""]{grid-template-columns:minmax(0,1fr)}table.stack>tbody>tr>td[data-label=""]::before{display:none}
-table.stack>tbody>tr>th{display:block;border:0}}
+table.stack>tbody>tr>th{display:block;border:0}
+/* A number column right-aligned in the table reads as label then value, like the other rows, when stacked. */
+table.stack>tbody>tr>td.n{text-align:left}}
 body.noside #side,body.noside #sideBtn{display:none!important}
 @media (max-width:760px){table.stack>tbody>tr>td>input[type=checkbox],table.stack>tbody>tr>td>label>input[type=checkbox]{justify-self:start;width:auto;height:auto}table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.icon{justify-self:start}}
 
@@ -1863,8 +1881,10 @@ table.stack>tbody>tr>td{max-width:none}
 .ct-curl{margin-left:14px;padding-left:14px;border-left:1px solid var(--bd)}
 /* A row of a list in Settings → Users: every cell starts at the top, so a cell with a second line does not lift the rest. */
 #setUsers table.grid td{vertical-align:top}
+/* The shortcuts and colours lists: the whole text shows, and both tables line up on one first column. */
+table.grid.keys{width:100%;table-layout:fixed}table.grid.keys td{white-space:normal;max-width:none;vertical-align:top}table.grid.keys td:first-child{width:130px}
 /* A cell of plain text sits level with the fields beside it (28px), and the ⋯ menu button (24px) in their middle. */
-#setUsers table.grid td:not(:has(> *)){line-height:var(--ctl)}
+#setUsers table.grid td:not(:has(input, select, textarea)){line-height:var(--ctl)}
 #setUsers table.grid td .menu>.menu-btn{margin-top:2px}
 /* A contract on a device: its state wraps under the name rather than cutting the name short. */
 .relrow:has([data-contract]){flex-wrap:wrap}
@@ -1975,6 +1995,8 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .be-field{margin-bottom:10px}.be-field .note{margin:4px 0}.be-list{margin:4px 0 0;padding-left:18px;font-size:12px}.be-list li{margin:2px 0}
 @media (max-width:760px){.be-row{grid-template-columns:1fr 1fr}.be-row .be-v{grid-column:1/-1}}
 .xhide{margin-left:6px;min-height:0;height:20px;width:20px;padding:0;line-height:1;font-size:15px;flex:none}
+/* At the right end of the header, after the count, where a panel's other closing × sits. */
+.hdr>.xhide{order:99}
 
 /* "Attachments" and the like: when the first thing beside the label is a note, not a field, the label sits on its line. */
 .form label:has(+.entries .entries-box>.note:first-child){padding-top:1px}

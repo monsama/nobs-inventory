@@ -119,3 +119,14 @@ test('the server sets a logged change back, logs it, and refuses secrets, lists 
     assert.equal((await srv.call('POST', '/api/log/restore', { body: { at: e.at, setting: 'lifecycle', path: 'notebook.years' } })).status, 401);
   } finally { await srv.close(); }
 });
+
+test('a key that reaches the object prototype is never kept for a restore nor set back', () => {
+  const before = JSON.parse('{"name":"X","__proto__":{"polluted":"a"}}'), after = JSON.parse('{"name":"X","__proto__":{"polluted":"b"}}');
+  const changes = settingDiff(before, after);
+  assert.ok(!changes.some(c => /__proto__/.test(c.path)));
+  assert.equal(rawOf(['__proto__', 'polluted'], 'a', 'b'), null);
+  assert.equal(settingRestore('company', { path: '__proto__.polluted', raw: { keys: ['__proto__', 'polluted'], before: 'a', after: 'b' } }), null);
+  assert.equal(settingPatch({ name: 'X' }, { keys: ['__proto__', 'polluted'], value: 'a', unset: false }), undefined);
+  assert.equal(settingPatch({ name: 'X' }, { keys: ['constructor', 'prototype', 'polluted'], value: 'a', unset: false }), undefined);
+  assert.equal(/** @type {any} */ ({}).polluted, undefined);
+});

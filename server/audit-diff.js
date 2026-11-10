@@ -23,7 +23,7 @@ export function settingDiff(before, after, path = '', out = [], keys = []) {
   const last = path.split('.').pop();
   if (SECRET.test(last)) { out.push({ path, before: '(hidden)', after: '(hidden)' }); return out; }
   if ((isObj(before) || before == null) && (isObj(after) || after == null) && (isObj(before) || isObj(after))) {
-    for (const k of new Set([...Object.keys(before || {}), ...Object.keys(after || {})])) settingDiff((before || {})[k], (after || {})[k], path ? `${path}.${k}` : k, out, [...keys, k]);
+    for (const k of new Set([...Object.keys(before || {}), ...Object.keys(after || {})])) if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') settingDiff((before || {})[k], (after || {})[k], path ? `${path}.${k}` : k, out, [...keys, k]);
     return out;
   }
   if (Array.isArray(before) && Array.isArray(after)) {

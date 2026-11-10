@@ -131,7 +131,7 @@ export async function graphAll(token, url, fetchImpl = fetch, origin = GRAPH_ORI
 const DEFENDER_ORIGIN = 'https://api.securitycenter.microsoft.com';
 const DEFENDER_PERMISSION = 'Machine.Read.All (WindowsDefenderATP)';
 const AUTOPILOT_PERMISSION = 'DeviceManagementServiceConfig.Read.All';
-const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime,accountEnabled';
+const DEVICE_SELECT = 'id,deviceId,displayName,operatingSystem,trustType,isManaged,approximateLastSignInDateTime,accountEnabled';
 const MANAGED_BASE = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,freeStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName,imei,phoneNumber,managedDeviceOwnerType';
 /* Category, jailbroken and supervised: v1.0 has them. A tenant or API version that refuses one of them (Graph answers 400
    for a property it does not know) gets the list without them, so the sync never fails over an extra. Whether a device
@@ -171,7 +171,7 @@ export function toRecords(devices, managed) {
       join: JOIN[d.trustType] || clean(d.trustType), managed: managedBy(m.managementAgent), ...(d.accountEnabled === false ? { disabled: true } : {}),
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
-      owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean(graphOsName(m.operatingSystem, m.osVersion)),
+      owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean(graphOsName(m.operatingSystem, m.osVersion, d.operatingSystem)),
       platform: clean(m.operatingSystem), lastCheckIn: clean(m.lastSyncDateTime), lastSignIn: clean(d.approximateLastSignInDateTime),
       model: makerModel(m.manufacturer, m.model), mac: macOf(m.wiFiMacAddress) || macOf(m.ethernetMacAddress),
       ram: gb(m.physicalMemoryInBytes), disk: gb(m.totalStorageSpaceInBytes), free: gb(m.freeStorageSpaceInBytes),

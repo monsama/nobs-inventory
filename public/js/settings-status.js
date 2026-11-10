@@ -29,7 +29,7 @@ export const sourceOn = src => !switchedOn(src) ? false : src === 'ls' ? !!SYNC.
    planned here, so it is never late. */
 export function sourceState(src){
   if (!switchedOn(src)) return { cls: 'off', text: 'Off' };
-  if (!sourceOn(src)) return { cls: 'off', text: 'Not set up' };
+  if (!sourceOn(src)) return { cls: 'off', text: 'Not connected yet' };
   const r = runOf(RUN_KEY[src]);
   if (!r) return { cls: 'warn', text: 'Not run yet' };
   if (!r.ok) return { cls: 'bad', text: 'Last sync failed' };

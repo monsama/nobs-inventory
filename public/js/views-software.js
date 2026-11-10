@@ -16,7 +16,7 @@ export function softwarePanel(o){
     ${list.length ? html`<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th>${edit ? html`<th class="rm-cell"></th>` : ''}</tr></thead><tbody>
     ${list.map((p, i) => html`<tr><td><button type="button" class="link sw-go" data-swgo="${p.name}" title="Show every device ${p.name} is installed on">${p.name}</button></td><td class="mono">${p.version || ''}</td>${edit ? html`<td class="rm-cell"><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${p.name}">×</button></td>` : ''}</tr>`)}
     </tbody></table></div>` : html`<p class="note lempty">No software recorded yet: Lansweeper sends it, or add it below.</p>`}
-    <div class="addrel"><input id="swName" placeholder="Name, e.g. Google Chrome" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`);
+    <div class="addrel"><input id="swName" placeholder="Name, e.g. Web browser" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`);
 }
 /* Wires the Software panel of a device page: × removes a package, Add adds one by name and version. Each gets a
    history line. */

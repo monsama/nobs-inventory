@@ -55,12 +55,12 @@ try {
   assert.equal(await how('Operating system'), 'Lansweeper keeps it up to date at every scan; Entra & Intune keeps it up to date where Lansweeper has no value; AD keeps it up to date where Lansweeper and Entra & Intune have no value.');
   assert.equal(await chain('Description'), '1AD', 'only AD knows it');
   assert.deepEqual(await p.locator('.ds-grp').allTextContents(), ['Network', 'Hardware', 'System', 'Place and description', 'Purchase and warranty']);
-  assert.match(await p.textContent('.ds-srcs'), /Lansweeper\s*Not set up[\s\S]*Active Directory\s*Not set up[\s\S]*Entra & Intune\s*Not set up/);
+  assert.match(await p.textContent('.ds-srcs'), /Lansweeper\s*Not connected yet[\s\S]*Active Directory\s*Not connected yet[\s\S]*Entra & Intune\s*Not connected yet/);
   assert.match(await p.textContent('#setSources'), /LAPS passwords and BitLocker recovery keys are never read/);
   const stored = (check, ms = 8000) => storedBy(() => loadState(db), check, ms);
   // each source's page: the status header, its connection, and only its own fields
   await p.click('[data-dstab=directory]'); await p.waitForSelector('#srcFields .ds-matrix');
-  assert.match(await p.textContent('[data-srcstatus=ad]'), /Active Directory\s*Not set up[\s\S]*Set up below, then sync/);
+  assert.match(await p.textContent('[data-srcstatus=ad]'), /Active Directory\s*Not connected yet[\s\S]*Set up below, then sync/);
   assert.equal(await p.locator('[data-srcstatus=ad] .dot.off').count(), 1, 'a source not set up has the grey ring');
   assert.equal(await p.locator('#srcFields .ds-matrix tbody tr:not(.ds-grp)').count(), Object.keys(AD_FILL).length);
   assert.equal(await p.isDisabled('[data-srchist=ad]'), true, 'no history yet');
