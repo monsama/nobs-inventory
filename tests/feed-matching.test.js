@@ -63,3 +63,17 @@ test('a field sent as an object or list is left empty', () => {
   const [r] = recordsFromJson([{ name: { a: 1 }, serial: ['x'], ip: '10.0.0.1' }]);
   assert.deepEqual([r.name, r.serial, r.ip], ['', '', '10.0.0.1']);
 });
+
+test('a gateway outside the network of the device\'s address is left out, and one stored that way is cleared', () => {
+  const s = base([dev('a', 'PC-A', { ip: '172.21.103.40', gateway: '192.168.179.1', src: { gateway: 'ls' } })]);
+  s.subnets = [{ name: 'Office', cidr: '172.21.103.0/24', gateway: '172.21.103.2', dns: [], ranges: [], types: [] }];
+  s.policy.gateway = true;
+  push(s, [{ name: 'PC-A', ref: 'xa', ip: '172.21.103.40', gateway: '192.168.179.1' }]);
+  assert.equal(s.objs[0].gateway, undefined, 'the device takes its subnet\'s gateway');
+  /* by its own mask, without a listed subnet; one inside the network is kept */
+  const t = base([dev('b', 'PC-B', {})]); t.policy.gateway = true;
+  push(t, [{ name: 'PC-B', ref: 'xb', ip: '10.1.2.3', mask: '255.255.255.0', gateway: '10.9.9.1' }]);
+  assert.equal(t.objs[0].gateway, undefined);
+  push(t, [{ name: 'PC-B', ref: 'xb', ip: '10.1.2.3', mask: '255.255.255.0', gateway: '10.1.2.1' }]);
+  assert.equal(t.objs[0].gateway, '10.1.2.1');
+});

@@ -316,8 +316,8 @@ export function renderObj(o){
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
         <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.r.kind === 'connected' && outletOf(byId(x.r.to), x.r.port) ? html`<span class="chip" title="${outletLabel({...outletOf(byId(x.r.to), x.r.port), panel: byId(x.r.to), port: x.r.port})}">Outlet ${outletOf(byId(x.r.to), x.r.port).name}</span>` : ''}${x.r.lag == null && PORT_KINDS.includes(x.r.kind) && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`<input class="rport" data-rport="${x.r.id}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}" style="width:80px"><span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">${isAdmin() ? 'No relations yet. Add one below.' : 'No relations.'}</p>`}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
-          <select id="arTo" aria-label="Target" style="flex:1"></select>
-          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => html`<option value="${v.vid}">${v.vid} · ${v.name}</option>`)}</select><button id="arAdd">Add</button></div>${edit && anyOutlets() ? html`<div class="addrel" id="arOutletRow"><label class="muted" for="arOutlet">Or a wall outlet</label>${rawHtml(comboHtml('<input id="arOutlet" data-combo="outlet" placeholder="Outlet name, room or panel" style="flex:1">', 'arOutlet'))}</div>` : ''}<p class="note" id="arHint" role="status"></p>
+          <select id="arTo" aria-label="Target" style="flex:1 1 120px"></select>
+          ${rawHtml(comboHtml('<input id="arPort" class="mono" data-combo="port" data-port-of="arTo" placeholder="Port" aria-label="Port: type one, or pick a free port">', 'arPort').replace('<div class="combo">', '<div class="combo arport">'))}<select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => html`<option value="${v.vid}">${v.vid} · ${v.name}</option>`)}</select><button id="arAdd">Add</button></div>${edit && anyOutlets() ? html`<div class="addrel" id="arOutletRow"><label class="muted" for="arOutlet">Or a wall outlet</label>${rawHtml(comboHtml('<input id="arOutlet" data-combo="outlet" placeholder="Outlet name, room or panel" style="flex:1">', 'arOutlet'))}</div>` : ''}<p class="note" id="arHint" role="status"></p>
       </div>
       <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? html` <span class="cnt">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : html` <span class="cnt">none</span>`}</summary>
         ${chain.length > 1 ? netPath : html`<div class="chain"><span class="muted">This device does not hang off anything.</span></div>`}
@@ -393,7 +393,7 @@ export function renderObj(o){
     $('#arTo').innerHTML = html`<option value="">Choose a device…</option>${targets.filter(t => !kindProblem(k, o, t)).map(t => html`<option value="${t.id}">${t.name} (${TYPES[t.type].short})</option>`)}`;
     /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
-    $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
+    $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel. The arrow lists the free ports.' : '';
   };
   /* Only the kinds that fit this device (relations.js): a printer is not offered "runs on", a VM not "connected to". */
   const kinds = Object.entries(KINDS).filter(([k]) => k !== 'patched' && targets.some(t => !kindProblem(k, o, t)));
@@ -429,7 +429,7 @@ export function renderObj(o){
     $('#arFromLag').innerHTML = html`${own.map(g => html`<option value="${g.name}">${g.name} · ${size(g)}</option>`)}`;
     $('#arLag').hidden = !lags.length;
     const usingLag = lags.length > 0 && !!$('#arLag').value;
-    $('#arFromLag').hidden = !usingLag; $('#arPort').hidden = usingLag;
+    $('#arFromLag').hidden = !usingLag; /** @type {HTMLElement} */ ($('#arPort').closest('.combo')).hidden = usingLag;
     if (usingLag && !own.length) $('#arHint').textContent = 'This device has no LAG yet. Define one in its Ports view first.';
   };
   $('#arLag').onchange = () => { lagRow(); portHint(); };
@@ -779,6 +779,9 @@ export function renderObj(o){
   const sb = $('#sheetBtn'); if (sb) sb.onclick = () => { const u = personById(o.uid); if (u) sheetModal(u, null, { only: o.id }); };
   const ap = $('#addPortsBtn');
   if (ap) ap.onclick = () => { st.addPorts = o.id; render(); const f = $('#view').querySelector('[data-k="ports"]'); if (f){ f.focus(); f.select(); } };
+  /* A gateway that is not its subnet's: Use clears it, so the device takes the subnet's gateway. Kept by hand from then on. */
+  const gw = /** @type {HTMLInputElement|null} */ ($('#view').querySelector('input[data-k="gateway"]')), gwFix = $('#view').querySelector('.gwfix');
+  if (gwFix) { if (!gw || gw.disabled || gw.readOnly) gwFix.remove(); else /** @type {HTMLElement} */ (gwFix).onclick = () => { gw.value = ''; saveObj(true); }; }
   const del = $('#delBtn'); if (del) del.onclick = () => retireModal(o);
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
   /* Excluded objects are not changed by a Lansweeper sync. The relations option also excludes the objects o is related to. */

@@ -350,6 +350,8 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 #main{flex:1;display:flex;min-height:0;position:relative}
 #side{width:250px;flex:0 0 auto;display:flex;flex-direction:column;background:var(--bg);border-right:1px solid var(--bd);overflow:auto}
 .hdr button{height:24px;font-size:11px;padding:0 6px;text-transform:none;letter-spacing:0}
+/* A header's button keeps its own small size in every browser: never stretched to the header's height. */
+#side>.hdr>#clearF{flex:none;align-self:center;height:24px;min-height:0;max-height:24px;line-height:22px;margin:0;box-sizing:border-box}
 #side>.hdr:first-child{height:38px}
 .item{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
 .item:hover{background:var(--hover);filter:none}
@@ -873,6 +875,10 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 .rack .uno{font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;height:24px;border-bottom:1px solid var(--bd2);box-sizing:border-box}
 .rack .slot{height:24px;border-bottom:1px solid var(--bd2);background:repeating-linear-gradient(90deg,transparent 0 22px,var(--bd2) 22px 23px);opacity:.6;box-sizing:border-box}
 .rack .unit:hover{border-color:var(--accent)}
+.rack .unit.movable{cursor:grab;user-select:none}.rack .unit.movable:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.rack .unit.dragging{cursor:grabbing;position:relative;z-index:2;box-shadow:0 4px 14px rgba(0,0,0,.25);border-color:var(--accent)}
+.rack .unit.dragging.bad{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 14%,var(--bg))}
+.rack.drag-on{cursor:grabbing}
 .rack .unit.one{flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;padding:0 8px}
 .rack .unit.one .sub{font-size:11px;flex:none}
 .rack .unit .nm{font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -993,6 +999,7 @@ a.link{cursor:pointer;text-decoration:none}
 a.link:hover{text-decoration:underline}
 .addrel{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) var(--r-m)}
 .addrel select,.addrel input{min-width:0}
+.addrel .combo.arport{width:110px;flex:none}.addrel .combo.arport .combo-list{right:auto;min-width:200px}
 .path{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:12px}
 .chain{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:12px}
 .hop{display:flex;align-items:center;gap:6px;padding-left:12px;font-size:12px;color:var(--muted);line-height:1.4}
@@ -1561,7 +1568,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-w{color:var(--ok);font-weight:700}.ds-f{color:var(--accent);font-weight:600}.ds-s{color:var(--muted)}.ds-n{color:var(--muted);opacity:.4}
 
 /* Settings → Locations → From Active Directory: an AD location text, its devices, and the room it is used as. */
-#adLocs{margin-top:12px}
+#adLocs{margin-top:0}
 .lrow.adloc{grid-template-columns:minmax(0,1fr) 170px 70px minmax(0,1.2fr)}
 .adloc-tags{display:flex;flex-wrap:wrap;gap:4px}.adloc-src{font-weight:500}
 .adloc-to{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1880,7 +1887,7 @@ details.how[open]>summary{margin-bottom:4px}
 .ov-stats>summary{cursor:pointer;padding:8px 2px;font-weight:600;color:var(--fg)}
 .ov-stats>summary .muted{font-weight:400;margin-left:6px;font-size:12.5px}
 .ov-stats[open]>summary{margin-bottom:10px}
-.more-filters>summary{cursor:pointer;padding:10px 16px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--bd)}
+.more-filters>summary{cursor:pointer;padding:10px 12px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .more-filters>summary .muted{text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px;color:var(--linktext)}
 .xadd{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px;padding:10px 12px;border:1px dashed var(--bd);border-radius:var(--r-m)}
 .xadd>.muted{margin-right:4px}

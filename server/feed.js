@@ -10,6 +10,7 @@ import { KNOWN_TYPES, intakeOf } from './state.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
+import { gatewayFits } from '../public/js/net.js';
 import { loginCore, mergeSamePeople } from '../public/js/people-match.js';
 import { lsWrites, mappedRoom, markSource, noteValue, pickOf, priceOf } from './fill.js';
 import { parseCsv } from '../public/js/csv.js';
@@ -301,6 +302,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     for (const k of ['ip', 'ip6', 'mac']) { const c = checkAddress(k, r[k]); r[k] = c.ok ? c.value : ''; }
     const ip = v => { const c = checkAddress('ip', v); return c.ok ? c.value : ''; };
     r.gateway = ip(r.gateway);
+    /* A gateway outside the network of the device's address is another adapter's (a VPN, a second network): left out,
+       so the device takes its subnet's gateway, and one stored that way before is cleared (gwOff). */
+    if (r.gateway && !gatewayFits(r.ip, r.gateway, r.mask, s.subnets)) { r.gateway = ''; r.gwOff = true; }
     r.mask = prefixOf(r.mask) === null ? '' : r.mask;
     r.dns = String(r.dns || '').split(/[,;\s]+/).map(ip).filter(Boolean).slice(0, 4).join(', ');
     r.dhcp = /^(1|true|yes|dhcp)$/i.test(r.dhcp || '') ? 'dhcp' : /^(0|false|no|static)$/i.test(r.dhcp || '') ? 'static' : '';
@@ -455,6 +459,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       const incoming = r[k];
       /* What Lansweeper says of each field, as of its last scan, beside the field (o.vals), to pick from on the page. */
       noteValue(found, k, 'ls', incoming, r.scanned || seen);
+      if (k === 'gateway' && r.gwOff && found.gateway && (found.src || {}).gateway === 'ls' && lsWrites(s, found, k)) {
+        ((s.history ??= {})[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: gateway ${found.gateway} cleared, it is not on the network of ${r.ip}` });
+        delete found.gateway; delete found.src.gateway; changed = true;
+      }
       if (!incoming) continue;
       /* A source a person picked for the field decides it: Lansweeper writes it only when it is the one picked. */
       const owns = lsWrites(s, found, k);
