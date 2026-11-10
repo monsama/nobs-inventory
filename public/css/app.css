@@ -2020,3 +2020,8 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 /* A device's fields all in one font and size, the technical ones (name, serial, addresses) too: the page reads as one
    form. The code font stays for codes shown as text (INV-0001, ports). */
 .form.props :is(input,select,textarea),.form.props .ro{font-family:inherit;font-size:13px;font-weight:400}
+/* A device's package name opens it in Software; the row it opens on is marked a moment. */
+.sw-go{color:var(--fg)}.sw-go:hover{color:var(--linktext)}
+.sw-row.flash>td{animation:sw-flash 1.6s ease-out}
+@keyframes sw-flash{from{background:color-mix(in srgb,var(--accent) 28%,transparent)}to{background:transparent}}
+@media (prefers-reduced-motion:reduce){.sw-row.flash>td{animation:none}}

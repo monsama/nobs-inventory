@@ -14,13 +14,18 @@ export function softwarePanel(o){
   const list = o.software || [], edit = isAdmin();
   return String(html`<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length ? list.length + ' installed' : 'none'}</span></div>
     ${list.length ? html`<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th>${edit ? html`<th class="rm-cell"></th>` : ''}</tr></thead><tbody>
-    ${list.map((p, i) => html`<tr><td>${p.name}</td><td class="mono">${p.version || ''}</td>${edit ? html`<td class="rm-cell"><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${p.name}">×</button></td>` : ''}</tr>`)}
+    ${list.map((p, i) => html`<tr><td><button type="button" class="link sw-go" data-swgo="${p.name}" title="Show every device ${p.name} is installed on">${p.name}</button></td><td class="mono">${p.version || ''}</td>${edit ? html`<td class="rm-cell"><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${p.name}">×</button></td>` : ''}</tr>`)}
     </tbody></table></div>` : html`<p class="note lempty">No software recorded yet: Lansweeper sends it, or add it below.</p>`}
     <div class="addrel"><input id="swName" placeholder="Name, e.g. Google Chrome" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`);
 }
 /* Wires the Software panel of a device page: × removes a package, Add adds one by name and version. Each gets a
    history line. */
 export function bindSoftware(o){
+  /* A package's name opens Software with that package unfolded: every device it is installed on, with its version. */
+  $('#view').querySelectorAll('[data-swgo]').forEach(b => b.onclick = () => {
+    const name = /** @type {HTMLElement} */ (b).dataset.swgo;
+    st.swOpen = [...new Set([...(st.swOpen || []), name])]; st.swFocus = name; st.tab = 'sw'; render(false);
+  });
   $('#view').querySelectorAll('[data-swdel]').forEach(b => b.onclick = () => {
     const p = o.software.splice(+b.dataset.swdel, 1)[0]; hist(o, now(), 'Software removed: ' + p.name); render();
   });
@@ -89,6 +94,11 @@ export function renderSoftware(){
         <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
     })}` : html`<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${st.q}”.</td></tr>`;
     $('#swCollapse').hidden = !st.swOpen.length;
+    /* Opened from a device's package: that package in sight, marked a moment. */
+    if (st.swFocus){
+      const row = /** @type {HTMLElement|null} */ ($('#swBody').querySelector(`[data-sw="${CSS.escape(st.swFocus)}"]`)); delete st.swFocus;
+      if (row){ row.scrollIntoView({ block: 'center' }); row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 1600); }
+    }
   };
   body();
   /* Opening and closing changes only that package's rows, so the list keeps its scroll position. */
