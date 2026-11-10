@@ -81,6 +81,9 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     /* A model can be typed or picked from the models already on the devices, in the app's own list (a browser's suggestion
        list cannot be styled like the other dropdowns). A new one typed here is offered to the others once saved. */
     if (k === 'model') ctl = comboHtml(ctl.replace('<input ', `<input placeholder="Type or pick a model" aria-describedby="${id}_note" `), id);
+    /* Supplier, operating system and storage protocol: typed, or picked from what the other devices already say, so one
+       supplier is not written three ways. */
+    if (PICK_FROM_SEEN[k]) ctl = comboHtml(ctl.replace('<input ', `<input placeholder="${k === 'os' && FIRMWARE_OS.includes(o.type) ? 'Type or pick a firmware' : PICK_FROM_SEEN[k]}" `), id);
     /* The address can be typed or picked from the free ones of the device's subnet. */
     if (k === 'ip') ctl = comboHtml(ctl.replace('<input ', `<input data-combo="ip" placeholder="Type or pick a free address" aria-describedby="${id}_note" `), id);
   }
@@ -115,7 +118,8 @@ export const comboHtml = (input, id) => `<div class="combo">${input.replace('<in
 /* One set of handlers for every combo on the page. Typing filters the list; arrows move, Enter picks, Escape closes.
    Picking fills the field; it is saved like a typed value, when the field is left. */
 export const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames(), ip: (input, all) => ipChoices(input, all),
-  port: input => { const t = byId(($('#' + input.dataset.portOf) || {}).value); return t ? freePorts(t) : []; },
+  /* The device whose ports are offered: named in data-port-to (a relation's port box), or picked in the select data-port-of names. */
+  port: input => { const t = byId(input.dataset.portTo || ($('#' + input.dataset.portOf) || {}).value); return t ? freePorts(t) : []; },
   /* A wall outlet to plug a device into, by its name, room or panel (24-patch.js). */
   outlet: (input, all) => outletChoices(input, all) };
 /* The ports of a switch (1/1, 1/2 …) or patch panel (P01 …) that nothing is plugged into and that are not part of a LAG,
@@ -127,6 +131,14 @@ export function freePorts(t){
   return Array.from({length: (t.ports || 0) + (t.sfp || 0)}, (_, i) => i + 1).filter(n => !taken.has(String(n)) && !lagOfPort(t, n))
     .map(n => ({v: String(n), label: portLabel(t, n) + (n > (t.ports || 0) ? ' (SFP)' : '')}));
 }
+/* Text fields whose list is what the devices already have (with a few common ones for the protocol), and their placeholder. */
+const FIRMWARE_OS = ['switch', 'router', 'firewall'];
+const PICK_FROM_SEEN = { supplier: 'Type or pick a supplier', os: 'Type or pick a system', proto: 'Type or pick, e.g. iSCSI' };
+const seenValues = (k, common = []) => [...new Set([...objs.map(x => typeof x[k] === 'string' ? x[k].trim() : '').filter(Boolean), ...common])].sort((a, b) => a.localeCompare(b));
+/* The supplier's list is in 09-costs.js: contacts, contracts and devices. */
+/* The systems of devices of the same type: a printer is not offered Windows 11, a switch its firmware. */
+COMBO_SOURCES.os = input => { const o = byId(input.id.replace(/^f_/, '').replace(/_os$/, '')); return [...new Set(objs.filter(x => !o || x.type === o.type).map(x => typeof x.os === 'string' ? x.os.trim() : '').filter(Boolean))].sort((a, b) => a.localeCompare(b)); };
+COMBO_SOURCES.proto = () => seenValues('proto', ['iSCSI', 'NFS', 'SMB', 'Fibre Channel', 'NVMe/TCP', 'S3']);
 /* Sources that read what was typed themselves; the others are filtered by it here. */
 const SELF_FILTERED = ['ip', 'outlet'];
 const comboOf = el => el && el.closest && el.closest('.combo');
