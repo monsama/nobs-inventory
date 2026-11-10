@@ -1,5 +1,6 @@
 /* The device lists: the sidebar, the filter bar, the tabs and the empty states. Cards, Table, bulk actions, CSV, the map and
    the ports are in views-*.js, re-exported at the end. */
+import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
 import { SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
