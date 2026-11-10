@@ -75,3 +75,14 @@ export const overlapProblem = list => {
   }
   return null;
 };
+/* Whether gw can be the gateway of the address ip: inside the address's own network, by its mask (255.255.255.0) when
+   it has one, else by the listed subnet the address is in. A gateway is always on the network of its address; one
+   outside it belongs to another adapter (a VPN, a second network). Not knowing either way counts as fitting. */
+export const gatewayFits = (ip, gw, mask, subnets = []) => {
+  const a = ipInt(ip), g = ipInt(gw);
+  if (a === null || g === null) return true;
+  const bits = ipInt(mask) === null ? '' : ipInt(mask).toString(2).padStart(32, '0'), p = bits.indexOf('0');
+  if (/^1+0+$/.test(bits) && p >= 8 && p <= 30){ const size = 2 ** (32 - p); return Math.floor(a / size) === Math.floor(g / size); }
+  const sp = (subnets || []).map(subnetSpan).find(s => s && a >= s.first && a <= s.last);
+  return !sp || (g >= sp.first && g <= sp.last);
+};

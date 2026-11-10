@@ -391,7 +391,8 @@ export function fieldNote(o, k){
   let t = '', cls = 'warn';
   if (k === 'gateway' && o.gateway){
     const sn = subnetFor(o);
-    if (sn && sn.gateway && sn.gateway !== o.gateway) t = `Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`;
+    /* Use: the field is cleared, so the device takes its subnet's gateway (and follows it when the subnet's changes). */
+    if (sn && sn.gateway && sn.gateway !== o.gateway) return `<span></span><p class="fieldnote warn">${esc(`Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`)} <button type="button" class="link gwfix">Use ${esc(sn.gateway)}</button></p>`;
   }
   if (k === 'loc' && o.status !== 'retired' && !o.review) return verifiedNote(o);
   if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') t = 'The warranty has ended.'; else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
