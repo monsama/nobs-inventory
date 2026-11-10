@@ -1770,8 +1770,6 @@ table.stack>tbody>tr>td{display:grid;grid-template-columns:110px minmax(0,1fr);g
 table.stack>tbody>tr>td::before{content:attr(data-label);color:var(--muted);font:12px system-ui,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:0}table.stack>tbody>tr>td[data-label=""]{grid-template-columns:minmax(0,1fr)}table.stack>tbody>tr>td[data-label=""]::before{display:none}
 table.stack>tbody>tr>th{display:block;border:0}}
 body.noside #side,body.noside #sideBtn{display:none!important}
-/* The tabs stay where they are when a view without the sidebar is opened: the bar keeps the sidebar's width before them. */
-@media (min-width:761px){body.noside #tabsbar{padding-left:calc(250px + 6px)}}
 @media (max-width:760px){table.stack>tbody>tr>td>input[type=checkbox],table.stack>tbody>tr>td>label>input[type=checkbox]{justify-self:start;width:auto;height:auto}table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.icon{justify-self:start}}
 
 /* GUI check: entry sheet on a phone, stocktake scan row and width, review card buttons, person bar and cards on a phone. */
