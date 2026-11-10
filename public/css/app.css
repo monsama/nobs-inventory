@@ -8,6 +8,11 @@
 :root{color-scheme:light dark;
 /* The one space between the window edge and what lines up along it (top bar, tab bar, toolbar, views, status bar). */
 --gutter:12px;
+/* One height for every control (field, select, button, tab) and one for every bar and section header, so things line
+   up across the app; a bar's 4px padding around a control makes the bar's height. */
+--ctl:26px;--bar:34px;
+/* The space between panels, and between rows of a form. */
+--gap:10px;--rowgap:4px;
 /* The width of a scrollbar in the views and dialogs (07-render.js measures it), so bars above and below end where the
    content beside the scrollbar ends. */
 --sbw:0px;--edge:calc(var(--gutter) + var(--sbw));
@@ -40,7 +45,7 @@ input::placeholder,textarea::placeholder{font-family:system-ui,"Segoe UI",Roboto
 body{display:flex;flex-direction:column;overflow:hidden}
 button,input,select,textarea{font-family:inherit;font-size:inherit}
 input[type=file]{max-width:100%;min-width:0;font-size:12px}
-input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;height:28px;font-size:13px}
+input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;height:var(--ctl);font-size:13px}
 /* A select draws its text a few pixels in from an input's, so its left padding is less, and the text lines up. */
 /* Every dropdown looks like the combo fields (Model): the same chevron in the same place, text where an input's is.
    Where the browser lets the list be styled (Chrome and Edge 135+), the open list is the combo's list too;
@@ -85,7 +90,7 @@ textarea{height:auto;resize:vertical}
 input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
 /* Two control heights in the whole app: 28px for buttons, fields, dropdowns and tabs; 24px (compact) only for actions
    inside rows, lists and panel headers. */
-button{padding:0 9px;height:28px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+button{padding:0 9px;height:var(--ctl);border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
 button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)}
 button:disabled{opacity:.45;cursor:not-allowed}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -97,7 +102,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .locpanel{min-width:0}
 table.locs{width:100%;table-layout:fixed}
 table.locs th,table.locs td{padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
-table.locs td input{width:100%;height:28px;min-width:0;box-sizing:border-box}
+table.locs td input{width:100%;height:var(--ctl);min-width:0;box-sizing:border-box}
 table.locs td.n,table.locs th.n{text-align:right;color:var(--muted)}
 table.locs td.act{width:1%}
 table.locs td.site{color:var(--muted)}
@@ -165,7 +170,7 @@ label.fm-hid::after{content:" · hidden";font-size:11px}
 
 /* The floor plan fills the view down to the status bar, like the relationship map. */
 .plans{display:flex;flex-direction:column;min-height:0;position:absolute;inset:0}
-.pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px var(--edge) 4px var(--gutter);min-height:38px;box-sizing:border-box;border-bottom:1px solid var(--bd2)}   /* as tall as the other views' toolbars */
+.pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px var(--edge) 4px var(--gutter);min-height:var(--bar);box-sizing:border-box;border-bottom:1px solid var(--bd2)}   /* as tall as the other views' toolbars */
 .pl-bar select{min-width:200px}
 .pl-bar button.on{background:var(--accent);color:var(--accentfg);border-color:var(--accent)}
 .pl-sep{width:1px;height:22px;background:var(--bd2);margin:0 4px}
@@ -178,9 +183,9 @@ label.fm-hid::after{content:" · hidden";font-size:11px}
 .pl-side{border-right:1px solid var(--bd2);display:flex;flex-direction:column;min-height:0}
 .pl-shead{padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--bd2)}
 .pl-q{padding:8px 10px}
-.pl-q>input{width:100%;height:28px;box-sizing:border-box}
+.pl-q>input{width:100%;height:var(--ctl);box-sizing:border-box}
 .pl-filters{display:flex;gap:6px;margin-top:6px}
-.pl-filters select{flex:1 1 0;min-width:0;height:28px}
+.pl-filters select{flex:1 1 0;min-width:0;height:var(--ctl)}
 .pl-list{overflow:auto;flex:1;min-height:0}
 .pl-item{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 12px;border:0;border-radius:0;background:transparent;box-shadow:none;justify-content:flex-start}
 .pl-item:hover{background:var(--hover)}
@@ -239,7 +244,7 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-preview{position:absolute;border:2px solid var(--accent);background:rgba(37,99,235,.18);pointer-events:none;z-index:1}
 .pl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;color:var(--muted);text-align:center;padding:24px}
 @media (max-width:760px){.pl-stage{order:-1}.pl-area-tag{font-size:10.5px;padding:1px 5px;max-width:45%}.pl-area-tag .pl-x{display:none}.plans{position:static}.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:200px}.pl-stage{min-height:260px;padding:10px}.pl-bar{padding:8px 10px;gap:6px}.pl-bar select{min-width:0;flex:1 1 100%}.pl-bar .grow{display:none}.pl-zoom{margin-left:auto}.pl-sep{display:none}.pl-pin{font-size:11px;max-width:140px}.pl-empty{min-height:240px}}
-.btnlike{display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;white-space:nowrap}
+.btnlike{display:inline-flex;align-items:center;height:var(--ctl);padding:0 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;white-space:nowrap}
 .btnlike:hover{filter:brightness(1.08)}
 .btnlike:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 a.btnlike{text-decoration:none;gap:6px}
@@ -258,7 +263,7 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrow.mdl{grid-template-columns:minmax(0,1fr) 100px 80px}
 .mdl-from{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;margin-top:-2px}
 .mdl-map{gap:2px;padding-right:2px}.mdl-map .icon{height:18px;min-height:0;width:18px;padding:0;line-height:1}
-.lrow input{width:100%;min-width:0;height:28px;box-sizing:border-box}
+.lrow input{width:100%;min-width:0;height:var(--ctl);box-sizing:border-box}
 .lrow .n{text-align:right;font-variant-numeric:tabular-nums}
 .lrow .site{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow button{width:100%;white-space:nowrap}
@@ -267,8 +272,8 @@ button[data-td]{min-width:92px}
 .lrow.head .n{text-align:right}
 .lempty{padding:14px 12px;margin:0;color:var(--muted)}
 .lpanel-add{display:flex;gap:8px;align-items:center;padding:12px;border-top:1px solid var(--bd2)}
-.lpanel-add input{flex:1;min-width:0;height:28px;box-sizing:border-box}
-.lpanel-add select{flex:0 0 160px;height:28px;min-width:0}
+.lpanel-add input{flex:1;min-width:0;height:var(--ctl);box-sizing:border-box}
+.lpanel-add select{flex:0 0 160px;height:var(--ctl);min-width:0}
 .lnote{margin:0;padding:0 12px 12px}
 .ctlrow .pchk{width:112px;flex:none;white-space:nowrap}
 /* "+ 8 more types": a quiet line under the list, like a link. */
@@ -288,7 +293,7 @@ table.types td:last-child,table.types th:last-child{padding-right:12px}
 .tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
 .tabmenu button:hover:not(:disabled){background:var(--hover)}
 .icondd{position:relative;display:inline-block;min-width:200px;max-width:100%}
-.icondd-btn,.icondd-item{display:flex;align-items:center;gap:8px;height:28px;padding:0 9px;justify-content:flex-start;font-weight:400}
+.icondd-btn,.icondd-item{display:flex;align-items:center;gap:8px;height:var(--ctl);padding:0 9px;justify-content:flex-start;font-weight:400}
 .icondd-btn svg,.icondd-item svg{width:18px;height:18px;flex:none}
 .icondd-btn span:nth-of-type(1){flex:1;text-align:left}
 /* The same chevron as every dropdown, in the same place (7px from the right edge). */
@@ -303,7 +308,7 @@ table.types td:last-child,table.types th:last-child{padding-right:12px}
 
 button.primary{background:var(--accentbtn);color:var(--accentfg);border-color:var(--accentbtn);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)}
 button.ghost{background:transparent;border-color:transparent}
-button.icon,a.btnlike.icon{width:28px;padding:0;justify-content:center}
+button.icon,a.btnlike.icon{width:var(--ctl);padding:0;justify-content:center}
 svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .mono{font-family:var(--mono)}
 .muted{color:var(--muted)}
@@ -338,7 +343,7 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .grow{flex:1}
 /* The source of a user (LDAP, Lansweeper, Manual): one width, so the column lines up. */
 /* As tall as the fields beside it (department, role), so a row lines up; LDAP and Entra share the one chip. */
-table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-width:120px;height:28px;padding:0 8px;gap:10px;justify-content:flex-start;box-sizing:border-box;font-size:12px;border-radius:var(--r-s);overflow:hidden}
+table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-width:120px;height:var(--ctl);padding:0 8px;gap:10px;justify-content:flex-start;box-sizing:border-box;font-size:12px;border-radius:var(--r-s);overflow:hidden}
 .usrc-part{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .usrc-part.warn{color:var(--warntext)}
 
@@ -352,8 +357,8 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .hdr button{height:24px;font-size:11px;padding:0 6px;text-transform:none;letter-spacing:0}
 /* A header's button keeps its own small size in every browser: never stretched to the header's height. */
 #side>.hdr>#clearF{flex:none;align-self:center;height:24px;min-height:0;max-height:24px;line-height:22px;margin:0;box-sizing:border-box}
-#side>.hdr:first-child{height:38px}
-.item{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
+#side>.hdr:first-child{height:var(--bar)}
+.item{display:flex;align-items:center;gap:8px;min-height:var(--ctl);padding:2px 10px 2px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
 .item:hover{background:var(--hover);filter:none}
 
 .item .lbl{flex:1;overflow:hidden;text-overflow:ellipsis}
@@ -385,7 +390,7 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 /* On a phone the bar scrolls sideways: Sync and To review come first, so they are never out of sight. */
 @media (max-width:760px){#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
 .sync-what .link{align-self:flex-start;font-size:12px;height:auto;padding:0}
-#tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 var(--edge) 0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
+#tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 var(--edge) 0 6px;overflow-x:auto;overflow-y:hidden;height:var(--bar);align-items:center;border-bottom:1px solid var(--bd);flex:none}
 /* The active tab: its own background and a short, soft line under the text, not a full-width blue bar. */
 
 .tab .x{color:var(--muted);font-size:14px;line-height:1;padding:0 2px;border-radius:2px}
@@ -405,7 +410,7 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .port.single{opacity:.5;cursor:not-allowed}
 .tab.dragging{opacity:.4}
 .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
-.toolbar{padding:4px var(--edge) 4px var(--gutter);background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none;min-height:38px}
+.toolbar{padding:4px var(--edge) 4px var(--gutter);background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none;min-height:var(--bar)}
 /* A device's name, code, type and status: on one baseline (the mono name and code, the type in the UI font and the
    status chip would each be centred on its own box otherwise, and sit a pixel or two apart). */
 .obj-id{display:inline-flex;align-items:baseline;gap:8px;min-width:0;flex-wrap:wrap}
@@ -427,7 +432,7 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .card .kv{flex:1;align-content:start}
 
 .card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.card .ch{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd2)}
+.card .ch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2)}
 .card .ch>.chip{align-self:flex-start;margin-top:-1px}
 
 .tico svg.cu{fill:currentColor;stroke:none}
@@ -436,7 +441,7 @@ svg.cu{fill:currentColor;stroke:none}
 .card .nm{font-family:var(--mono);font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card .model{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card .hd{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.kv{display:grid;grid-template-columns:72px 1fr;gap:2px 8px;padding:8px 10px;font-size:12px;margin:0}
+.kv{display:grid;grid-template-columns:72px 1fr;gap:2px 8px;padding:6px 10px;font-size:12px;margin:0}
 .kv dt{color:var(--muted)} .kv dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kv dd.none{color:var(--muted)}
 /* On a card a long value wraps to a second line and ends in … after that (the device page shows it whole). */
@@ -544,7 +549,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .gs-why>summary{cursor:pointer;font-size:12px;color:var(--accent)}
 .gs-why>p{margin:4px 0 0}
 /* overview */
-.ov{display:flex;flex-direction:column;gap:12px;padding:12px var(--gutter);width:100%;box-sizing:border-box}   /* on the toolbar's gutter */
+.ov{display:flex;flex-direction:column;gap:var(--gap);padding:var(--gap) var(--gutter);width:100%;box-sizing:border-box}   /* on the toolbar's gutter */
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ct-sum{padding:12px 12px 0}
 /* contacts: one card per person, the company's own first, then each IT partner */
@@ -560,12 +565,12 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .lnk-quick:hover{border-style:solid;background:var(--hover)}
 .lnk-quick>span{font-weight:600;font-size:14px;line-height:1}
 .relrow.lnk-edit{flex-wrap:wrap}
-.relrow.lnk-edit input{height:28px;box-sizing:border-box}
+.relrow.lnk-edit input{height:var(--ctl);box-sizing:border-box}
 .relrow.lnk-edit #lnkEdUrl,.lnk-url,a.lnk.lnk-addr{font-family:var(--mono)}
 @media (max-width:760px){.relrow.lnk-edit input{flex:1 1 100%!important;width:auto!important}}
 .ad-acct .muted{white-space:nowrap}
 .ad-acct{display:flex;flex-direction:column;gap:2px}.ad-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}.admore{display:flex;flex-wrap:wrap;gap:2px 10px}.adsvc{display:flex;flex-wrap:wrap;gap:4px;flex-basis:100%;margin-top:2px}
-.relist .relrow.lnk-edit button{flex:none;width:auto;height:28px;padding:0 12px}
+.relist .relrow.lnk-edit button{flex:none;width:auto;height:var(--ctl);padding:0 12px}
 .lnk-break{flex-basis:100%;height:0}
 .more-rows{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 12px 18px}
 .cn{padding:12px;display:flex;flex-direction:column;gap:12px}
@@ -585,7 +590,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .cn-note{margin:0 10px 8px 54px;font-size:12px;color:var(--muted);white-space:pre-line}
 .cn-foot{margin-top:auto;padding:6px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) 0;font-size:12px}
 .cn-foot .link[disabled]{color:var(--muted);cursor:default;text-decoration:none}
-.cn-kinds{flex-wrap:wrap;gap:4px 14px;min-height:28px;align-items:center}
+.cn-kinds{flex-wrap:wrap;gap:4px 14px;min-height:var(--ctl);align-items:center}
 .cn-kinds .pchk{width:auto}
 .usrcs{display:flex}
 .usub{font-size:12px;color:var(--muted);margin-top:2px}
@@ -614,7 +619,7 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ov-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:stretch}
 .ov-cols>.panelbox{display:flex;flex-direction:column}
 .ov-att{display:flex;flex-direction:column}
-.ov-row{display:flex;gap:10px;align-items:center;justify-content:flex-start;width:100%;text-align:left;padding:8px 12px;border:0;border-bottom:1px solid var(--bd2);background:none;color:var(--fg);height:auto;font:inherit;cursor:pointer;border-radius:0}
+.ov-row{display:flex;gap:10px;align-items:center;justify-content:flex-start;width:100%;text-align:left;padding:6px 12px;border:0;border-bottom:1px solid var(--bd2);background:none;color:var(--fg);height:auto;font:inherit;cursor:pointer;border-radius:0}
 .ov-row:hover,.ov-bar:hover{background:var(--hover)}
 .ov-row .chip{min-width:34px;justify-content:center}
 .ov-row small{display:block;color:var(--muted);font-size:12px}
@@ -658,7 +663,7 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 table.contracts tfoot td{font-weight:600;border-top:2px solid var(--bd)}
 button.link{background:none;border:0;padding:0;height:auto;color:var(--linktext);cursor:pointer;font:inherit;text-align:left}
 button.link:hover{text-decoration:underline}
-.btnlink{display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);text-decoration:none;white-space:nowrap;vertical-align:middle}
+.btnlink{display:inline-flex;align-items:center;height:var(--ctl);padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);text-decoration:none;white-space:nowrap;vertical-align:middle}
 .btnlink:hover{filter:brightness(1.08)}
 .sheet-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 /* The new password: in a box of its own with room around it, the Copy button apart from it. */
@@ -766,7 +771,7 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 .ldap-adv[open]>summary{border-bottom:1px solid var(--bd2)}
 #setPane>*,#setPane>*>*{flex-shrink:0}
 #setPane>#setLocs>.locgrid{display:grid}
-#setPane .panelbox>.hdr{font-size:11px;height:38px;padding:4px 12px}
+#setPane .panelbox>.hdr{font-size:11px;height:var(--bar);padding:4px 12px}
 /* Settings sections open and close by their title: the arrow and title on the left, the count or state on the right. */
 #setPane .panelbox>.hdr.sechdr{justify-content:flex-start;gap:8px}
 #setPane .panelbox>.hdr.sechdr>:last-child:not(select){margin-left:auto}
@@ -789,7 +794,7 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 .tf-row.tf-head:hover{background:none}
 .tf-row.tf-head>span:nth-child(2){padding-left:9px}
 .tf-row.off .tf-name{color:var(--muted);text-decoration:line-through}
-.tf-name{border:1px solid transparent;background:transparent;height:28px;padding:0 6px;min-width:0;width:100%;box-sizing:border-box;color:var(--fg)}
+.tf-name{border:1px solid transparent;background:transparent;height:var(--ctl);padding:0 6px;min-width:0;width:100%;box-sizing:border-box;color:var(--fg)}
 .tf-name:hover{border-color:var(--bd)} .tf-name:focus{border-color:var(--accent);background:var(--bg)}
 .tf-fixed{font-size:12px}
 .tf-note-k{font-size:12px;white-space:nowrap}
@@ -832,7 +837,7 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 .sn-ranges{display:flex;flex-direction:column;gap:6px}
 .sn-ranges:empty::before{content:'No ranges yet.';font-size:12px;color:var(--muted)}
 .sn-range{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) 150px 28px;gap:8px;align-items:center}
-.sn-rx{width:28px;padding:0}
+.sn-rx{width:var(--ctl);padding:0}
 .sn-typegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 10px;padding:8px 10px;border:1px solid var(--bd2);border-radius:var(--r-m);background:var(--bg)}
 .sn-type{display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 4px;border-radius:var(--r-s);cursor:pointer;min-width:0}
 .sn-type span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -911,9 +916,9 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 .maphint{position:absolute;left:12px;bottom:10px;font-size:12px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);padding:4px 8px;pointer-events:none}
 
 /* object page */
-.obj{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;padding:var(--gutter);align-items:start}
-.obj .col{display:flex;flex-direction:column;gap:12px;min-width:0}
-.form{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;padding:12px;align-items:center}
+.obj{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:var(--gap);padding:var(--gutter);align-items:start}
+.obj .col{display:flex;flex-direction:column;gap:var(--gap);min-width:0}
+.form{display:grid;grid-template-columns:110px minmax(0,1fr);gap:var(--rowgap) 10px;padding:10px 12px;align-items:center}
 .form label{color:var(--muted);font-size:12px}
 .form label.btnlike{color:var(--fg);font-size:13px}
 /* The calendar and clock of date and time fields: as quiet as a dropdown's chevron. */
@@ -924,7 +929,7 @@ input::-webkit-calendar-picker-indicator:hover{opacity:.9}
 /* A value shown in a form (not a field) reads like the text of the panel, on a row as high as a field. */
 .form>span{font-size:13px;line-height:18px;padding:5px 0}
 /* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
-.fieldnote{margin:-2px 0 2px;font-size:12px}
+.fieldnote{margin:2px 0 4px;font-size:12px;line-height:1.35}
 /* Under a field on the device page, a note and the other adapters end where the field ends: the source mark and the ⋯
    menu keep their columns (16px + 26px and the gaps; 16px without the menu). On a phone those columns are not kept. */
 @media (min-width:761px){.form.props>:is(.fieldnote,.nics,.vnote){margin-right:62px}.form.props.ro>:is(.fieldnote,.nics,.vnote){margin-right:26px}}
@@ -976,12 +981,14 @@ table.types td:last-child{padding-right:12px}
 .hits{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px 0}
 button.chip{cursor:pointer;height:24px;font-size:12px}
 .relist{display:flex;flex-direction:column}
-.relrow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2);min-width:0}
+.relrow{display:flex;align-items:center;gap:8px;padding:4px 10px;border-bottom:1px solid var(--bd2);min-width:0}
 .relrow:last-child{border-bottom:none}
 /* The × at the end of a row in a panel: its glyph ends where the counts in the panel headers end (12px in from the
    edge), so the numbers and the ×s make one line on the right. The button keeps its size; only its padding overlaps. */
 .relrow>button.icon.ghost:last-child{margin-right:-6px}
-.obj .panelbox table.grid.mini .rm-cell{width:1%;padding-right:1px;padding-left:0}
+.obj .panelbox table.grid.mini .rm-cell{width:1%;padding:0 6px 0 0}
+/* A row's remove button is small, so the list keeps the height of its text. */
+@media (min-width:761px){table.grid.mini .rm-cell button.icon{width:20px;height:20px;min-height:0}}
 .relrow .k{color:var(--muted);width:118px;flex:none;font-size:12px}
 /* Relation names are written lower case for sentences ("attached to PC-1"); as a label they start with a capital. */
 .relrow .k::first-letter{text-transform:uppercase}
@@ -997,11 +1004,13 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 a,a.link{color:var(--linktext)}
 a.link{cursor:pointer;text-decoration:none}
 a.link:hover{text-decoration:underline}
-.addrel{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) var(--r-m)}
+.addrel{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:6px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) var(--r-m)}
 .addrel select,.addrel input{min-width:0}
+.rkrow .combo.rku{width:110px;flex:none}.rkrow .combo.rku .combo-list{right:auto;min-width:150px}
+.relrow .combo.rportbox{width:84px;flex:none}.relrow .combo.rportbox .combo-list{left:auto;right:0;min-width:200px}
 .addrel .combo.arport{width:110px;flex:none}.addrel .combo.arport .combo-list{right:auto;min-width:200px}
 .path{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:12px}
-.chain{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:12px}
+.chain{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px}
 .hop{display:flex;align-items:center;gap:6px;padding-left:12px;font-size:12px;color:var(--muted);line-height:1.4}
 .hop b{color:var(--fg);font-weight:600}
 .node{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 8px 3px 4px;background:var(--panel);font-family:var(--mono);font-size:12px;cursor:pointer;color:var(--fg);height:auto}
@@ -1106,7 +1115,7 @@ dialog.modal::backdrop{background:rgba(0,0,0,.45)}
 #mdlTray .tray-open{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 #mdlTray .tray-x{padding:6px 8px;color:var(--muted)}
 #mdlTray .tray-x:hover{color:#fff;background:var(--danger-bg);border-radius:0 var(--r-m) var(--r-m) 0}
-.modal .mb{padding:14px;overflow:auto;scrollbar-gutter:stable;display:flex;flex-direction:column;gap:12px;background:var(--bg);min-height:0}
+.modal .mb{padding:12px 14px;overflow:auto;scrollbar-gutter:stable;display:flex;flex-direction:column;gap:12px;background:var(--bg);min-height:0}
 .modal .mf{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:10px calc(14px + var(--sbw)) 10px 14px;border-top:1px solid var(--bd)}
 .src{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px;display:flex;gap:10px;cursor:pointer;background:var(--bg);align-items:flex-start}
 .src:has(input:checked){border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--hover)}
@@ -1149,7 +1158,7 @@ input[data-ro-locked]::placeholder,textarea[data-ro-locked]::placeholder,.readon
 .readonly .obj .fsrc[data-src=hand]{visibility:hidden}
 .ro-banner{margin:0 0 12px;padding:8px 12px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel);color:var(--muted);font-size:13px}
 .ro-banner b{color:var(--fg)}
-#whoBtn{height:28px;font-size:13px;color:var(--muted)}
+#whoBtn{height:var(--ctl);font-size:13px;color:var(--muted)}
 #toast.off{opacity:0;pointer-events:none}
 #toast .t-undo{margin-left:12px;height:auto;min-height:0;padding:2px 8px;border:1px solid color-mix(in srgb,var(--bg) 40%,transparent);border-radius:var(--r-s);background:none;color:var(--bg);font-weight:600;font-size:12px;cursor:pointer}
 #toast .t-undo:hover{background:color-mix(in srgb,var(--bg) 15%,transparent)}
@@ -1265,7 +1274,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .chip.kept{color:var(--muted);background:transparent;border-color:var(--bd)}
 .item.sel{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--fg);box-shadow:inset 2px 0 0 var(--accent)}
 .item.sel .cnt{color:var(--linktext);opacity:1}
-.tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;background:transparent;border-color:transparent;color:var(--muted)}
+.tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:var(--ctl);padding:0 12px;border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;background:transparent;border-color:transparent;color:var(--muted)}
 .tab:hover{background:var(--hover);color:var(--fg)}
 /* The tab shown: a box of its own, no line under it. */
 .tab.active{background:var(--panel2);color:var(--fg);border-color:var(--bd)}
@@ -1289,7 +1298,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;min-height:29px;box-sizing:border-box;border-top:1px solid var(--bd2);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted);white-space:nowrap;background:transparent}
 /* Section headers: no grey bar; the panel's own background, a plain title and a thin line under it. Panels keep their
    titles in normal case; the sidebar's group names stay small capitals, as quiet labels. */
-.hdr{padding:4px 12px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none;background:transparent;border-bottom-color:var(--bd2);color:var(--fg)}
+.hdr{padding:4px 12px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:var(--bar);flex:none;background:transparent;border-bottom-color:var(--bd2);color:var(--fg)}
 .panelbox>.hdr,.panelbox .panelbox>.hdr,.cn-group>.hdr,#setPane .panelbox>.hdr{background:transparent;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600}
 .sechdr::before{content:'\25BE';margin-right:6px;display:inline-block;transition:transform .15s;color:var(--muted);font-size:11px}
 .sechdr:hover{background:var(--hover)}
@@ -1305,7 +1314,7 @@ input.bad{border-color:var(--danger);outline-color:var(--danger)}
 /* On a phone what is tapped often is at least 36px high: review buttons, filter chips, a source mark's hit area, contact links. */
 @media (max-width:760px){.fsrc::before{content:"";position:absolute;inset:-8px}.cn-way{display:inline-flex;align-items:center;min-height:36px}}
 .filepick{display:flex;align-items:center;gap:8px;min-width:0}.filepick>.muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
+input[type=file]::file-selector-button{font:inherit;height:var(--ctl);padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
 /* Leftover colour outside plans and the map: shades of the one accent instead. */
 .j-entra,.j-hybrid,.j-adonly{background:var(--okdot)}.j-registered{background:var(--warn)}
 .cn-card.internal{--cn:var(--muted)}.cn-card.external{--cn:var(--accent)}
@@ -1314,7 +1323,7 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 .tico{width:26px;height:26px;border-radius:var(--r-s);display:grid;place-items:center;flex:none;background:var(--tile);box-shadow:inset 0 0 0 1px var(--bd2);color:color-mix(in srgb,var(--tc,var(--muted)) 30%,var(--fg))}
 .pl-pin .tico,.pl-rider .tico,.pl-item .tico,.lgtypes .tico{background:var(--tc);box-shadow:none;color:#fff}
 /* Overview: tiles line up whatever their subtitle; bars rounded and a little softer. */
-.ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit;justify-content:flex-start}
+.ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:8px 12px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit;justify-content:flex-start}
 .ov-ts{font-size:12px;color:var(--muted);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ov-track>span{display:block;height:100%;border-radius:999px;background:color-mix(in srgb,var(--accent) 75%,var(--bg))}
 /* Ports and racks in the same shape as the rest. */
@@ -1345,7 +1354,7 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 /* A button that removes something is quiet where it waits on a page; solid red only in the small dialog that confirms it. */
 button.danger-text{background:transparent;color:var(--fg);border-color:var(--bd);font-weight:400}
 button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--danger) 10%,transparent);color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 45%,var(--bd))}
-.lsbox{display:grid;gap:4px 10px;padding:10px 12px;font-size:12px;margin:0;grid-template-columns:110px minmax(0,1fr)}   /* the values start where Properties' fields do */
+.lsbox{display:grid;gap:4px 10px;padding:8px 12px;font-size:12px;margin:0;grid-template-columns:110px minmax(0,1fr)}   /* the values start where Properties' fields do */
 .jb.no{border-left:1px dashed var(--bd);background:transparent;border-style:solid;border-color:var(--bd2)}
 /* Not known (no Microsoft Graph): faded, so it does not read as "not joined". */
 .jb.unk{background:transparent;opacity:.6;border-style:solid;border-color:var(--bd2)}
@@ -1393,7 +1402,7 @@ button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--dange
 .pl-pin.flash{z-index:6;animation:pl-flash 1.1s ease-out 2}
 @keyframes pl-flash{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 70%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
 @media (prefers-reduced-motion:reduce){.pl-pin.flash{animation:none}}
-.pl-group{position:absolute;transform:translate(-50%,-50%);z-index:6;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 9px 0 10px;border-radius:var(--r-s);border:1px solid var(--bd);background:var(--panel);color:var(--fg);font:inherit;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}
+.pl-group{position:absolute;transform:translate(-50%,-50%);z-index:6;display:inline-flex;align-items:center;gap:4px;height:var(--ctl);padding:0 9px 0 10px;border-radius:var(--r-s);border:1px solid var(--bd);background:var(--panel);color:var(--fg);font:inherit;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}
 .pl-group b{font-size:13px;margin-right:2px}
 .pl-group:hover,.pl-group.open{border-color:var(--accent)}
 .pl-group.open{z-index:21}
@@ -1547,7 +1556,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .src-offtext{margin:0;font-size:12.5px}
 .src-hist{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
 .ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
-.ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 12px}
+.ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:var(--ctl);padding:0 12px}
 .ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
 @media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
@@ -1684,8 +1693,7 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .ct-person > span{flex:1;min-width:0}.ct-person small{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
 #ctAddContact{width:100%}
 /* Card footer: the "Seen" chip takes the room up to the relations on the right, so its text shows in full. */
-.card .cf .chip.lsst.seen{flex:1 1 auto;max-width:none;justify-content:flex-start}
-.card .cf .chip.lsst.seen ~ .grow{flex:0 0 0}
+.card .cf .chip.lsst.seen{flex:0 1 auto;max-width:none;justify-content:flex-start}
 .card .cf .grow:last-child{display:none}
 .notes-box{width:100%;min-height:64px;resize:vertical;font:inherit;line-height:1.45}
 /* Relations: beside a port box the VLAN has a slot of its own, so the port boxes line up with or without one. */
@@ -1749,8 +1757,8 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 .card .rv-act.yes{border-color:color-mix(in srgb,var(--ok,#1a7f37) 55%,var(--bd));background:color-mix(in srgb,var(--ok,#1a7f37) 16%,var(--btn));color:var(--fg)}
 .card .rv-act.no{color:var(--muted);font-weight:500}
 /* Overview: getting started, for a new inventory. */
-.start-list{list-style:none;margin:0;padding:6px 12px 10px;display:flex;flex-direction:column;gap:6px}
-.start-step{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bd2)}
+.start-list{list-style:none;margin:0;padding:4px 12px 6px;display:flex;flex-direction:column;gap:0}
+.start-step{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--bd2)}
 .start-step:last-child{border-bottom:none}
 .start-n{flex:none;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bd);font-size:12px;font-weight:600}
 .start-step.done .start-n{background:var(--accentbtn);border-color:var(--accentbtn);color:#fff}   /* white on it reads in dark too */
@@ -1771,7 +1779,7 @@ body.noside #side,body.noside #sideBtn{display:none!important}
 @media (max-width:760px){.form.sheet-form{grid-template-columns:minmax(0,1fr)}}
 .stk-scanrow{align-items:center;flex-wrap:wrap}.stk-scanrow button{height:40px}
 @media (max-width:760px){.stk-scanrow input{flex:1 1 100%}}
-.card .rv-act{height:28px;padding:0 10px}
+.card .rv-act{height:var(--ctl);padding:0 10px}
 @media (pointer:coarse){.card .rv-act{min-height:40px}}
 @media (max-width:760px){.fbar .fb-person .grow{flex-basis:100%}}
 @media (max-width:760px){table.stack>tbody{display:block;padding:10px}
@@ -1857,7 +1865,7 @@ table.stack>tbody>tr>td{max-width:none}
 /* A row of a list in Settings → Users: every cell starts at the top, so a cell with a second line does not lift the rest. */
 #setUsers table.grid td{vertical-align:top}
 /* A cell of plain text sits level with the fields beside it (28px), and the ⋯ menu button (24px) in their middle. */
-#setUsers table.grid td:not(:has(> *)){line-height:28px}
+#setUsers table.grid td:not(:has(> *)){line-height:var(--ctl)}
 #setUsers table.grid td .menu>.menu-btn{margin-top:2px}
 /* A contract on a device: its state wraps under the name rather than cutting the name short. */
 .relrow:has([data-contract]){flex-wrap:wrap}

@@ -8,7 +8,8 @@ import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, 
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
-COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+/* Suppliers for a contract and for a device: the companies in Contacts, the contracts' suppliers and the devices'. */
+COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier), ...objs.map(o => typeof o.supplier === 'string' ? o.supplier.trim() : '')].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';

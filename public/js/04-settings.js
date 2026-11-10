@@ -8,11 +8,12 @@ import { renderSetGraph } from './settings-graph.js';
 import { renderSetLdap } from './settings-ldap.js';
 import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSetModels } from './settings-feed.js';
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
+import { comboHtml } from './17-fields.js';
 import { collapsedPanels, rememberPanel, bindPolicy, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
 import { $$, $, LS_ON, TYPES, fullTextTooltips, byId, hist, markHand, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
-import { html } from './html.js';
+import { html, rawHtml } from './html.js';
 import { SERVER } from './server-save.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
    always found it. */
@@ -230,6 +231,13 @@ export function rackCheck(rackId, u, h, exceptId){
   const hit = objs.find(x => x.id !== exceptId && x.status !== 'retired' && x.rack === rackId && x.u != null && !x.ontop && x.u <= u + h - 1 && u <= x.u + (x.h || 1) - 1);
   return hit ? `U${hit.u}${(hit.h || 1) > 1 ? '-U' + (hit.u + hit.h - 1) : ''} is taken by ${hit.name}.` : '';
 }
+/* The start units where a device h units high fits in a rack, top first: each as U12, or U12-U13 for two units. */
+export const freeStarts = (rackId, h, exceptId) => {
+  const r = rackOf(rackId), hh = Math.max(1, Math.floor(+h) || 1), out = [];
+  if (!r) return out;
+  for (let u = rackUnits(r) - hh + 1; u >= 1; u--) if (!rackCheck(rackId, u, hh, exceptId)) out.push({ v: String(u), label: 'U' + u + (hh > 1 ? '-U' + (u + hh - 1) : '') });
+  return out;
+};
 /* A device in a rack is where its rack is: its location follows the rack's. Returns true when it changed. */
 export function locWithRack(o){
   const r = rackOf(o.rack);
@@ -247,7 +255,7 @@ export function rackFields(o){
   /* Same row layout as every other field: the control fills the column and the source mark and menu columns stay free. */
   const slot = html`<span class="fsrc-slot" aria-hidden="true"></span>${isAdmin() ? html`<span class="fm-slot" aria-hidden="true"></span>` : ''}`;
   return String(html`<label for="rk_rack">Rack</label><div class="ctlrow"><select id="rk_rack" data-rk="rack"><option value="">Not in a rack</option>${racksList().map(r => html`<option value="${r.id}" ${o.rack===r.id && o.u!=null && !o.ontop ? 'selected' : ''}>${r.name}</option>`)}</select>${slot}</div>
-    <div class="rk-mount" ${o.rack && o.u != null && !o.ontop ? '' : 'hidden'}><label>Mounted at</label><div class="ctlrow"><div class="rkrow"><span class="muted">U</span><input type="number" min="1" data-rk="u" value="${o.u ?? ''}" style="width:64px" aria-label="Start U"><span class="muted">height</span><input type="number" min="1" data-rk="h" value="${o.h ?? TYPE_U[o.type] ?? 1}" style="width:64px" aria-label="Height in U"><span class="muted">U</span></div>${slot}</div></div>
+    <div class="rk-mount" ${o.rack && o.u != null && !o.ontop ? '' : 'hidden'}><label>Mounted at</label><div class="ctlrow"><div class="rkrow"><span class="muted">U</span>${rawHtml(comboHtml(String(html`<input id="rk_u" class="mono" inputmode="numeric" data-rk="u" data-combo="rackU" data-rack-of="rk_rack" data-h-of="[data-rk=h]" data-except="${o.id}" value="${o.u ?? ''}" aria-label="Start U: type one, or pick a free place">`), 'rk_u').replace('<div class="combo">', '<div class="combo rku">'))}<span class="muted">height</span><input type="number" min="1" data-rk="h" value="${o.h ?? TYPE_U[o.type] ?? 1}" style="width:64px" aria-label="Height in U"><span class="muted">U</span></div>${slot}</div></div>
     <label for="rk_top">Or on top of</label><div class="ctlrow"><select id="rk_top" data-rk="ontop"><option value="">Nothing</option>${objs.filter(x => x.id !== o.id && x.rack && x.u != null && !x.ontop && RACKABLE.includes(x.type)).map(x => html`<option value="${x.id}" ${o.ontop===x.id ? 'selected' : ''}>${x.name} · U${x.u}</option>`)}</select>${slot}</div>`);
 }
 /* Mount device…: pick a rack device that has no rack yet, a start U and a height. */
@@ -257,16 +265,24 @@ export function mountModal(){
   modal(html`<div class="mh">Mount device in ${rackOf(st.rackId).name}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="mdDev">Device</label><select id="mdDev">${free.map(o => html`<option value="${o.id}">${o.name} · ${TYPES[o.type].label}</option>`)}</select>
-      <label for="mdU">Start U</label><input id="mdU" type="number" min="1" value="${rackUnits(rackOf(st.rackId))}">
+      <label for="mdU">Start U</label><select id="mdU" aria-describedby="mdErr"></select>
       <label for="mdH">Height</label><input id="mdH" type="number" min="1" value="${TYPE_U[free[0].type] ?? 1}">
     </div><p class="note" id="mdErr"></p></div>
     <div class="mf"><button id="mdCancel">Cancel</button><button id="mdOk" class="primary">Mount</button></div>`, 'sm');
-  const pick = () => { const o = byId($('#mdDev').value); $('#mdH').value = TYPE_U[o.type] ?? 1; };
+  /* Start U: only the free places where the device fits at its height, top first; the one picked stays while it fits. */
+  const refit = () => {
+    const h = +$('#mdH').value || 1, was = $('#mdU').value, list = freeStarts(st.rackId, h, $('#mdDev').value);
+    $('#mdU').innerHTML = list.length ? html`${list.map(x => html`<option value="${x.v}">${x.label}</option>`)}` : html`<option value="">No free place ${h} U high</option>`;
+    if (list.some(x => x.v === was)) $('#mdU').value = was;
+  };
+  const pick = () => { const o = byId($('#mdDev').value); $('#mdH').value = TYPE_U[o.type] ?? 1; refit(); };
+  $('#mdH').addEventListener('change', refit); $('#mdH').addEventListener('input', refit);
+  refit();
   $('#mdDev').onchange = pick;
   $('#mdCancel').onclick = closeModal;
   $('#mdOk').onclick = () => {
     const o = byId($('#mdDev').value), u = +$('#mdU').value, h = +$('#mdH').value;
-    const err = rackCheck(st.rackId, u, h, o.id);
+    const err = u ? rackCheck(st.rackId, u, h, o.id) : `${rackOf(st.rackId).name} has no free place ${h} U high.`;
     if (err){ $('#mdErr').textContent = err; return; }
     const prevRack = o.rack;
     Object.assign(o, {rack: st.rackId, u, h}); delete o.ontop;

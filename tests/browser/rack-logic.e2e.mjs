@@ -29,9 +29,9 @@ try {
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('R-SRV').loc = 'Zürich HQ / Serverraum'; if (!c.LOCS.includes('Zürich HQ / Serverraum')) c.LOCS.push('Zürich HQ / Serverraum'); c.st.rackId = 'R-SRV'; (await import('/js/07-render.js')).queueServerSave(); });
   await p.click('#tabsbar [data-tab=rack]'); await p.waitForSelector('#rkMount');
   await p.click('#rkMount'); await p.waitForSelector('#mdDev');
-  await p.selectOption('#mdDev', 'o5'); await p.fill('#mdU', '2.5'); await p.click('#mdOk');
+  await p.selectOption('#mdDev', 'o5'); await p.fill('#mdH', '2.5'); await p.click('#mdOk');
   assert.match(await p.textContent('#mdErr'), /whole numbers/, 'a half U is taken');
-  await p.fill('#mdU', '10'); await p.fill('#mdH', '2'); await p.click('#mdOk');
+  await p.fill('#mdH', '2'); await p.selectOption('#mdU', '10'); await p.click('#mdOk');
   await until(p, async () => (await import('/js/01-core.js')).byId('o5').u === 10);
   assert.equal((await obj('o5')).loc, 'Zürich HQ / Serverraum', 'the mounted device is not where its rack is');
   await storedBy(() => loadState(db), t => t.objs.find(o => o.id === 'o5')?.u === 10 && t.objs.find(o => o.id === 'o5').loc === 'Zürich HQ / Serverraum');
