@@ -39,15 +39,17 @@ export function printView(kind){
       body{background:#fff;color:#111;padding:14px;height:auto;overflow:visible;display:block}
       .pv-head{margin:0 0 10px}.pv-head h2{margin:0 0 2px;font-size:18px}.pv-head p{margin:0;color:#555;font-size:12px}
       *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      /* Cards made for paper: four to a row, small type, nothing cut off with an ellipsis. */
-      .pv-cards{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:5px!important;padding:0!important;overflow:visible!important;align-items:start}
+      /* Cards made for paper: small type, nothing cut off with an ellipsis. Three to a row on a page upright (portrait),
+         four on a page on its side (landscape); on screen, as many as the window takes. */
+      .pv-cards{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))!important;gap:5px!important;padding:0!important;overflow:visible!important;align-items:start}
       .pv-cards .card{content-visibility:visible!important;break-inside:avoid;page-break-inside:avoid;box-shadow:none!important;border:1px solid #bbb!important;border-radius:5px!important;background:#fff!important;cursor:default;font-size:9.5px;height:auto!important;min-height:0!important}
       .pv-cards .card .ch{padding:4px 6px!important;gap:5px}
       .pv-cards .card .ch .tico{width:18px;height:18px}
       .pv-cards .card .nm{font-size:10.5px;white-space:normal;overflow-wrap:anywhere}
       .pv-cards .card .model{font-size:9px;white-space:normal;display:block!important;-webkit-line-clamp:unset;overflow:visible}
       .pv-cards .card .chip{font-size:8.5px;padding:0 5px;line-height:15px;height:auto}
-      .pv-cards .card .kv{padding:4px 6px!important;gap:1px 6px;font-size:9.5px}
+      .pv-cards .card .kv{padding:4px 6px!important;gap:1px 6px;font-size:9.5px;grid-template-columns:58px minmax(0,1fr)}
+      .pv-cards .card .kv dt{overflow-wrap:anywhere}
       .pv-cards .card .kv dt,.pv-cards .card .kv dd{line-height:1.3}
       .pv-cards .card .kv dd{display:block!important;-webkit-line-clamp:unset;overflow:visible;white-space:normal}
       .pv-cards .card .jbar{padding:3px 6px!important;gap:3px}
@@ -60,7 +62,9 @@ export function printView(kind){
       .pv-table{border-collapse:collapse;width:100%;font-size:10.5px}
       .pv-table th,.pv-table td{border:1px solid #ccc;padding:3px 5px;text-align:left;vertical-align:top}
       .pv-table th{background:#f0f0f0}.pv-table thead{display:table-header-group}.pv-table tr{break-inside:avoid}
-      @media print{body{padding:0}@page{margin:8mm${kind === 'table' ? ';size:landscape' : ''}}}
+      @media print{body{padding:0}@page{margin:8mm${kind === 'table' ? ';size:landscape' : ''}}
+        .pv-cards{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+      @media print and (orientation:landscape){.pv-cards{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
     </style></head>
     <body><div class="pv-head"><h2>${what}</h2><p>${n} ${n === 1 ? 'device' : 'devices'}${filters ? ' · ' + filters : ''} · printed ${new Date().toLocaleString()}</p></div>${body}</body></html>`));
   w.document.close();
