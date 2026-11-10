@@ -1883,7 +1883,7 @@ details.how{margin:6px 0}
 .panelbox>details.how.ds-beyond-src{margin:6px 12px 12px}
 details.how>summary{cursor:pointer;font-size:12.5px;color:var(--linktext);padding:2px 0;width:max-content;max-width:100%}
 details.how[open]>summary{margin-bottom:4px}
-.panelbox>details.how.u-how,.panelbox>details.how.ds-how{margin:0;padding:8px 12px 0}
+.panelbox>details.how.ds-how{margin:0;padding:8px 12px 0}
 .ds-adv{margin:8px 0 0}
 .ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--linktext);border-top:1px solid var(--bd)}
 .ukinds{border-top:1px solid var(--bd)}
@@ -2007,3 +2007,9 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .sidesec.drop-before{box-shadow:inset 0 2px 0 var(--accent)}
 .sidesec.drop-after{box-shadow:inset 0 -2px 0 var(--accent)}
 .sidesec.collapsed>.hdr{border-bottom-color:var(--bd2)}
+
+/* Roles and columns (the ? beside Users): a heading per group, then each term with its meaning beside it. */
+.u-help+.u-help{margin-top:12px}
+.u-help-h{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding-bottom:4px;border-bottom:1px solid var(--bd2);margin-bottom:6px}
+.u-help-dl{display:grid;grid-template-columns:90px minmax(0,1fr);gap:4px 12px;margin:0;font-size:13px}
+.u-help-dl dt{font-weight:600}.u-help-dl dd{margin:0;color:var(--fg)}
