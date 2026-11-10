@@ -875,6 +875,10 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 .rack .uno{font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;height:24px;border-bottom:1px solid var(--bd2);box-sizing:border-box}
 .rack .slot{height:24px;border-bottom:1px solid var(--bd2);background:repeating-linear-gradient(90deg,transparent 0 22px,var(--bd2) 22px 23px);opacity:.6;box-sizing:border-box}
 .rack .unit:hover{border-color:var(--accent)}
+.rack .unit.movable{cursor:grab;user-select:none}.rack .unit.movable:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.rack .unit.dragging{cursor:grabbing;position:relative;z-index:2;box-shadow:0 4px 14px rgba(0,0,0,.25);border-color:var(--accent)}
+.rack .unit.dragging.bad{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 14%,var(--bg))}
+.rack.drag-on{cursor:grabbing}
 .rack .unit.one{flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;padding:0 8px}
 .rack .unit.one .sub{font-size:11px;flex:none}
 .rack .unit .nm{font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
