@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
+import { SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -72,7 +72,7 @@ export function renderSide(){
      in Entra, and a Graph record that fits two devices here. Each is listed only when it has devices; the group only when
      one is. */
   const dups = /** @type {[string, string, string, (o: any) => boolean, boolean, () => boolean][]} */ ([
-    ['twins', 'By DNS name', 'Named by a DNS name, with no serial number, beside a device of that name: most likely a second record of it, e.g. from a docking station', o => !!twinOf(o), st.twins, () => LS_USED()],
+    ['twins', 'By DNS name', 'Named by a DNS name, with no serial number, beside a device of that name: most likely a second record of it, e.g. from a docking station', o => !!twinOf(o), st.twins, () => LS_ON()],
     ['duplicates', 'More than one in Entra', GRAPH_TIPS.duplicates, GRAPH_FILTERS.duplicates[2], st.intune === 'duplicates', () => SYNC.graph],
     ['ambiguous', 'Name or serial used twice', GRAPH_TIPS.ambiguous, GRAPH_FILTERS.ambiguous[2], st.intune === 'ambiguous', () => SYNC.graph],
   ]).map(([k, l, tip, f, on, live]) => [k, l, tip, live() ? cnt(f) : 0, on]).filter(([, , , n, on]) => n || on);

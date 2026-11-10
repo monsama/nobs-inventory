@@ -463,11 +463,11 @@ export function renderObj(o){
     /* The same rule as everywhere: the types fit, and a monitor or VM has one host that is not attached itself. */
     { const why = relationProblem(k, o, to, rels); if (why){ toast(why); return; } }
     const finalPort = port === '' || !PORT_KINDS.includes(k) ? null : (to.type === 'patch' ? patchPort(port) : port);
-    if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
     /* A retired device's hold on the port is let go only once the relation is sure to be added on it. */
     if (hasPorts(to) && typeof port === 'number' && PORT_KINDS.includes(k)) releaseRetiredPort(to, port);
     if (hasPorts(to) && typeof finalPort === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
     if (to.type === 'patch' && finalPort != null && rels.some(r => r.to === to.id && r.port === patchPort(port))){ toast(patchPort(port) + ' on ' + to.name + ' is already taken.'); return; }
+    if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
     if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (hasPorts(to) || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
     rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan: $('#arVlan').value ? +$('#arVlan').value : null});
     hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by ${who()}`);
