@@ -1,6 +1,6 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, gatewayOff, hist, markHand, now, objs, st, tico, toast, toastUndo } from './01-core.js';
+import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, objs, st, tico, toast } from './01-core.js';
 import { attention as attentionLists } from './notices.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { lifeOf, replacementPlan } from './lifecycle.js';
@@ -9,10 +9,10 @@ import { dueChip, maintDoneModal } from './26-maintenance.js';
 import { closeModal, modal } from './19-modal.js';
 import { dateText } from './dates.js';
 import { licencesOver, money } from './09-costs.js';
-import { SERVER, queueServerSave, render, view } from './07-render.js';
+import { SERVER, queueServerSave, view } from './07-render.js';
 import { openObjs, resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
-import { USERS, isAdmin, openSettings, showDevicesOf, who } from './04-settings.js';
+import { USERS, isAdmin, openSettings, showDevicesOf } from './04-settings.js';
 /* Devices still out this many days after their person left are marked red. */
 const HANDBACK_DAYS = 14;
 const SERVER_ON = () => !!SERVER.on;
@@ -168,7 +168,7 @@ export function renderOverview(){
       ${planHtml(live)}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar ${qPct >= 90 ? 'ok' : qPct >= 60 ? 'warn' : 'bad'}" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
-        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${r.label}</b><small>${r.hint}</small></span></button>${r.key === 'gateway' && isAdmin() ? html`<div class="ov-fix"><button type="button" id="ovGwFix">Use the subnet's gateway on ${r.n === 1 ? 'this device' : `all ${compact(r.n)}`}</button></div>` : ''}`)}</div>`
+        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${r.label}</b><small>${r.hint}</small></span></button>`)}</div>`
           : html`<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>
     </div>
     <details class="ov-stats" id="ovStats" ${statsOpen() ? 'open' : ''}><summary>Statistics <span class="muted">by type, site, status, operating system${showJoin || intuneGroups.length ? ', Entra and Intune' : ''}</span></summary><div class="ov-cols">
@@ -208,25 +208,6 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovopen]').forEach(b => b.onclick = () => openObjs([b.dataset.ovopen]));
   v.querySelectorAll('[data-ovhb]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.ovhb));
   v.querySelectorAll('[data-ovq]').forEach(b => b.onclick = () => go('table', { quality: b.dataset.ovq, live: true }));
-  /* Gateway not its subnet's, for all at once: each device's own gateway is cleared, so it takes its subnet's (and follows
-     a change of it), kept by hand from then on; a history line on each, and Undo puts every one back. */
-  const gwFix = $('#ovGwFix');
-  if (gwFix) gwFix.onclick = () => {
-    const done = objs.filter(o => o.status !== 'retired' && gatewayOff(o)).map(o => ({ o, was: o.gateway, src: o.src, pick: o.pick, sn: gatewayOff(o) }));
-    if (!done.length) return;
-    for (const { o, was, sn } of done) {
-      markHand(o, 'gateway'); delete o.gateway;
-      hist(o, now(), `Gateway ${was} cleared by ${who()}: it takes ${sn.gateway} from the subnet ${sn.name || sn.cidr}`);
-    }
-    render();
-    toastUndo(`${done.length === 1 ? 'One device takes' : done.length + ' devices take'} the gateway of their subnet`, () => {
-      for (const { o, was, src, pick } of done) {
-        if (o.gateway) continue;   /* set again since: left as it is */
-        o.gateway = was; o.src = src; o.pick = pick; hist(o, now(), `Gateway ${was} put back by ${who()}`);
-      }
-      render();
-    });
-  };
   v.querySelectorAll('[data-ovscan]').forEach(b => b.onclick = () => go('table', { scanOld: true, live: true }));
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));

@@ -619,7 +619,6 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ov-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:stretch}
 .ov-cols>.panelbox{display:flex;flex-direction:column}
 .ov-att{display:flex;flex-direction:column}
-.ov-fix{padding:0 12px 8px 48px;border-bottom:1px solid var(--bd2)}.ov-row:has(+ .ov-fix){border-bottom:0}
 .ov-row{display:flex;gap:10px;align-items:center;justify-content:flex-start;width:100%;text-align:left;padding:6px 12px;border:0;border-bottom:1px solid var(--bd2);background:none;color:var(--fg);height:auto;font:inherit;cursor:pointer;border-radius:0}
 .ov-row:hover,.ov-bar:hover{background:var(--hover)}
 .ov-row .chip{min-width:34px;justify-content:center}
