@@ -510,7 +510,8 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sync-what{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .sync-what span{font-size:12px;overflow-wrap:anywhere}
 .sync-err{color:var(--danger)}
-.sync-row>button{flex:none;height:24px;min-height:0;padding:0 10px}
+.sync-row>button{flex:none;height:24px;min-height:0;padding:0 10px;width:76px}   /* Sync, Syncing… and Reload one width */
+.sync-row>.muted:last-child{flex:none;width:76px;text-align:center}   /* by push, where a source has no button */
 .rv-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 12px 8px}
 /* On a card: where it came from, on one line between the directory bar and the actions, on the card's 10px edge. */
 .card .rv-chips{padding:0 10px 6px;align-items:center}
@@ -1506,10 +1507,11 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .srctabs{gap:4px}
 /* The source tabs read as the panel's title: the same size as the other titles, the first one starting where theirs do,
    and no frame (it would run into the fold caret). The chosen source is in full colour and underlined. */
-.srctab-list{display:inline-flex;gap:16px;margin-left:-4px}
-.hdr .srctab{height:26px;padding:0;border:0;border-radius:0;background:transparent;color:var(--muted);font-weight:600;font-size:13px;box-shadow:inset 0 -2px 0 transparent}
-.srctab:hover{color:var(--fg);background:transparent}
-.srctab.sel{color:var(--fg);box-shadow:inset 0 -2px 0 var(--accent)}
+/* The source tabs look like every other tab in the app (.tab): the one shown is a box of its own, no line under it. */
+.srctab-list{display:inline-flex;gap:4px;margin-left:-4px}
+.hdr .srctab{height:var(--ctl);padding:0 10px;border:1px solid transparent;border-radius:var(--r-s);background:transparent;color:var(--muted);font-weight:600;font-size:13px}
+.srctab:hover{color:var(--fg);background:var(--hover)}
+.srctab.sel{color:var(--fg);background:var(--panel2);border-color:var(--bd)}
 /* Edit and Delete side by side at the end of a row or in a card's corner; Delete turns red only under the pointer. */
 .rowacts{display:inline-flex;align-items:center;gap:2px}
 .delbtn{color:var(--muted)}
@@ -1883,7 +1885,7 @@ details.how{margin:6px 0}
 .panelbox>details.how.ds-beyond-src{margin:6px 12px 12px}
 details.how>summary{cursor:pointer;font-size:12.5px;color:var(--linktext);padding:2px 0;width:max-content;max-width:100%}
 details.how[open]>summary{margin-bottom:4px}
-.panelbox>details.how.u-how,.panelbox>details.how.ds-how{margin:0;padding:8px 12px 0}
+.panelbox>details.how.ds-how{margin:0;padding:8px 12px 0}
 .ds-adv{margin:8px 0 0}
 .ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--linktext);border-top:1px solid var(--bd)}
 .ukinds{border-top:1px solid var(--bd)}
@@ -2007,3 +2009,19 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .sidesec.drop-before{box-shadow:inset 0 2px 0 var(--accent)}
 .sidesec.drop-after{box-shadow:inset 0 -2px 0 var(--accent)}
 .sidesec.collapsed>.hdr{border-bottom-color:var(--bd2)}
+
+/* Roles and columns (the ? beside Users): a heading per group, then each term with its meaning beside it. */
+.u-helpbtn{margin-left:auto;font-size:12.5px;white-space:nowrap}
+.u-help+.u-help{margin-top:12px}
+.u-help-h{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding-bottom:4px;border-bottom:1px solid var(--bd2);margin-bottom:6px}
+.u-help-dl{display:grid;grid-template-columns:90px minmax(0,1fr);gap:4px 12px;margin:0;font-size:13px}
+.u-help-dl dt{font-weight:600}.u-help-dl dd{margin:0;color:var(--fg)}
+
+/* A device's fields all in one font and size, the technical ones (name, serial, addresses) too: the page reads as one
+   form. The code font stays for codes shown as text (INV-0001, ports). */
+.form.props :is(input,select,textarea),.form.props .ro{font-family:inherit;font-size:13px;font-weight:400}
+/* A device's package name opens it in Software; the row it opens on is marked a moment. */
+.sw-go{color:var(--fg)}.sw-go:hover{color:var(--linktext)}
+.sw-row.flash>td{animation:sw-flash 1.6s ease-out}
+@keyframes sw-flash{from{background:color-mix(in srgb,var(--accent) 28%,transparent)}to{background:transparent}}
+@media (prefers-reduced-motion:reduce){.sw-row.flash>td{animation:none}}

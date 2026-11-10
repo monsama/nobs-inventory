@@ -195,7 +195,7 @@ export function renderSetUsers(){
     ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and not'], ['active', 'Active'], ['inactive', 'Deactivated']])}
     ${sel('uRole', 'Role', st.userRole || '', [['', 'All roles'], ['admin', 'Admin'], ['viewer', 'Viewer'], ['none', 'No access']])}
     <label class="pchk" style="width:auto"><input type="checkbox" id="uDevs" ${st.userDevs ? 'checked' : ''}> With devices</label>
-    <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? html`<button type="button" class="link" id="uClear">Clear</button>` : ''}</div>`;
+    <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? html`<button type="button" class="link" id="uClear">Clear</button>` : ''}<button type="button" class="link u-helpbtn" id="uHelp">Roles and columns</button></div>`;
   const rows = USERS.map((u, i) => [u, i]).filter(([u]) => shown(u)).map(([u, i]) => html`<tr>
       ${fromDirectory(u) ? html`<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${profileTip(u)}">${u.name}${profileLine(u)}</td>` : html`<td><input data-uname="${i}" maxlength="80" value="${u.name}" aria-label="Name of ${u.name}"></td>`}${u.login ? html`<td class="mono">${u.login}</td>` : html`<td class="muted" title="No login: this person cannot sign in to the app (Set password… or Give a login name… in ⋯)">No sign-in</td>`}
       ${fromDirectory(u) ? html`<td>${u.dept || ''}</td>` : html`<td><input data-udept="${i}" maxlength="80" value="${u.dept || ''}" placeholder="Department" aria-label="Department of ${u.name}"></td>`}<td>${(u.groups || []).join(', ')}</td>
@@ -208,7 +208,6 @@ export function renderSetUsers(){
         ${SERVER.on ? html`<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet…</button>${devicesOfUser(u.name) ? html`<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${u.name} has, as a PDF to tick off when they are handed back">Hand-back list (PDF)</a>` : ''}` : ''}
         <button class="danger-text" data-del="${i}" ${u.source === 'ldap' ? html`disabled title="Managed by LDAP"` : devicesOfUser(u.name) ? html`disabled title="Has devices. Move them first."` : html`title="Remove"`}>Remove</button>`, { cls: 'umenu', btn: String(html`aria-label="More for ${u.name}" title="Password, entry sheet, remove"`) }))}</td></tr>`);
   $('#setUsers').innerHTML = html`<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
-    <details class="how u-how"><summary>What the roles and columns mean</summary><p class="note">Admin can change everything, Viewer can look (everything, some sites or only their own devices), No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p></details>
     ${dirOn || foundViewers().length ? html`<div class="addrel">${dirOn ? html`<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => html`<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`)}</select>` : ''}<span class="grow"></span>${foundViewers().length ? html`<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
     ${dupesHtml(devicesOfUser)}${kindTabs}${filterBar}
     ${rows.length ? '' : html`<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>`}
@@ -226,6 +225,7 @@ export function renderSetUsers(){
   root.querySelectorAll('#uClear, [data-uclear]').forEach(b => b.onclick = () => { st.userQ = st.userDir = st.userSrc = st.userStatus = st.userRole = ''; st.userDevs = false; renderSetUsers(); });
   wireDupes();
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].id));
+  { const hb = $('#uHelp'); if (hb) hb.onclick = usersHelpModal; }
   /* Admins that are active: the inventory needs at least one of them, so the page refuses what the server would refuse. */
   const activeAdmins = () => USERS.filter(x => x.role === 'admin' && x.active !== false).length;
   root.querySelectorAll('[data-act]').forEach(c => c.onchange = () => {
@@ -394,4 +394,22 @@ export function passwordModal(u){
     closeModal(); toast('Password set for ' + u.name);
   };
   $('#pwNew').focus();
+}
+
+/* What the roles and columns of the Users list mean, as a short table (the ? beside Users). */
+/** @type {[string, [string, string][]][]} */
+const USERS_HELP = [
+  ['Roles', [['Admin', 'Changes everything: devices, people and Settings.'],
+    ['Viewer', 'Looks only: everything, some sites, or only their own devices.'],
+    ['No access', 'Cannot sign in. People found by LDAP, Entra or Lansweeper start here; give them Viewer to let them in.']]],
+  ['Columns', [['Login', 'What they sign in with; "No sign-in" when they have none.'],
+    ['Source', 'Where the person comes from (LDAP, Entra, Lansweeper, made here), and whether Microsoft Entra knows them too (Settings → Entra & Intune → People).'],
+    ['Devices', 'How many devices name this person; click the number to see them.'],
+    ['Active', 'Off for someone who left: their devices are listed to take back.']]],
+  ['Good to know', [['From LDAP', 'Name, department and groups come from the directory and are changed there. They cannot be removed here, only deactivated.']]],
+];
+export function usersHelpModal(){
+  modal(html`<div class="mh">Roles and columns</div><div class="mb">${USERS_HELP.map(([title, rows]) => html`<div class="u-help"><div class="u-help-h">${title}</div><dl class="u-help-dl">${rows.map(([k, v]) => html`<dt>${k}</dt><dd>${v}</dd>`)}</dl></div>`)}</div>
+    <div class="mf"><button id="uhClose" class="primary">Done</button></div>`, 'sm');
+  $('#uhClose').onclick = closeModal;
 }

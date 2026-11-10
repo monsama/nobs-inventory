@@ -46,15 +46,19 @@ try {
   await storedBy(() => area('ar1'), a => a.x === 10 && a.rects[0].x === 10);
 
   // 2. one rectangle of an area of several taken away (an area of one has no ×), with Undo
-  await p.mouse.click(...at(20, 15)); await p.waitForSelector('[data-rh]');
+  /* An area clicked, then its rectangles unlocked (Area… → Edit rectangles) unless they are already. */
+  const pick = async (pt, sel) => { await p.mouse.click(...pt); await p.waitForSelector('#plAreaMenu');
+    if (!(await p.locator('[data-rh]').count())) { await p.click('#plAreaMenu .menu-btn'); await p.click('#plShapeEdit'); }
+    await p.waitForSelector(sel); };
+  await pick(at(20, 15), '[data-rh]');
   assert.equal(await p.locator('[data-rx]').count(), 0, 'an area of one rectangle offers to remove it');
-  await p.mouse.click(...at(55, 70)); await p.waitForSelector('[data-rx="1"]');
+  await pick(at(55, 70), '[data-rx="1"]');
   await p.click('[data-rx="1"]');
   await storedBy(() => area('ar2'), a => a.rects.length === 1 && a.w === 15);
   await p.click('#toast .t-undo');
   await storedBy(() => area('ar2'), a => a.rects.length === 2 && a.w === 30);
   // one rectangle of several moved by its grip: only it moves; Undo puts it back
-  await p.mouse.click(...at(55, 70)); await p.waitForSelector('[data-rm="1"]');
+  await pick(at(55, 70), '[data-rm="1"]');
   const g = await p.locator('[data-rm="1"]').boundingBox();
   await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2); await p.mouse.down();
   await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2 + cb.height * 0.05, { steps: 6 }); await p.mouse.up();
@@ -63,7 +67,7 @@ try {
   await storedBy(() => area('ar2'), a => a.rects[1].y === 50);
 
   // 3. arrow keys move the chosen area by 1%, Shift + arrow makes it bigger; one Undo for the steps
-  await p.mouse.click(...at(20, 15)); await p.waitForSelector('[data-rh]');
+  await pick(at(20, 15), '[data-rh]');
   await p.keyboard.press('ArrowRight'); await p.keyboard.press('ArrowRight'); await p.keyboard.press('ArrowDown');
   await storedBy(() => area('ar1'), a => a.x === 12 && a.y === 11);
   await p.keyboard.press('Shift+ArrowRight');
@@ -72,7 +76,7 @@ try {
   await storedBy(() => area('ar1'), a => a.x === 10 && a.y === 10 && a.w === 20);
 
   // 8. Duplicate: a copy beside it, chosen, with its own name; Undo takes it away
-  await p.mouse.click(...at(20, 15)); await p.waitForSelector('#plAreaMenu');
+  await pick(at(20, 15), '#plAreaMenu');
   await p.click('#plAreaMenu .menu-btn'); await p.click('#plAreaDup');
   await storedBy(plan, pl => pl.areas.length === 3 && pl.areas[2].name === 'Office 2' && pl.areas[2].x === 13 && pl.areas[2].w === 20 && !pl.areas[2].room);
   await p.waitForSelector('#plAreaMenu .menu-btn:has-text("Office 2")');

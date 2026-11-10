@@ -66,7 +66,10 @@ export function reportPdf(r, company = {}) {
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(range.start + i);
+      /* The footer sits below the bottom margin: with the margin in place PDFKit would start a new, empty page for it. */
+      const bottom = doc.page.margins.bottom; doc.page.margins.bottom = 0;
       doc.font('Helvetica').fontSize(7).fillColor('#94a3b8').text(`${r.title} · page ${i + 1} of ${range.count}`, M, PH - M - 4, { width: W, align: 'right', lineBreak: false });
+      doc.page.margins.bottom = bottom;
     }
     doc.end();
   });

@@ -35,9 +35,15 @@ try {
   const cb = await p.locator('#plCanvas').boundingBox();
   const at = (x, y) => [cb.x + cb.width * x / 100, cb.y + cb.height * y / 100];
 
+  /* An area clicked, then its rectangles unlocked (Area… → Edit rectangles) unless they are already. */
+  const pick = async (pt, sel) => { await p.mouse.click(...pt); await p.waitForSelector('#plAreaMenu');
+    if (!(await p.locator('[data-rh]').count())) { await p.click('#plAreaMenu .menu-btn'); await p.click('#plShapeEdit'); }
+    await p.waitForSelector(sel); };
   // no handles until the area is chosen; a click on it chooses it
   assert.equal(await p.locator('[data-rh]').count(), 0, 'handles before the area is chosen');
-  await p.mouse.click(...at(20, 20)); await p.waitForSelector('[data-rh="0:se"]');
+  await p.mouse.click(...at(20, 20)); await p.waitForSelector('#plAreaMenu');
+  assert.equal(await p.locator('[data-rh]').count(), 0, 'the handles show before the rectangles are unlocked');
+  await p.click('#plAreaMenu .menu-btn'); await p.click('#plShapeEdit'); await p.waitForSelector('[data-rh="0:se"]');
   assert.equal(await p.locator('[data-rh]').count(), 8, 'a corner and a side handle each');
 
   // the bottom-right corner dragged out to 40,45: bigger, saved
@@ -70,7 +76,7 @@ try {
 
   // Esc lets the area go; so does a click beside it
   await p.keyboard.press('Escape'); await until(p, () => !document.querySelector('[data-rh]'));
-  await p.mouse.click(...at(60, 20)); await p.waitForSelector('[data-rh]');
+  await pick(at(60, 20), '[data-rh]');
   await p.mouse.click(...at(90, 90)); await until(p, () => !document.querySelector('[data-rh]'));
   assert.deepEqual(errors, [], 'page errors');
   console.log('plans resize: all checks passed');

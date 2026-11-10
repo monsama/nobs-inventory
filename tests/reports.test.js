@@ -105,3 +105,9 @@ test('a report of only the listed devices, and letters beyond Western Europe in 
   const plain = (await reportPdf(buildReport({ ...s, users: [{ id: 'u1', name: 'Anna' }] }, { kind: 'inventory', ids: ['a'] }), {})).toString('latin1');
   assert.doesNotMatch(plain.replace(/Kraków/g, ''), /DejaVuSans/, 'Western text keeps the standard font');
 });
+
+test('a short report is one page: the page number at the foot does not start a page of its own', async () => {
+  const r = { title: 'Hand-back list: Test Person', subtitle: '1 device', columns: [{ label: 'Code', w: 1 }, { label: 'Name', w: 1 }], groups: [{ name: '', rows: [['INV-0001', 'PC-1']] }] };
+  const pdf = (await reportPdf(r, {})).toString('latin1');
+  assert.equal((pdf.match(/\/Type \/Page\b(?!s)/g) || []).length, 1, 'a second, empty page with only the page number');
+});
