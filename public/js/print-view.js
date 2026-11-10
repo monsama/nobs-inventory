@@ -30,7 +30,7 @@ export function printView(kind){
     body = html`<table class="pv-table"><thead><tr>${t.head.map(h => html`<th>${h}</th>`)}</tr></thead><tbody>${t.rows.map(r => html`<tr>${r.map(v => html`<td>${v}</td>`)}</tr>`)}</tbody></table>`;
   } else {
     const list = filtered(), idx = relIndex(), join = showJoin(); n = list.length;
-    body = html`<div id="cards" class="pv-cards">${list.map(o => rawHtml(cardHtml(o, idx, join)))}</div>`;
+    body = html`<div id="cards" class="pv-cards">${list.map(o => rawHtml(cardHtml(o, idx, join).replace(/<button type="button" class="nm card-open"[^>]*>([\s\S]*?)<\/button>/, '<span class="nm">$1</span>')))}</div>`;
   }
   const css = new URL('css/app.css', location.href).href;
   w.document.open();

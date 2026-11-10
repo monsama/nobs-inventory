@@ -28,8 +28,8 @@ try {
   await open();
   // a rack: its examples and height, nothing to plug into
   await p.selectOption('#nType', 'rack');
-  assert.equal(await p.getAttribute('#nName', 'placeholder'), 'e.g. ZH-RACK-01');
-  assert.equal(await p.getAttribute('#nModel', 'placeholder'), 'e.g. APC NetShelter SX 42U');
+  assert.equal(await p.getAttribute('#nName', 'placeholder'), 'e.g. RACK-01');
+  assert.equal(await p.getAttribute('#nModel', 'placeholder'), 'e.g. 42U server rack');
   assert.equal(await p.isVisible('#nUnits'), true); assert.equal(await p.isVisible('#nUp'), false); assert.equal(await p.isVisible('#nPort'), false);
   // a monitor is attached to a computer: only computers are offered, no port
   await p.selectOption('#nType', 'monitor');

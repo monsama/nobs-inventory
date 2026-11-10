@@ -317,7 +317,7 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 
 /* top bar */
 #bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(var(--edge), env(safe-area-inset-right, 0px)) 6px max(var(--gutter), env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
-#brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin-right:6px}
+#brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin:0 6px 0 0;font-size:inherit;line-height:inherit}
 #toolbar:empty{display:none}   /* a view with its own bar leaves no empty band above it */
 #brand .logo{width:24px;height:24px;flex:none;display:block}
 #brand b{font-weight:800;letter-spacing:.2px}
@@ -431,7 +431,18 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:10px;padding:12px}
 .card .kv{flex:1;align-content:start}
 
-.card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.card:focus-visible,.card:has(.card-open:focus-visible){outline:2px solid var(--accent);outline-offset:1px}
+/* The name opens the device: it reads as the name, not as a button; the card around it shows the focus. */
+.card button.card-open{background:none;border:0;padding:0;margin:0;height:auto;min-height:0;color:inherit;cursor:pointer;display:block;max-width:100%;text-align:left;filter:none}
+.card button.card-open:focus-visible{outline:none}
+.card button.cardtick{padding:0;min-height:0;filter:none}
+.card .cardtick:focus-visible{opacity:1;outline:2px solid var(--accent);outline-offset:1px}
+/* On a phone the name and the tick are as large to tap as any control (36px), the tick's box drawn inside its area. */
+@media (max-width:760px){.card button.card-open{min-height:36px;margin:-9px 0}
+ .card button.cardtick{width:36px;height:36px;top:-2px;right:-2px;border:0;background:transparent}
+ .card button.cardtick::before{content:"";position:absolute;left:10px;top:10px;width:16px;height:16px;box-sizing:border-box;border:1.5px solid var(--bd);border-radius:4px;background:var(--bg)}
+ .card.picked button.cardtick{background:transparent}.card.picked button.cardtick::before{background:var(--accent);border-color:var(--accent)}
+ .card.picked button.cardtick::after{left:15.5px;top:12.5px}}
 .card .ch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2)}
 .card .ch>.chip{align-self:flex-start;margin-top:-1px}
 
@@ -1670,6 +1681,10 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 /* Stocktake: progress, the scan field, the devices by room to tick; the summary on finishing. */
 .stk{display:flex;flex-direction:column;gap:12px;padding:12px var(--gutter)}   /* in #view, which has its own scrollbar: the toolbar's gutter */
 .stk-pad{padding-left:12px;padding-right:12px}
+/* Starting a check: a form as wide as the others, not the whole screen. */
+.stk-new{max-width:760px}
+/* A box of plain facts (a rack's place, height and count): one font for all its values. */
+.lsbox.plain dd{font-family:inherit}
 .stk .panelbox{margin:0}
 .stk-prog{display:flex;align-items:center;gap:12px;padding-top:12px}.stk-prog .ov-qbar{max-width:420px}
 .stk-scanrow{display:flex;gap:8px;padding-top:10px}.stk-scanrow input{flex:1;min-width:0;height:40px;font-size:15px}

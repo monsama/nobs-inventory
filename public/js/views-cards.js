@@ -97,15 +97,17 @@ export function cardHtml(o, idx, join = showJoin()){
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
   const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
-  return String(html`<button class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-pressed="${String(picked)}"${o.review ? html` aria-label="${o.name}: waiting in To review"` : ''}><span class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-hidden="true"></span>
-    <div class="ch">${rawHtml(tico(o.type))}<div class="hd"><span class="nmrow"><span class="nm">${o.name}</span>${rawHtml(markHtml(o, false))}</span><span class="model">${o.model}</span></div>
+  /* The card is a group, not one button: its name opens the device (a click anywhere on it does too), the tick in its
+     corner selects it, and the review actions are buttons of their own, so a screen reader names each for what it does. */
+  return String(html`<article class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${o.review ? `${o.name}: waiting in To review` : o.name}"><button type="button" class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button>
+    <div class="ch">${rawHtml(tico(o.type))}<div class="hd"><span class="nmrow"><button type="button" class="nm card-open" data-open="${o.id}">${o.name}</button>${rawHtml(markHtml(o, false))}</span><span class="model">${o.model}</span></div>
       ${o.status !== 'active' ? html`<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => html`<dt>${k || rawHtml('&nbsp;')}</dt><dd${v ? '' : html` class="none"`}>${v ? rawHtml(v) : k ? '-' : rawHtml('&nbsp;')}</dd>`)}</dl>
     ${join ? rawHtml(joinBadges(o)) : ''}
     ${o.review ? reviewChips(o, stale) : twinOf(o) ? html`<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? html`<div class="rv-chips">${twinsChip(o)}</div>` : ''}
     ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts"><span role="button" tabindex="0" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</span>${mergeTarget(o) ? html`<span role="button" tabindex="0" class="rv-act" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</span>` : ''}<span role="button" tabindex="0" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</span></span>` : ''}
     <div class="cf"><span class="code">${o.code}</span>${rawHtml(cardSeen(o))}${rawHtml(handHtml(o))}${join && GRAPH_TYPES.includes(o.type) ? '' : rawHtml(graphProblem(o))}<span class="grow"></span>${relSummary(rs)}</div>
-  </button>`);
+  </article>`);
 }
 /* On a device waiting in To review: which sync found it, Old when no source has seen it for long (left out of Accept
    all), the other sources that know it, and the device it is most likely a second record of. */

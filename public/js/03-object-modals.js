@@ -103,7 +103,7 @@ export function retireModal(o){
   modal(html`<div class="mh">Retire ${o.name}?</div>
     <div class="mb"><p class="note">It stays in the inventory for the record, with its history, and is no longer offered when connecting something. You can bring it back by changing its status.${o.rack ? ' It is taken out of its rack.' : ''}</p>
       ${ties.length ? html`<div class="rt-ties"><div class="rt-h">Also, so nothing looks in use that is not:</div>${ties.map(([k, l]) => html`<label class="pchk"><input type="checkbox" data-rt="${k}" checked> ${l}</label>`)}</div>` : ''}
-      <div class="form" style="padding:8px 0 0"><label for="rtWhy">Reason</label><input id="rtWhy" maxlength="200" placeholder="Optional, e.g. broken screen, replaced by ZH-NB-0210"></div></div>
+      <div class="form" style="padding:8px 0 0"><label for="rtWhy">Reason</label><input id="rtWhy" maxlength="200" placeholder="Optional, e.g. broken screen, replaced by NB-0210"></div></div>
     <div class="mf"><button id="rtCancel">Cancel</button><button id="rtOk" class="danger-text">Retire</button></div>`, 'sm');
   $('#rtCancel').onclick = closeModal;
   $('#rtOk').onclick = () => {

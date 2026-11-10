@@ -122,7 +122,7 @@ function groupRuleModal(i){
   const rules = groupRules(), r = i === null ? { group: '', sites: [] } : rules[i];
   const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
   modal(html`<div class="mh">${i === null ? 'Add a group' : 'Change the group'}</div><div class="mb"><div class="form">
-      <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${r.group}" placeholder="IT-Bern, CN=IT-Bern,OU=… or an Entra group ID" list="grKnown">
+      <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${r.group}" placeholder="IT-Staff, CN=IT-Staff,OU=… or an Entra group ID" list="grKnown">
       <datalist id="grKnown">${[...new Set(USERS.flatMap(u => u.groups || []))].sort().map(g => html`<option value="${g}">`)}</datalist>
       <span class="lbl">Sites</span><div class="usees-sites">${sites.length ? sites.map(n => html`<label class="pchk" style="width:auto"><input type="checkbox" data-grsite="${n}" ${(r.sites || []).includes(n) ? 'checked' : ''}> ${n}</label>`) : html`<span class="muted">No sites yet: the rule gives all sites.</span>`}</div>
     </div><p class="note" id="grSitesNote">No site ticked: all sites. It takes effect at the next directory sync or sign-in of each person.</p></div>
