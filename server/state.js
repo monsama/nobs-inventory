@@ -325,8 +325,9 @@ function checkStateRules(s, size = true, newRels = null) {
   if (s.ldap && typeof s.ldap === 'object' && /ms-?mcs-?admpwd|mslaps-|msfve-/i.test([s.ldap.loginAttr, s.ldap.userFilter, s.ldap.computerBase].join(' '))) bad('The directory settings name a LAPS or BitLocker attribute. The inventory never reads those.');
   for (const u of s.users) {
     if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');
-    /* A person added as a device's user (from Lansweeper, or typed on a device) has no sign-in, so no role was given: they are a viewer. */
-    if (u.role === undefined) u.role = 'viewer';
+    /* A person saved without a role (named as a device's user, imported) has no access until an admin gives one. One
+       with a login from an older version, who could sign in as a viewer, keeps that. */
+    if (u.role === undefined) u.role = u.login ? 'viewer' : 'none';
     /* none: known to the inventory (it names their devices) but no access to it, until an admin gives a role. */
     /* The editor role of older versions is gone: such a person reads, as a viewer. */
     if (u.role === 'editor') u.role = 'viewer';
