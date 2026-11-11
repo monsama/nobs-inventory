@@ -164,7 +164,7 @@ test('addresses are checked: a bad IP is refused, IPv6 is kept, a MAC is stored 
   assert.equal(s.objs[0].ip, '10.1.1.5', 'the feed stored a bad IP');
 });
 
-test('a device user with no sign-in, such as the last user from Lansweeper, is saved as a viewer', async () => {
+test('a device user with no sign-in, such as the last user from Lansweeper, is saved with no access; one with a login keeps viewer', async () => {
   const srv = await startServer();
   try {
     const a = await signIn(srv, 'admin', 'adminpass123');
@@ -175,8 +175,12 @@ test('a device user with no sign-in, such as the last user from Lansweeper, is s
     const now = await load(srv, a.cookie);
     const saved = now.users.find(u => u.id === 'u-jdoe');
     assert.ok(saved, 'the person was not saved');
-    assert.equal(saved.role, 'viewer');
+    assert.equal(saved.role, 'none');
     assert.equal(now.objs.find(o => o.id === 'o1').uid, 'u-jdoe');
+    /* A person with a login saved without a role by an older page could sign in as a viewer: that stays. */
+    const old = { id: 'u-old', login: 'old', name: 'Old Login', dept: '', groups: [], source: 'manual', active: true };
+    assert.equal((await put(srv, a.cookie, { puts: [{ kind: 'user', id: 'u-old', value: old, base: 0 }], dels: [] })).status, 200);
+    assert.equal((await load(srv, a.cookie)).users.find(u => u.id === 'u-old').role, 'viewer');
   } finally { await srv.close(); }
 });
 

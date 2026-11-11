@@ -178,13 +178,14 @@ export function renderSetUsers(){
   const srcOf = u => ['ldap', 'lansweeper', 'entra'].includes(u.source) ? u.source : 'manual';
   /* Accounts (people who may sign in) and the people only known as device users (No access) are listed apart; a search
      or a role filter looks through everybody. */
-  const noAccess = u => (u.role || 'viewer') === 'none';
+  const roleOf = u => u.role || (u.login ? 'viewer' : 'none');
+  const noAccess = u => roleOf(u) === 'none';
   /** @type {Record<string, [string, (u: any) => boolean]>} */
   const KINDS = {acc: ['Accounts', u => !noAccess(u)], ppl: ['People without access', noAccess], all: ['Everybody', () => true]};
   if (!KINDS[st.userKind]) st.userKind = USERS.some(noAccess) ? 'acc' : 'all';
   const kindOk = u => !!(String(st.userQ || '').trim() || st.userRole) || KINDS[st.userKind][1](u);
   const shown = u => kindOk(u) && (!st.userDir || DIRS[st.userDir][1](u)) && (!st.userSrc || srcOf(u) === st.userSrc)
-    && (!st.userStatus || (st.userStatus === 'active') === (u.active !== false)) && (!st.userRole || (u.role || 'viewer') === st.userRole)
+    && (!st.userStatus || (st.userStatus === 'active') === (u.active !== false)) && (!st.userRole || roleOf(u) === st.userRole)
     && (!st.userDevs || devicesOfUser(u.name) > 0)
     && (!q || [u.name, u.login, u.dept, u.profile && u.profile.mail, u.entra && u.entra.upn, ...(u.aliases || [])].some(v => v && String(v).toLowerCase().includes(q)));
   const nShown = USERS.filter(shown).length, filtering = !!(q || st.userDir || st.userSrc || st.userStatus || st.userRole || st.userDevs);
@@ -201,7 +202,7 @@ export function renderSetUsers(){
       ${fromDirectory(u) ? html`<td>${u.dept || ''}</td>` : html`<td><input data-udept="${i}" maxlength="80" value="${u.dept || ''}" placeholder="Department" aria-label="Department of ${u.name}"></td>`}<td>${(u.groups || []).join(', ')}</td>
       <td><span class="usrcs">${rawHtml(sourceChips(u))}</span></td>
       <td class="n"><button type="button" class="link" data-devs="${i}" aria-label="${`Devices of ${u.name}: ${devicesOfUser(u.name)}`}">${devicesOfUser(u.name)}</button></td>
-      <td><div class="urole"><select data-role="${i}" aria-label="Role of ${u.name}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.roleBy ? html`<span class="chip kept ugrp" title="Given by the group ${u.roleBy} (Roles from groups below); the next sync gives it again while they are in it">group</span>` : ''}${u.role === 'viewer' || u.role === 'editor' || !u.role ? html`<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${seesText(u)}</button>` : ''}</div></td>
+      <td><div class="urole"><select data-role="${i}" aria-label="Role of ${u.name}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${roleOf(u) === 'viewer' ? 'selected' : ''}>Viewer</option><option value="none" ${roleOf(u) === 'none' ? 'selected' : ''}>No access</option></select>${u.roleBy ? html`<span class="chip kept ugrp" title="Given by the group ${u.roleBy} (Roles from groups below); the next sync gives it again while they are in it">group</span>` : ''}${roleOf(u) === 'viewer' || u.role === 'editor' ? html`<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${seesText(u)}</button>` : ''}</div></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="${`${u.name} active`}"></td>
       <td class="umenu-c">${rawHtml(menuHtml('⋯', html`
         ${SERVER.on && u.source !== 'ldap' ? (u.login ? html`<button data-pw="${i}" title="Set this user's password">Set password…</button>` : html`<button data-login="${i}" title="Give this user a login name">Give a login name…</button>`) : ''}
