@@ -41,6 +41,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+      # To read the description of the pull request the release came from, for its notes.
+      pull-requests: read
       # A signed statement of where the archive was built (GitHub artifact attestation, Sigstore).
       id-token: write
       attestations: write
@@ -106,8 +108,19 @@ jobs:
         run: |
           t="v${{ steps.v.outputs.version }}"
           git tag "$t" "$GITHUB_SHA" && git push origin "$t"
+      # The notes say what changed: the summary of the pull request merged for this commit (its Summary section, without
+      # the Tests and the footer), then GitHub's list of pull requests. No pull request found: GitHub's list alone. The
+      # text is written to a file by gh itself, never put into a shell command.
+      - name: Release notes from the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '[.[] | select(.merged_at != null)][0].body // ""' > "$RUNNER_TEMP/pr.md" || : > "$RUNNER_TEMP/pr.md"
+          awk '/^## Tests/ || /^---$/ || /Generated with \[Claude Code\]/ || /claude\.ai\/code\/session_/ {exit} {print}' "$RUNNER_TEMP/pr.md" | sed 's/^## Summary$/## What changed/' > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: v${{ steps.v.outputs.version }}
           files: dist/*
+          body_path: ${{ runner.temp }}/notes.md
           generate_release_notes: true

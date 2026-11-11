@@ -105,7 +105,7 @@ export function cardHtml(o, idx, join = showJoin()){
     <dl class="kv">${lines.map(([k,v]) => html`<dt>${k || rawHtml('&nbsp;')}</dt><dd${v ? '' : html` class="none"`}>${v ? rawHtml(v) : k ? '-' : rawHtml('&nbsp;')}</dd>`)}</dl>
     ${join ? rawHtml(joinBadges(o)) : ''}
     ${o.review ? reviewChips(o, stale) : twinOf(o) ? html`<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? html`<div class="rv-chips">${twinsChip(o)}</div>` : ''}
-    ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts"><span role="button" tabindex="0" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</span>${mergeTarget(o) ? html`<span role="button" tabindex="0" class="rv-act" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</span>` : ''}<span role="button" tabindex="0" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</span></span>` : ''}
+    ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts"><button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>${mergeTarget(o) ? html`<button type="button" class="rv-act" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</button>` : ''}<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button></span>` : ''}
     <div class="cf"><span class="code">${o.code}</span>${rawHtml(cardSeen(o))}${rawHtml(handHtml(o))}${join && GRAPH_TYPES.includes(o.type) ? '' : rawHtml(graphProblem(o))}<span class="grow"></span>${relSummary(rs)}</div>
   </article>`);
 }
@@ -184,7 +184,7 @@ const rvAct = e => {
   return true;
 };
 document.addEventListener('click', rvAct, true);
-document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && evEl(e).matches && evEl(e).matches('#view [data-rvc]')) rvAct(e); }, true);
+/* They are buttons: Enter and Space click them like any other. */
 /* The "Probably …" chip on a card opens Resolve instead of the card. */
 document.addEventListener('click', e => {
   const c = evEl(e).closest && evEl(e).closest('#view [data-resolve]'); if (!c) return;

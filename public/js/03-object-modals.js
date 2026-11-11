@@ -367,7 +367,8 @@ export function renderObj(o){
   /* A source tab shows its part of the Sources panel; the choice stays for the next device page. */
   objView.querySelectorAll('[data-srctab]').forEach(b => b.onclick = () => {
     const k = st.srcTab = b.dataset.srctab, box = b.closest('.srcpanel');
-    box.querySelectorAll('[data-srctab]').forEach(x => { const on = x.dataset.srctab === k; x.classList.toggle('sel', on); x.setAttribute('aria-selected', String(on)); });
+    /* Tab reaches the chosen tab only; the arrow keys move between them. */
+    box.querySelectorAll('[data-srctab]').forEach(x => { const on = x.dataset.srctab === k; x.classList.toggle('sel', on); x.setAttribute('aria-selected', String(on)); x.tabIndex = on ? 0 : -1; });
     box.querySelectorAll('[role=tabpanel]').forEach(x => { x.hidden = x.id !== 'srcbody-' + k; });
     box.querySelectorAll('[data-srcmeta]').forEach(x => { x.hidden = x.dataset.srcmeta !== k; });
   });
