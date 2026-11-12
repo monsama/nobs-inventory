@@ -37,6 +37,25 @@ export function registerSheetRoutes(app, ctx) {
       audit(db, req.user.id, `report made: ${r.title} (${req.query.format === 'xlsx' ? 'Excel' : 'PDF'}${opts.ids ? ', filtered list' : ''})`);
     } catch (e) { next(e); }
   };
+  /* A list the page shows (the IP addresses), as a PDF (A4 landscape) or an Excel workbook: the page sends its columns
+     and rows, cut to what that person sees there, and gets the file back. Plain text only, within limits; nothing is
+     kept. Excel cells are inline text, so a cell starting with = is never a formula. */
+  app.post('/api/reports/list', requireUser, async (req, res, next) => {
+    try {
+      const b = req.body || {}, str = (v, n) => typeof v === 'string' ? v.slice(0, n) : typeof v === 'number' && Number.isFinite(v) ? String(v) : '';
+      if (!Array.isArray(b.columns) || !b.columns.length || b.columns.length > 12) throw new HttpError(400, 'A list has 1 to 12 columns.');
+      if (!Array.isArray(b.rows) || b.rows.length > 20000) throw new HttpError(400, 'A list has up to 20000 rows.');
+      const columns = b.columns.map(c => ({ label: str(c && c.label, 60) || '-', w: Math.min(4, Math.max(0.3, Number(c && c.w) || 1)) }));
+      const rows = b.rows.map(r => columns.map((_, i) => str(Array.isArray(r) ? r[i] : '', 300)));
+      const title = str(b.title, 80) || 'List', name = String(b.name || 'list').replace(/[^\w-]/g, '').slice(0, 40) || 'list';
+      const r = { title, subtitle: str(b.subtitle, 300), columns, groups: [{ name: '', rows }] };
+      const s = loadState(db), base = `nobs-${name}-${new Date().toISOString().slice(0, 10)}`;
+      res.set('Cache-Control', 'no-store');
+      if (req.query.format === 'xlsx') res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(`${base}.xlsx`).send(reportXlsx(r));
+      else res.type('application/pdf').attachment(`${base}.pdf`).send(await reportPdf(r, s.company || {}));
+      audit(db, req.user.id, `report made: ${title} (${req.query.format === 'xlsx' ? 'Excel' : 'PDF'}, ${rows.length} rows)`);
+    } catch (e) { next(e); }
+  });
   app.get('/api/reports/:kind', requireUser, report);
   app.post('/api/reports/:kind', requireUser, report);
   app.post('/api/sheets', requireUser, requireAdmin, (req, res, next) => {

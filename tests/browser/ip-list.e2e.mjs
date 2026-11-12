@@ -29,7 +29,7 @@ const server = await new Promise(r => { const x = createApp({ db }).listen(0, '1
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
 try {
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
   await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch { /* none */ } });
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
@@ -51,7 +51,7 @@ try {
   assert.match(row('192.168.5.20', 'PC-D')[3], /Dynamic \(DHCP\)/);
   assert.match(await p.textContent('#ipCount'), /6 addresses · 2 static · 2 dynamic · 2 not known/);
   // PC-C has no assignment set: its address is in the DHCP range, so it reads as dynamic by its range
-  assert.equal(await p.$eval('[data-ipas="c"]', s => s.selectedOptions[0].textContent), 'Not set (DHCP range)');
+  assert.equal(await p.$eval('[data-ipas="c"]', s => s.selectedOptions[0].textContent), 'In DHCP range');
 
   // filters: only problems, the assignment, and the search
   await p.check('#ipProblems'); r = await rows();
@@ -62,7 +62,8 @@ try {
   await p.selectOption('#ipAssign', '');
   await p.fill('#search', '192.168'); await until(p, () => document.querySelectorAll('table.grid.ips tbody tr').length === 1);
 
-  await p.fill('#search', '');
+  await p.fill('#search', ''); await until(p, () => document.querySelectorAll('table.grid.ips tbody tr').length > 1);
+  await p.waitForTimeout(400);   /* the search's own redraw comes a moment later */
   // one subnet with its free addresses: the static range's free ones, the DHCP range kept apart, the gateway named
   await p.selectOption('#ipSub', '10.1.1.0/28'); await p.check('#ipFree');
   const free = await p.$$eval('table.grid.ips tr.ip-free', trs => trs.map(tr => [...tr.cells].map(c => c.textContent.trim()).join(' ').replace(/\s+/g, ' ')));
@@ -70,6 +71,20 @@ try {
   assert.ok(free.some(t => /^10\.1\.1\.8 DHCP range/.test(t)), 'the DHCP range is not marked');
   assert.match(await p.textContent('#ipCount'), / free$/);
 
+  // Export: Excel and PDF from the server, and the print view, of the rows shown
+  for (const kind of ['xlsx', 'pdf']) {
+    await p.click('#ipExport .menu-btn');
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click(`[data-ipx="${kind}"]`)]);
+    assert.equal(dl.suggestedFilename(), `ip-addresses-10-1-1-0-28.${kind}`);
+    const buf = fs.readFileSync(await dl.path());
+    assert.equal(buf.subarray(0, kind === 'pdf' ? 4 : 2).toString(), kind === 'pdf' ? '%PDF' : 'PK');
+  }
+  await p.click('#ipExport .menu-btn');
+  const [pv] = await Promise.all([p.waitForEvent('popup'), p.click('[data-ipx="print"]')]);
+  await pv.waitForLoadState();
+  assert.match(await pv.textContent('p.sub'), /Subnet Office \(10\.1\.1\.0\/28\)/);
+  assert.ok(await pv.locator('tbody tr').count() >= 14, 'the print view does not list the subnet');
+  await pv.close();
   // the assignment set here: saved on the device, with a history line, and the row says so
   await p.selectOption('[data-ipas="b"]', 'dhcp');
   await storedBy(() => loadState(db), s => s.objs.find(o => o.id === 'b').dhcp === 'dhcp');

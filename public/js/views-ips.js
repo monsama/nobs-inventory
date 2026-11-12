@@ -2,7 +2,7 @@
    adapters), in address order, with the device, whether it is static or dynamic, its subnet, and what is wrong with it:
    two devices on one address, a static address inside a DHCP range, the gateway taken by a device. The filters on the
    left and the search apply as in Cards and the Table. With one subnet picked, its free addresses can be shown too. */
-import { $, STATUS, SUBNETS, TYPES, filtered, hist, now, objs, setByHand, st, tico, toast } from './01-core.js';
+import { $, STATUS, SUBNETS, TYPES, filtered, hist, menuHtml, now, objs, setByHand, st, tico, toast } from './01-core.js';
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { subnetFor, subnetName } from './17-fields.js';
@@ -63,7 +63,11 @@ export function renderIps(){
       <option value="">All</option><option value="static" ${st.ipAssign === 'static' ? 'selected' : ''}>Static</option><option value="dhcp" ${st.ipAssign === 'dhcp' ? 'selected' : ''}>Dynamic (DHCP)</option><option value="none" ${st.ipAssign === 'none' ? 'selected' : ''}>Not known</option></select>
     <label class="pchk" style="width:auto"><input type="checkbox" id="ipProblems" ${st.ipProblems ? 'checked' : ''}> Only problems</label>
     ${canFree ? html`<label class="pchk" style="width:auto"><input type="checkbox" id="ipFree" ${st.ipFree ? 'checked' : ''}> Free addresses</label>` : ''}
-    <span class="muted" id="ipCount"></span><div class="grow"></div><button id="ipCsv" title="The rows shown, as a CSV file">Export</button>`;
+    <span class="muted" id="ipCount"></span><div class="grow"></div>${rawHtml(menuHtml('Export', String(html`
+      <button type="button" data-ipx="xlsx">Excel<span class="muted">the rows shown</span></button>
+      <button type="button" data-ipx="pdf">PDF<span class="muted">A4 landscape</span></button>
+      <button type="button" data-ipx="csv">CSV<span class="muted">for other tools</span></button>
+      <button type="button" data-ipx="print">Print…<span class="muted">or save as PDF from the browser</span></button>`), { id: 'ipExport' }))}`;
 
   const q = (st.q || '').trim().toLowerCase();
   let rows = ipRows(filtered());
@@ -98,7 +102,7 @@ export function renderIps(){
     const v = assignOf(r), label = r.guess && !r.dhcp ? 'Dynamic (DHCP range)' : ASSIGN[v] || 'Not known';
     if (!edit || !r.main) return html`<span class="ip-as ${v || 'none'}${r.guess && !r.dhcp ? ' guess' : ''}" ${r.guess && !r.dhcp ? html`title="Not set on the device: the address is in a DHCP range of its subnet"` : ''}>${label}</span>`;
     return html`<select class="ip-assign" data-ipas="${r.o.id}" aria-label="${`Assignment of ${r.ip} on ${r.o.name}`}">
-      <option value="" ${r.dhcp ? '' : 'selected'}>${r.guess ? 'Not set (DHCP range)' : 'Not known'}</option><option value="static" ${r.dhcp === 'static' ? 'selected' : ''}>Static</option><option value="dhcp" ${r.dhcp === 'dhcp' ? 'selected' : ''}>Dynamic (DHCP)</option></select>`;
+      <option value="" ${r.dhcp ? '' : 'selected'}>${r.guess ? 'In DHCP range' : 'Not known'}</option><option value="static" ${r.dhcp === 'static' ? 'selected' : ''}>Static</option><option value="dhcp" ${r.dhcp === 'dhcp' ? 'selected' : ''}>Dynamic (DHCP)</option></select>`;
   };
   const head = html`<thead><tr><th class="ip-addr">Address</th><th>Device</th><th class="ip-opt">Type</th><th class="ip-as-col">Assignment</th><th class="ip-opt">Subnet</th><th class="ip-opt">MAC address</th><th class="ip-opt">Location</th><th>Notes</th></tr></thead>`;
   const body = lines.length ? html`${lines.map(({ r, free }) => free
@@ -130,13 +134,48 @@ export function renderIps(){
     hist(o, now(), `IP assignment set to ${ASSIGN[v]}`);
     queueServerSave(); toast(`${o.name}: ${ASSIGN[v]}`); render();
   });
-  $('#ipCsv').onclick = () => {
-    const cols = ['Address', 'Device', 'Adapter', 'Type', 'Assignment', 'Subnet', 'MAC address', 'Location', 'Notes'];
-    const out = [cols.join(','), ...lines.map(({ r, free }) => (free ? [free.ip, '', '', '', '', sub ? subnetName(sub) : '', '', '', free.what]
-      : [r.ip, r.o.name, r.main ? '' : r.nic, TYPES[r.o.type] ? TYPES[r.o.type].label : r.o.type, ASSIGN[r.dhcp] || (r.guess ? 'Dynamic (DHCP range)' : 'Not known'), r.sub ? subnetName(r.sub) : '', r.mac, r.o.loc || '', r.notes.map(x => x.text).join('; ')]).map(csvCell).join(','))];
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(['﻿' + out.join('\r\n')], { type: 'text/csv' }));
-    a.download = `ip-addresses${sub ? '-' + sub.cidr.replace(/[./]/g, '-') : ''}.csv`; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  };
+  /* The rows shown, as they read on screen, for every export. */
+  const cols = [['Address', 0.9], ['Device', 1.3], ['Adapter', 0.8], ['Type', 0.8], ['Assignment', 1], ['Subnet', 1.1], ['MAC address', 1.1], ['Location', 1.2], ['Notes', 1.8]];
+  const data = () => lines.map(({ r, free }) => free ? [free.ip, '', '', '', '', sub ? subnetName(sub) : '', '', '', free.what + (free.use && free.what === 'Free' ? ` (${free.use})` : '')]
+    : [r.ip, r.o.name, r.main ? '' : r.nic, TYPES[r.o.type] ? TYPES[r.o.type].label : r.o.type, ASSIGN[r.dhcp] || (r.guess ? 'Dynamic (DHCP range)' : 'Not known'), r.sub ? subnetName(r.sub) : '', r.mac, (r.o.loc || '').replace(' / ', ' · '), r.notes.map(x => x.text).join('; ')]);
+  const what = () => [sub ? `Subnet ${subnetName(sub)} (${sub.cidr})` : st.ipSub === '-' ? 'In no listed subnet' : 'All addresses', st.ipAssign ? `Assignment: ${st.ipAssign === 'none' ? 'Not known' : ASSIGN[st.ipAssign]}` : '', st.ipProblems ? 'Only problems' : '', q ? `Search: ${st.q.trim()}` : '', $('#ipCount').textContent].filter(Boolean).join(' · ');
+  const fileName = `ip-addresses${sub ? '-' + sub.cidr.replace(/[./]/g, '-') : ''}`;
+  const save = (blob, name) => { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name }); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
+  $('#ipExport').querySelectorAll('[data-ipx]').forEach(b => b.addEventListener('click', async () => {
+    const box = /** @type {HTMLElement|null} */ ($('#ipExport .menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }
+    const kind = /** @type {HTMLElement} */ (b).dataset.ipx, rows = data();
+    if (kind === 'csv') return save(new Blob(['\ufeff' + [cols.map(c => c[0]), ...rows].map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv' }), fileName + '.csv');
+    if (kind === 'print') return printIps(cols.map(c => c[0]), rows, what());
+    /* Excel and PDF are made by the server, like the Reports: the rows go there, the file comes back. */
+    const r = await fetch(`api/reports/list?format=${kind}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'IP addresses', name: fileName, subtitle: what(), columns: cols.map(([label, w]) => ({ label, w })), rows }) }).catch(() => null);
+    if (!r || !r.ok){ toast(r ? ((await r.json().catch(() => ({}))).error || 'The file could not be made.') : 'The server cannot be reached.'); return; }
+    save(await r.blob(), `${fileName}.${kind}`);
+  }));
+}
+
+/* The list in a page of its own made for A4 paper (landscape, light, the heads on every page), with what it shows and
+   when; the browser's print dialog also saves it as a PDF. */
+function printIps(head, rows, what){
+  const w = window.open('', '_blank');
+  if (!w){ toast('The browser blocked the print window. Allow pop-ups for this page and try again.'); return; }
+  w.document.open();
+  w.document.write(String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>IP addresses</title>
+    <style>
+      *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
+      body{font:11px/1.35 system-ui,"Segoe UI",Roboto,Arial,sans-serif;color:#111;background:#fff;margin:0;padding:14px}
+      h2{margin:0 0 2px;font-size:17px}p.sub{margin:0 0 10px;color:#555;font-size:11px}
+      table{border-collapse:collapse;width:100%;table-layout:fixed}
+      th,td{border:1px solid #c8c8c8;padding:3px 5px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+      th{background:#eef1f5;font-weight:600}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}
+      td.mono{font-family:ui-monospace,Consolas,monospace;font-size:10px;white-space:nowrap;overflow-wrap:normal}
+      tr.free td{color:#777;background:#f7f7f7}tr.warn td:last-child{color:#b42318}
+      col.c0{width:9%}col.c1{width:13%}col.c2{width:6%}col.c3{width:7%}col.c4{width:10%}col.c5{width:9%}col.c6{width:13%}col.c7{width:13%}col.c8{width:20%}
+      @page{size:A4 landscape;margin:10mm}
+      @media print{body{padding:0}}
+    </style></head><body><h2>IP addresses</h2><p class="sub">${what} · printed ${new Date().toLocaleString()}</p>
+    <table><colgroup>${head.map((_, i) => html`<col class="c${i}">`)}</colgroup><thead><tr>${head.map(h => html`<th>${h}</th>`)}</tr></thead><tbody>
+    ${rows.map(r => html`<tr class="${!r[1] ? 'free' : r[8] ? 'warn' : ''}">${r.map((v, i) => html`<td class="${i === 0 || i === 6 ? 'mono' : ''}">${v}</td>`)}</tr>`)}</tbody></table></body></html>`));
+  w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch { /* the window was closed */ } }, 400);
 }
