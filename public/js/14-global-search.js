@@ -111,7 +111,7 @@ box.setAttribute('role', 'combobox'); box.setAttribute('aria-controls', 'gsList'
 /* On a list (Cards, Table, Relationships, Floor plans, Software, Contracts, Contacts) the same field also narrows the list
    as one types (st.q): one search field in the whole app, not one per view. Escape closes the hits and keeps the filter;
    a second Escape clears both. */
-const LIST = ['cards', 'table', 'map', 'plans', 'sw', 'contracts', 'contacts'];
+const LIST = ['cards', 'table', 'map', 'plans', 'ips', 'sw', 'contracts', 'contacts'];
 const onList = () => LIST.includes(st.tab);
 /* The hits show at once; the list is drawn again once typing pauses (a big Table takes a moment to draw). */
 let redraw = 0;

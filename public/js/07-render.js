@@ -9,6 +9,7 @@ import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
 import { renderMine, renderStocktake } from './22-stocktake.js';
+import { renderIps } from './views-ips.js';
 import { FIXED_TABS, closeObjTab, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { closeModal, modal } from './19-modal.js';
@@ -50,6 +51,7 @@ function renderNow({ save = true } = {}){
   else if (st.tab === 'map') renderMap();
   else if (st.tab === 'plans') renderPlans();
   else if (st.tab === 'net') renderPorts();
+  else if (st.tab === 'ips') renderIps();
   else if (st.tab === 'rack') renderRack();
   else if (st.tab === 'sw') renderSoftware();
   else if (st.tab === 'contracts') renderContracts();
@@ -138,7 +140,7 @@ export function renderStatus(){
   sync.title = late ? `Lansweeper has not sent data for ${Math.floor(last.days)} days. Check the push on the Lansweeper server.` : 'The last time Lansweeper sent data.';
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
-const SHORTCUTS = [['N','New device'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relations map'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog, or the open device'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relations map'],['?','This list']];
+const SHORTCUTS = [['N','New device'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Ports ↔ IP addresses, Contracts → Software → Contacts'],['M','Relations map'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog, or the open device'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relations map'],['?','This list']];
 /* What the colours of states mean: the same everywhere (badges, dots, chips, bars). */
 const COLOURS = [['', 'Green', 'There and fine: in AD, joined to Entra, compliant, Defender active, in use, synced'],
   ['warn', 'Amber', 'Needs a look: only registered in Entra, grace period, inactive, medium risk, ending soon'],

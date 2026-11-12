@@ -660,6 +660,21 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 /* The lists under the summaries keep the same 12px gutter and a frame, like the panels above them. */
 .sw-page>.gridwrap,.ct-wrap{margin:0 12px 12px;border:1px solid var(--bd);border-radius:var(--r-m);overflow:auto}
 .ct-wrap{margin-top:12px}
+/* IP addresses: one row per address, framed like the Software list; problems in the warning colour, free addresses
+   of a subnet in the muted one. */
+.ip-page>.gridwrap{margin:12px;border:1px solid var(--bd);border-radius:var(--r-m);overflow:auto}
+table.grid.ips{width:100%;min-width:760px;table-layout:fixed}
+table.grid.ips td{padding:4px 8px;max-width:none;vertical-align:middle}
+table.grid.ips th.ip-addr{width:130px}table.grid.ips th.ip-as-col{width:170px}
+table.grid.ips th:nth-child(3){width:80px}table.grid.ips th:nth-child(5){width:150px}table.grid.ips th:nth-child(6){width:140px}table.grid.ips th:nth-child(7){width:150px}
+.ip-dev{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;overflow:hidden;white-space:nowrap}
+.ip-assign{width:100%}
+.ip-as.static{color:var(--fg)}.ip-as.dhcp{color:var(--linktext)}.ip-as.none,.ip-as.guess{color:var(--muted)}.ip-as.guess{font-style:italic}
+.ip-note{display:inline-block;margin:1px 6px 1px 0;font-size:12px;white-space:normal}.ip-note.warn{color:var(--badtext)}.ip-note.info{color:var(--muted)}
+tr.ip-warn td:first-child{box-shadow:inset 3px 0 0 var(--danger)}
+tr.ip-free td{background:var(--sub);color:var(--muted);padding-top:2px;padding-bottom:2px}
+tr.ip-free.kept td{opacity:.75}
+@media (max-width:760px){table.grid.ips .ip-opt{display:none}table.grid.ips{min-width:0;table-layout:auto}table.grid.ips th{width:auto!important}.ip-assign{min-width:120px}}
 .sw-page>.panelbox.lic>.hdr+.note{margin:0;padding:9px 12px;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .lic-bar{display:inline-block;width:90px;height:8px;border-radius:4px;background:var(--bd2);vertical-align:middle;margin-right:8px;overflow:hidden}
 .lic-bar>span{display:block;height:100%;background:var(--accent)}
