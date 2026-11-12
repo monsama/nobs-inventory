@@ -662,6 +662,7 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ct-wrap{margin-top:12px}
 /* IP addresses: one row per address, framed like the Software list; problems in the warning colour, free addresses
    of a subnet in the muted one. */
+.ip-scope{margin:12px 12px 0}
 .ip-page>.gridwrap{margin:12px;border:1px solid var(--bd);border-radius:var(--r-m);overflow:auto}
 table.grid.ips{width:100%;min-width:760px;table-layout:fixed}
 table.grid.ips td{padding:4px 8px;max-width:none;vertical-align:middle}

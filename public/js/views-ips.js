@@ -4,7 +4,7 @@
    left and the search apply as in Cards and the Table. With one subnet picked, its free addresses can be shown too. */
 import { $, STATUS, SUBNETS, TYPES, filtered, hist, menuHtml, now, objs, setByHand, st, tico, toast } from './01-core.js';
 import { queueServerSave, render } from './07-render.js';
-import { isAdmin } from './04-settings.js';
+import { isAdmin, me } from './04-settings.js';
 import { subnetFor, subnetName } from './17-fields.js';
 import { csvCell } from './views-csv.js';
 import { intToIp, ipInt, rangeKeptOut, subnetSpan } from './net.js';
@@ -43,6 +43,9 @@ export function ipRows(list, all = objs){
     if (r.dhcp === 'static' && isDhcpRange(r.range)) r.notes.push({ warn: true, text: 'Static, but inside a DHCP range' });
     if (r.sub && r.sub.gateway === r.ip && !['router', 'firewall'].includes(r.o.type)) r.notes.push({ warn: true, text: `The gateway of ${subnetName(r.sub)}` });
     if (!r.sub && SUBNETS.length) r.notes.push({ warn: false, text: 'In no subnet listed in Settings' });
+    /* The subnet picked on the device, while the address is in another one. */
+    const sp = r.sub ? subnetSpan(r.sub) : null;
+    if (sp && (r.n < sp.first || r.n > sp.last)) r.notes.push({ warn: true, text: `Outside its subnet ${subnetName(r.sub)}` });
   }
   return rows.sort((a, b) => a.n - b.n || a.o.name.localeCompare(b.o.name));
 }
@@ -55,21 +58,21 @@ export function renderIps(){
   if (st.ipSub && st.ipSub !== '-' && !subs.some(n => n.cidr === st.ipSub)) st.ipSub = '';
   const sub = subs.find(n => n.cidr === st.ipSub) || null, span = sub ? subnetSpan(sub) : null;
   const canFree = !!span && span.last - span.first - 1 <= FREE_MAX;
-  const edit = isAdmin();
+  const edit = isAdmin(), q = (st.q || '').trim().toLowerCase();
+  const freeOff = !!(st.ipProblems || st.ipAssign || q);
   $('#toolbar').innerHTML = html`<label class="muted" for="ipSub">Subnet</label><select id="ipSub" aria-label="Subnet">
       <option value="">All addresses</option>${subs.map(n => html`<option value="${n.cidr}" ${st.ipSub === n.cidr ? 'selected' : ''}>${n.name && n.name !== n.cidr ? `${n.name} · ${n.cidr}` : n.cidr}</option>`)}
       ${subs.length ? html`<option value="-" ${st.ipSub === '-' ? 'selected' : ''}>In no listed subnet</option>` : ''}</select>
     <label class="muted" for="ipAssign">Assignment</label><select id="ipAssign" aria-label="Assignment">
       <option value="">All</option><option value="static" ${st.ipAssign === 'static' ? 'selected' : ''}>Static</option><option value="dhcp" ${st.ipAssign === 'dhcp' ? 'selected' : ''}>Dynamic (DHCP)</option><option value="none" ${st.ipAssign === 'none' ? 'selected' : ''}>Not known</option></select>
     <label class="pchk" style="width:auto"><input type="checkbox" id="ipProblems" ${st.ipProblems ? 'checked' : ''}> Only problems</label>
-    ${canFree ? html`<label class="pchk" style="width:auto"><input type="checkbox" id="ipFree" ${st.ipFree ? 'checked' : ''}> Free addresses</label>` : ''}
+    ${canFree ? html`<label class="pchk" style="width:auto" ${freeOff ? html`title="Free addresses show with no search, Assignment All and Only problems off"` : ''}><input type="checkbox" id="ipFree" ${st.ipFree ? 'checked' : ''} ${freeOff ? 'disabled' : ''}> Free addresses</label>` : ''}
     <span class="muted" id="ipCount"></span><div class="grow"></div>${rawHtml(menuHtml('Export', String(html`
       <button type="button" data-ipx="xlsx">Excel<span class="muted">the rows shown</span></button>
       <button type="button" data-ipx="pdf">PDF<span class="muted">A4 landscape</span></button>
       <button type="button" data-ipx="csv">CSV<span class="muted">for other tools</span></button>
       <button type="button" data-ipx="print">Print…<span class="muted">or save as PDF from the browser</span></button>`), { id: 'ipExport' }))}`;
 
-  const q = (st.q || '').trim().toLowerCase();
   let rows = ipRows(filtered());
   /* The search finds the address, device, MAC or adapter of a row; a device found by something else shows all its rows. */
   if (q) { const hit = rows.filter(r => rowText(r).includes(q)); if (hit.length) rows = hit; }
@@ -85,11 +88,15 @@ export function renderIps(){
   /** @type {{ r?: any, free?: { ip: string, what: string, use: string } }[]} */
   let lines = rows.map(r => ({ r }));
   let nFree = 0;
-  if (canFree && st.ipFree && !st.ipProblems && !st.ipAssign && !q) {
-    const used = new Map(); rows.forEach(r => used.set(r.n, [...(used.get(r.n) || []), r]));
+  if (canFree && st.ipFree && !freeOff) {
+    /* The rows shown (the filters on the left apply to them), and as taken every address a device in use has, also one
+       the filters hide: a free address is free for every device. */
+    const shown = new Map(); rows.forEach(r => shown.set(r.n, [...(shown.get(r.n) || []), r]));
+    const taken = new Set(ipRows(objs).map(r => r.n));
     lines = [];
-    for (let n = span.first + 1; n < span.last; n++) {
-      if (used.has(n)) { used.get(n).forEach(r => lines.push({ r })); continue; }
+    for (let n = span.first; n <= span.last; n++) {
+      if (shown.has(n)) { shown.get(n).forEach(r => lines.push({ r })); continue; }
+      if (n === span.first || n === span.last || taken.has(n)) continue;
       const range = rangeOf(sub, n), ip = intToIp(n);
       const what = sub.gateway === ip ? 'Gateway' : (sub.dns || []).includes(ip) ? 'DNS server' : range && rangeKeptOut(range) ? (isDhcpRange(range) ? 'DHCP range' : 'Reserved') : 'Free';
       if (what === 'Free') nFree++;
@@ -117,7 +124,9 @@ export function renderIps(){
       <td class="ip-opt">${(r.o.loc || '').replace(' / ', ' · ')}</td>
       <td>${r.notes.map(x => html`<span class="ip-note ${x.warn ? 'warn' : 'info'}">${x.text}</span>`)}</td></tr>`)}`
     : html`<tr><td colspan="8" class="muted" style="padding:14px">${objs.some(o => o.ip) ? 'No address matches.' : 'No device has an IP address yet. Lansweeper, Intune or a device page fills them in.'}</td></tr>`;
-  $('#view').innerHTML = html`<div class="ip-page"><div class="gridwrap" style="height:auto"><table class="grid ips" data-tb="own">${head}<tbody>${body}</tbody></table></div></div>`;
+  /* A viewer limited to some sites gets only their devices: an address another site uses can show as free. */
+  const u = me(), scoped = !!u && !edit && (u.own || (Array.isArray(u.sites) && u.sites.length));
+  $('#view').innerHTML = html`<div class="ip-page">${scoped && lines.some(l => l.free) ? html`<p class="note ip-scope">Only the devices of your sites are listed: a free address here can still be used at another site.</p>` : ''}<div class="gridwrap" style="height:auto"><table class="grid ips" data-tb="own">${head}<tbody>${body}</tbody></table></div></div>`;
 
   const set = (k, v) => { st[k] = v; renderIps(); };
   $('#ipSub').onchange = e => set('ipSub', /** @type {HTMLSelectElement} */ (e.target).value);
@@ -136,6 +145,7 @@ export function renderIps(){
   });
   /* The rows shown, as they read on screen, for every export. */
   const cols = [['Address', 0.9], ['Device', 1.3], ['Adapter', 0.8], ['Type', 0.8], ['Assignment', 1], ['Subnet', 1.1], ['MAC address', 1.1], ['Location', 1.2], ['Notes', 1.8]];
+  const kinds = () => lines.map(({ r, free }) => free ? 'free' : r.notes.some(x => x.warn) ? 'warn' : '');
   const data = () => lines.map(({ r, free }) => free ? [free.ip, '', '', '', '', sub ? subnetName(sub) : '', '', '', free.what + (free.use && free.what === 'Free' ? ` (${free.use})` : '')]
     : [r.ip, r.o.name, r.main ? '' : r.nic, TYPES[r.o.type] ? TYPES[r.o.type].label : r.o.type, ASSIGN[r.dhcp] || (r.guess ? 'Dynamic (DHCP range)' : 'Not known'), r.sub ? subnetName(r.sub) : '', r.mac, (r.o.loc || '').replace(' / ', ' · '), r.notes.map(x => x.text).join('; ')]);
   const what = () => [sub ? `Subnet ${subnetName(sub)} (${sub.cidr})` : st.ipSub === '-' ? 'In no listed subnet' : 'All addresses', st.ipAssign ? `Assignment: ${st.ipAssign === 'none' ? 'Not known' : ASSIGN[st.ipAssign]}` : '', st.ipProblems ? 'Only problems' : '', q ? `Search: ${st.q.trim()}` : '', $('#ipCount').textContent].filter(Boolean).join(' · ');
@@ -145,10 +155,10 @@ export function renderIps(){
     const box = /** @type {HTMLElement|null} */ ($('#ipExport .menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }
     const kind = /** @type {HTMLElement} */ (b).dataset.ipx, rows = data();
     if (kind === 'csv') return save(new Blob(['\ufeff' + [cols.map(c => c[0]), ...rows].map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv' }), fileName + '.csv');
-    if (kind === 'print') return printIps(cols.map(c => c[0]), rows, what());
+    if (kind === 'print') return printIps(cols.map(c => c[0]), rows, kinds(), what());
     /* Excel and PDF are made by the server, like the Reports: the rows go there, the file comes back. */
     const r = await fetch(`api/reports/list?format=${kind}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'IP addresses', name: fileName, subtitle: what(), columns: cols.map(([label, w]) => ({ label, w })), rows }) }).catch(() => null);
+      body: JSON.stringify({ list: 'ips', name: fileName, subtitle: what(), columns: cols.map(([label, w]) => ({ label, w })), rows }) }).catch(() => null);
     if (!r || !r.ok){ toast(r ? ((await r.json().catch(() => ({}))).error || 'The file could not be made.') : 'The server cannot be reached.'); return; }
     save(await r.blob(), `${fileName}.${kind}`);
   }));
@@ -156,7 +166,7 @@ export function renderIps(){
 
 /* The list in a page of its own made for A4 paper (landscape, light, the heads on every page), with what it shows and
    when; the browser's print dialog also saves it as a PDF. */
-function printIps(head, rows, what){
+function printIps(head, rows, kinds, what){
   const w = window.open('', '_blank');
   if (!w){ toast('The browser blocked the print window. Allow pop-ups for this page and try again.'); return; }
   w.document.open();
@@ -175,7 +185,7 @@ function printIps(head, rows, what){
       @media print{body{padding:0}}
     </style></head><body><h2>IP addresses</h2><p class="sub">${what} · printed ${new Date().toLocaleString()}</p>
     <table><colgroup>${head.map((_, i) => html`<col class="c${i}">`)}</colgroup><thead><tr>${head.map(h => html`<th>${h}</th>`)}</tr></thead><tbody>
-    ${rows.map(r => html`<tr class="${!r[1] ? 'free' : r[8] ? 'warn' : ''}">${r.map((v, i) => html`<td class="${i === 0 || i === 6 ? 'mono' : ''}">${v}</td>`)}</tr>`)}</tbody></table></body></html>`));
+    ${rows.map((r, n) => html`<tr class="${kinds[n]}">${r.map((v, i) => html`<td class="${i === 0 || i === 6 ? 'mono' : ''}">${v}</td>`)}</tr>`)}</tbody></table></body></html>`));
   w.document.close();
   setTimeout(() => { try { w.focus(); w.print(); } catch { /* the window was closed */ } }, 400);
 }
