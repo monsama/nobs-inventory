@@ -12,7 +12,7 @@ import { outletChoices } from './24-patch.js';
 
 export const FIELDS = {
   base:[['name','Name','mono'],['purpose','Description'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user'],['purchased','Purchased','date'],['warranty','Warranty ends','date'],['price','Price','money'],['supplier','Supplier'],['invoice','Invoice no.','mono']],
-  net:[['ip','IP address','mono'],['subnet','Subnet','subnet'],['dhcp','Address from','dhcp'],['gateway','Gateway','mono'],['dns','DNS servers','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
+  net:[['ip','IP address','mono'],['subnet','Subnet','subnet'],['dhcp','IP assignment','dhcp'],['gateway','Gateway','mono'],['dns','DNS servers','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
   pc:[['os','Operating system'],['cpu','CPU'],['ram','Memory'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], notebook:[['os','Operating system'],['cpu','CPU'],['ram','Memory'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
@@ -67,7 +67,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     const opts = [...new Set([...DOMAINS.map(d => d.name), cur].filter(Boolean))];
     ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(d => `<option ${d === cur ? 'selected' : ''} title="${esc((DOMAINS.find(x => x.name === d) || {}).desc || '')}">${esc(d)}</option>`).join('')}</select>`;
   }
-  else if (kind === 'dhcp') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.dhcp ? '' : 'selected'}>Not known</option><option value="dhcp" ${o.dhcp === 'dhcp' ? 'selected' : ''}>DHCP</option><option value="static" ${o.dhcp === 'static' ? 'selected' : ''}>Static</option></select>`;
+  else if (kind === 'dhcp') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.dhcp ? '' : 'selected'}>Not known</option><option value="static" ${o.dhcp === 'static' ? 'selected' : ''}>Static</option><option value="dhcp" ${o.dhcp === 'dhcp' ? 'selected' : ''}>Dynamic (DHCP)</option></select>`;
   else if (kind === 'money') ctl = `<input id="${id}" data-k="${k}" inputmode="decimal" value="${typeof o[k] === 'number' ? o[k] : ''}" placeholder="0.00">`;
   else if (kind === 'date') ctl = dateFieldHtml(`id="${id}" data-k="${k}"`, /^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '');
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;

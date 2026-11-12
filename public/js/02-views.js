@@ -260,13 +260,13 @@ export function emptyHtml(){
 document.addEventListener('click', e => { const b = evEl(e).closest && evEl(e).closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Inventory check'};
+export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', ips:'IP addresses', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Inventory check'};
 /* The views someone gets: My devices only for a viewer who sees only their own devices, and for them only it and the
    lists (Cards, Table); the others show nothing they can use. */
 const OWN_TABS = ['mine', 'cards', 'table'];
 export const tabAllowed = id => !FIXED_TABS[id] || (ownOnly() ? OWN_TABS.includes(id) : id !== 'mine');
 /** @type {Record<string, [string, string[]]>} */
-export const TAB_GROUPS = { devices: ['Devices', ['cards', 'table']], business: ['Contracts & software', ['contracts', 'sw', 'contacts']] };
+export const TAB_GROUPS = { devices: ['Devices', ['cards', 'table']], network: ['Network', ['net', 'ips']], business: ['Contracts & software', ['contracts', 'sw', 'contacts']] };
 const TAB_GROUP_OF = Object.fromEntries(Object.entries(TAB_GROUPS).flatMap(([g, [, m]]) => m.map(id => [id, g])));
 const groupLast = g => { const m = TAB_GROUPS[g][1], l = (st.tabLast || {})[g]; return m.includes(l) && tabAllowed(l) ? l : m.find(tabAllowed) || m[0]; };
 /* The switch over a grouped view (Cards | Table, Contracts | Software | Contacts): put first in the toolbar. */
@@ -289,6 +289,8 @@ export function renderTabs(){
   /* Inventory check shows while one runs, or while it is the tab open (from the Overview). Relationships only while it is open:
      it is opened from a device (More → Relationships), centred on it. */
   if (!st.tabIds.includes('stocktake')) st.tabIds.push('stocktake');
+  /* IP addresses (0.9.127) sits beside Ports in a saved order from before it. */
+  if (!st.tabIds.includes('ips')){ const i = st.tabIds.indexOf('net'); st.tabIds.splice(i < 0 ? st.tabIds.length : i + 1, 0, 'ips'); }
   const stk = (st.stocktakes || []).some(t => !t.finished);
   if (!st.tabIds.includes('mine')) st.tabIds.unshift('mine');
   const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && tabAllowed(id) && (id !== 'review' || waiting || st.scope) && (id !== 'stocktake' || stk || st.tab === 'stocktake') && (id !== 'map' || st.tab === 'map'));

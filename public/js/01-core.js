@@ -150,7 +150,7 @@ export const lsLive = () => LS_ON() && st.feedOn !== false;
 export const SCAN_ONLY = ['boot'];
 /* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
 export const PW_MIN = 12;
-export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', av:'Antivirus', patch:'Last Windows update', mask:'Subnet mask', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location'};
+export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'IP assignment', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', av:'Antivirus', patch:'Last Windows update', mask:'Subnet mask', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location'};
 /* What else the feed brings, not a field of its own: each has a box in "Feed may overwrite" too. */
 export const FEED_EXTRA = {ipRoom:'Room from IP location', software:'Installed software', links:'Monitors attached to PCs', dept:'Departments of people'};
 export const FEED_EXTRA_HINT = {ipRoom:'A device without a location gets the room its IP address is in, from Lansweeper\'s IP locations', software:'The software Lansweeper finds replaces what it found before; software added by hand stays', links:'Monitors are attached to the PC Lansweeper scanned them on', dept:'A person named by Lansweeper gets the department from the directory Lansweeper reads, when they have none'};
@@ -277,7 +277,7 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
-export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
+export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFocus:null, mapPos:{},
   policy:/** @type {Record<string, boolean>} */ ({ ...DEFAULT_POLICY }),
   ldap:/** @type {Record<string, any>} */ ({url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}), lansweeper:{}};

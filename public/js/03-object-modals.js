@@ -275,7 +275,8 @@ export function renderObj(o){
   /* Short by default: the fields that say what and where a device is, and the others only where they hold something;
      "Show all fields" lists the empty ones too (remembered in this browser). */
   const valOf = f => (f[0].startsWith('custom.') ? (o.custom || {})[f[0].slice(7)] : o[f[0]]);
-  const emptyF = f => !KEY_FIELDS.includes(f[0]) && !(st.addPorts === o.id && ['ports', 'pfx'].includes(f[0])) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
+  /* A device with an address says whether it is static or dynamic, also before anyone set it. */
+  const emptyF = f => !KEY_FIELDS.includes(f[0]) && !(f[0] === 'dhcp' && o.ip) && !(st.addPorts === o.id && ['ports', 'pfx'].includes(f[0])) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
   const nEmpty = fields.filter(emptyF).length, allF = allFields();
   if (!allF) fields = fields.filter(f => !emptyF(f));
   const edit = isAdmin(), menuSlot = edit ? html`<span class="fm-slot" aria-hidden="true"></span>` : '';

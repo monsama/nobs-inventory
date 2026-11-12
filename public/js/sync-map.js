@@ -24,7 +24,7 @@ export const AD_FILL = { os: 'Operating system', domain: 'Domain', purpose: 'Des
 /* The names of the fields above, for the server and the page alike. */
 export const SYNC_FIELD_LABEL = { ip: 'IP address', ip6: 'IPv6 address', patch: 'Last Windows update', mac: 'MAC address', os: 'Operating system',
   model: 'Model', cpu: 'CPU', ram: 'Memory', fw: 'Firmware', boot: 'Last power event', disk: 'Disks', av: 'Antivirus', domain: 'Domain',
-  mask: 'Subnet mask', gateway: 'Gateway', dns: 'DNS servers', dhcp: 'Address from', purchased: 'Purchased', warranty: 'Warranty ends',
+  mask: 'Subnet mask', gateway: 'Gateway', dns: 'DNS servers', dhcp: 'IP assignment', purchased: 'Purchased', warranty: 'Warranty ends',
   purpose: 'Description', loc: 'Location', price: 'Price', supplier: 'Supplier', invoice: 'Order / invoice no.' };
 
 /* The sources that know field k: Lansweeper, Intune ('graph') and AD, in their order by default. */

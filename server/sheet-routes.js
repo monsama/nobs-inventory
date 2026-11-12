@@ -37,6 +37,36 @@ export function registerSheetRoutes(app, ctx) {
       audit(db, req.user.id, `report made: ${r.title} (${req.query.format === 'xlsx' ? 'Excel' : 'PDF'}${opts.ids ? ', filtered list' : ''})`);
     } catch (e) { next(e); }
   };
+  /* A list the page shows (the IP addresses), as a PDF (A4 landscape) or an Excel workbook: the page sends its columns
+     and rows, cut to what that person sees there, and gets the file back. Only known lists, with their own title; plain
+     text within limits, cells of up to 120 characters (60 in a PDF); nothing is kept. A PDF is laid out at once on the
+     server, so it holds at most 1000 rows (about a second's work), one at a time for each person and two at a time in
+     all. Excel cells are inline text: a cell starting with = is never a formula. */
+  const LISTS = { ips: 'IP addresses' }, making = new Set();
+  app.post('/api/reports/list', requireUser, async (req, res, next) => {
+    const pdf = req.query.format !== 'xlsx', who = String(req.user.id);
+    try {
+      const b = req.body || {}, clean = v => (typeof v === 'string' ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : '').replace(/[\s\S]/g, ch => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? ' ' : ch);
+      const title = LISTS[b.list];
+      if (!title) throw new HttpError(404, 'No such list.');
+      if (!Array.isArray(b.columns) || !b.columns.length || b.columns.length > 12) throw new HttpError(400, 'A list has 1 to 12 columns.');
+      const maxRows = pdf ? 1000 : 20000;
+      if (!Array.isArray(b.rows) || b.rows.length > maxRows) throw new HttpError(400, `A list ${pdf ? 'as a PDF ' : ''}has up to ${maxRows} rows${pdf ? ': take Excel for more' : ''}.`);
+      const columns = b.columns.map(c => ({ label: clean(c && c.label).slice(0, 60) || '-', w: Math.min(4, Math.max(0.3, Number(c && c.w) || 1)) }));
+      const rows = b.rows.map(r => columns.map((_, i) => clean(Array.isArray(r) ? r[i] : '').slice(0, pdf ? 60 : 120)));
+      if (pdf && (making.has(who) || making.size >= 2)) throw new HttpError(429, 'A PDF is being made already. Try again in a moment.');
+      const name = String(b.name || b.list).replace(/[^\w-]/g, '').slice(0, 40) || b.list;
+      const r = { title, subtitle: clean(b.subtitle).slice(0, 300), columns, groups: [{ name: '', rows }] };
+      const s = loadState(db), base = `nobs-${name}-${new Date().toISOString().slice(0, 10)}`;
+      res.set('Cache-Control', 'no-store');
+      if (!pdf) res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(`${base}.xlsx`).send(reportXlsx(r));
+      else {
+        making.add(who);
+        try { res.type('application/pdf').attachment(`${base}.pdf`).send(await reportPdf(r, s.company || {})); } finally { making.delete(who); }
+      }
+      audit(db, req.user.id, `report made: ${title} (${pdf ? 'PDF' : 'Excel'}, ${rows.length} rows)`);
+    } catch (e) { next(e); }
+  });
   app.get('/api/reports/:kind', requireUser, report);
   app.post('/api/reports/:kind', requireUser, report);
   app.post('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
