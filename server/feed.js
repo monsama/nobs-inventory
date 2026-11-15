@@ -14,6 +14,7 @@ import { gatewayFits } from '../public/js/net.js';
 import { loginCore, mergeSamePeople } from '../public/js/people-match.js';
 import { lsWrites, mappedRoom, markSource, noteValue, pickOf, priceOf } from './fill.js';
 import { parseCsv } from '../public/js/csv.js';
+import { realPrinters } from '../public/js/printers.js';
 export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
 import { typeByRules } from '../public/js/type-rules.js';
@@ -72,6 +73,9 @@ export function recordsFromJson(list) {
       name: String(x && x.name != null ? x.name : '').trim().slice(0, 200),
       version: String(x && x.version != null ? x.version : '').trim().slice(0, 100)
     })).filter(x => x.name) : null;
+    /* The printers set up on a computer, only the real ones (by USB, on the network, shared; no PDF, XPS or Fax):
+       null when the push did not send them, so those already on the device stay. */
+    r.printers = Array.isArray(raw && raw.printers) ? realPrinters(raw.printers) : null;
     /* The device's other network adapters (Wi-Fi next to the cable, a second network): null when not sent. */
     r.nics = Array.isArray(raw && raw.nics) ? raw.nics.slice(0, 16).map(x => {
       const t = k => String(x && x[k] != null ? x[k] : '').trim().slice(0, 120);
@@ -150,6 +154,21 @@ function applyDepartments(s, records) {
       if (r.userDept && (!p.dept || (p.deptFrom === 'entra' && p.dept !== r.userDept.slice(0, 120)))) { p.dept = r.userDept.slice(0, 120); delete p.deptFrom; n++; }
     }
     for (const o of byUser.get(login) || []) if (!o.uid && !o.hotdesk && low(o.user) === login) { o.uid = p.id; o.user = p.name; n++; }
+  }
+  return n;
+}
+
+/* The printers a push sends for a computer replace the list Lansweeper sent before (they are Lansweeper's alone: the
+   page shows them, nobody types them in). A device the sync leaves alone keeps its list. */
+function applyPrinters(s, pairs) {
+  let n = 0;
+  if (s.feedOn === false) return n;
+  for (const { r, obj, linksOnly } of pairs) {
+    if (linksOnly || !Array.isArray(r.printers)) continue;
+    const next = r.printers;
+    if (JSON.stringify(next) === JSON.stringify(obj.lsPrinters || [])) continue;
+    if (next.length) obj.lsPrinters = next; else delete obj.lsPrinters;
+    n++;
   }
   return n;
 }
@@ -279,7 +298,7 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
 
 /* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
 /* scans: a newer scan day, or a dock's links seen again (they are kept for DOCK_LINKS_DAYS from then): saved too. */
-export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'people', 'networks', 'scans'].some(k => counts[k] > 0);
+export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans'].some(k => counts[k] > 0);
 
 /* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
 /* byHand: an export an admin uploaded: its new devices go straight in (IP-only ones still wait), as the person chose the file. */
@@ -543,6 +562,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   counts.networks = JSON.stringify([s.lsNets || [], s.lsIpLocations || []]) === netsBefore ? 0 : 1;
   counts.links = applyLinks(s, pairs, counts, seen);
   counts.software = applySoftware(s, pairs);
+  counts.printers = applyPrinters(s, pairs);
   noteChanges(s, 'ls', lens, now);
   return counts;
 }

@@ -102,6 +102,8 @@ $script:Wanted = [ordered]@{
     tblAssetRelations = @('ParentAssetID', 'ChildAssetID', 'StartDate', 'EndDate')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
     tblSoftwareUni = @('SoftID', 'softwareName')
+    # The printers set up on a Windows machine (also PDF, XPS, Fax: NOBS keeps only the real ones, by their port).
+    tblPrinters    = @('AssetID', 'Caption', 'PortName', 'DriverName', 'Location')
     tblBIOS        = @('AssetID', 'Version')
     tblUptime      = @('AssetId', 'EventTime')
     tblVolume      = @('AssetID', 'DriveLetter', 'Capacity', 'FreeSpace', 'DriveType')
@@ -387,6 +389,35 @@ function Get-SoftwareByAsset($conn) {
             if (-not $asset -or -not $name) { continue }
             if (-not $map.ContainsKey($asset)) { $map[$asset] = New-Object System.Collections.Generic.List[object] }
             $map[$asset].Add([ordered]@{ name = $name; version = Get-Clean $reader['softwareVersion'] })
+        }
+    } finally { $reader.Close() }
+    return $map
+}
+
+# The printers set up on each Windows asset: name, port, driver, location. Null when the table is not there. Virtual
+# ones (Print to PDF, XPS, OneNote, Fax) are sent too; NOBS tells them apart by their port and keeps only the real ones.
+function Get-PrintersByAsset($conn) {
+    if (-not ((Test-Col 'tblPrinters' 'AssetID') -and (Test-Col 'tblPrinters' 'Caption') -and (Test-Col 'tblPrinters' 'PortName'))) {
+        Write-PushLog 'The printer table is not in this Lansweeper version - no printers are sent' 'WARN'
+        return $null
+    }
+    $cols = @('[AssetID]', '[Caption]', '[PortName]')
+    foreach ($c in @('DriverName', 'Location')) { if (Test-Col 'tblPrinters' $c) { $cols += "[$c]" } }
+    $map = @{}
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = "SELECT $($cols -join ', ') FROM [tblPrinters] WHERE [Caption] IS NOT NULL"
+    $cmd.CommandTimeout = 300
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $asset = ConvertTo-Text $reader['AssetID']
+            $name = Get-Clean $reader['Caption']
+            if (-not $asset -or -not $name) { continue }
+            if (-not $map.ContainsKey($asset)) { $map[$asset] = New-Object System.Collections.Generic.List[object] }
+            $p = [ordered]@{ name = $name; port = Get-Clean $reader['PortName'] }
+            if (Test-Col 'tblPrinters' 'DriverName') { $p['driver'] = Get-Clean $reader['DriverName'] }
+            if (Test-Col 'tblPrinters' 'Location') { $p['location'] = Get-Clean $reader['Location'] }
+            $map[$asset].Add($p)
         }
     } finally { $reader.Close() }
     return $map
@@ -823,6 +854,16 @@ function Get-LsRecords {
                 $rec['software'] = $items.ToArray()
             }
         }
+        # The printers of each asset: sent (an empty list too) only when the table could be read.
+        try { $printers = Get-PrintersByAsset $conn } catch { $printers = $null; Write-PushLog "Could not read the printers: $($_.Exception.Message)" 'WARN' }
+        if ($printers) {
+            foreach ($rec in $list) {
+                $key = [string]$rec['ref']
+                $items = New-Object System.Collections.Generic.List[object]
+                if ($printers.ContainsKey($key)) { foreach ($x in $printers[$key]) { $items.Add($x) } }
+                $rec['printers'] = $items.ToArray()
+            }
+        }
         # The monitors go as records of their own; counted apart, so the log adds up with Lansweeper's assets.
         $script:MonitorCount = 0
         foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m); $script:MonitorCount++ }
@@ -882,7 +923,7 @@ function Show-NobsCertificate {
 
 function Send-Records($records, [string]$Token) {
     Set-NobsCertificatePin
-    $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0; detached = 0; skippedIp = 0; people = 0; links = 0; software = 0 }
+    $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0; detached = 0; skippedIp = 0; people = 0; links = 0; software = 0; printers = 0 }
     $url = $Config.NobsUrl.TrimEnd('/') + '/api/feed/push'
     for ($i = 0; $i -lt $records.Count; $i += $Config.BatchSize) {
         $last = [math]::Min($i + $Config.BatchSize - 1, $records.Count - 1)
@@ -971,8 +1012,8 @@ try {
     }
     Write-PushLog ("NOBS: {0} created, {1} updated, {2} linked, {3} unchanged, {4} ambiguous name(s) skipped, {5} excluded, {6} detached, {7} IP-only skipped" -f `
         $totals.created, $totals.updated, $totals.linked, $totals.unchanged, $totals.ambiguous, $totals.excluded, $totals.detached, $totals.skippedIp)
-    Write-PushLog ("NOBS: {0} changes to people and device owners, {1} monitor links, {2} devices with software changes" -f `
-        $totals.people, $totals.links, $totals.software)
+    Write-PushLog ("NOBS: {0} changes to people and device owners, {1} monitor links, {2} devices with software changes, {3} with printer changes" -f `
+        $totals.people, $totals.links, $totals.software, $totals.printers)
     exit 0
 } catch {
     $where = $_.InvocationInfo

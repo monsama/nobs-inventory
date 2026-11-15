@@ -87,6 +87,17 @@ $vol = New-Table @('AssetID','DriveLetter','Capacity','FreeSpace','DriveType') @
   @('7', 'C:', '254721126400', '56908316672', '3'), @('7', 'D:', '', '', '5'), @('7', 'E:', '', '', '2'))
 $h = Get-HealthByAsset (New-Conn $vol)
 Check 'disks: optical and no size' ($h['7']['disk'] -replace '[0-9][^/;]*/[^;]* GB', 'n/n GB') 'C: n/n GB; D: optical; E:'
+
+# Printers: each one of a device with its port and driver (the server keeps only the real ones); without the table, none.
+$script:Cols = @{ tblPrinters = @{ assetid = 'AssetID'; caption = 'Caption'; portname = 'PortName'; drivername = 'DriverName' } }
+$prn = New-Table @('AssetID','Caption','PortName','DriverName') @(
+  @('7', 'Office printer', '10.1.1.40', 'Example PCL6'), @('7', 'Microsoft Print to PDF', 'PORTPROMPT:', ''), @('8', 'Label printer', 'USB001', 'Example Label'))
+$pm = Get-PrintersByAsset (New-Conn $prn)
+Check 'printers: two on a device' $pm['7'].Count 2
+Check 'printers: port' $pm['7'][0]['port'] '10.1.1.40'
+Check 'printers: driver' $pm['8'][0]['driver'] 'Example Label'
+Check 'printers: no location column' $pm['8'][0].Contains('location') 'False'
+Check 'printers: none without the table' (& { $script:Cols = @{}; function Write-PushLog { }; $null -eq (Get-PrintersByAsset (New-Conn $prn)) }) 'True'
 $script:Cols = $saveCols
 
 # A monitor that is an asset of its own is linked to its computer from Lansweeper's Relations, either way round; an

@@ -1,4 +1,5 @@
 import { SW_TYPES, bindSoftware, softwarePanel } from './views-software.js';
+import { bindPrinters, printerUsersPanel, printersPanel } from './printers-panel.js';
 import { closeModal, modal } from './19-modal.js';
 import { sourcesPanel } from './18-sources.js';
 import { accessoriesHtml, canAddPorts, comboHtml, comboNote, notesHtml, extraFields, fieldMenu, ipClash, propRow, savedAt, typeFieldsOf } from './17-fields.js';
@@ -218,6 +219,8 @@ function extras(o){
     ['maint', 'Maintenance', o.review ? '' : maintPanel(o), !(o.maint || []).length],
     ['photos', 'Photo', photosPanel(o), photoCount(o.id) === 0],
     ['software', 'Software', SW_TYPES.includes(o.type) ? softwarePanel(o) : '', !(o.software || []).length],
+    /* Lansweeper's printers of a computer, and the computers using a printer: only when there are some. */
+    ['printers', 'Printers', printersPanel(o) + printerUsersPanel(o), false],
     ['resp', 'Responsible', deviceRespPanel(o), !o.respIn && !o.respEx],
     ['contracts', 'Contract', deviceContractsPanel(o), !contractsOf(o).length],
   ].filter(([, , html]) => html);
@@ -345,7 +348,7 @@ export function renderObj(o){
     const f = shown.querySelector('input:not([type=file]):not([hidden]), select, textarea, button:not([disabled]):not(.xhide)'); if (f) f.focus();
     shown.scrollIntoView({ block: 'nearest' });
   });
-  bindSoftware(o);
+  bindSoftware(o); bindPrinters(o);
   bindDeviceContracts(o);
   bindDeviceResp(o);
   bindDeviceLinks(o);
