@@ -2090,7 +2090,7 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .tp-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 12px;align-content:start}
 .tp-form label,.tp-ic{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
 .tp-form input:not([type=color]){width:100%;box-sizing:border-box;color:var(--fg);font-size:13px}
-.tp-form input[type=color]{width:64px;height:var(--ctl);padding:2px}
+.tp-form input[type=color]{width:100%;height:var(--ctl);padding:2px;box-sizing:border-box}
 .tp-ic .icondd{min-width:0;width:100%}.tp-ic .icondd-btn{width:100%;color:var(--fg);font-size:13px}
 .tp-lbl{font-size:12px;color:var(--muted)}
 .tp-prev{display:flex;flex-direction:column;gap:4px;min-width:0}
