@@ -26,11 +26,21 @@ try {
   // Object types: add a text field for PCs.
   await p.click('#setBtn');
   await openSetTab(p, 'types');
-  await p.waitForSelector('#tfType');
-  await p.selectOption('#tfType', 'pc');
+  await p.waitForSelector('[data-tsel]');
+  await p.click(`[data-tsel=${'pc'}]`); await p.waitForSelector(`[data-tsel=${'pc'}].on`);
   await p.fill('#tfLabel', 'Asset tag');
   await p.click('#tfAdd');
   await until(p, async () => (await import('/js/01-core.js')).TYPE_FIELDS.pc?.[0]?.key === 'asset_tag');
+  // A field dragged onto another takes its place: Model above Name.
+  await p.evaluate(() => {
+    const row = k => document.querySelector(`.tf-row[data-drag]:has([data-flab=${k}])`), dt = new DataTransfer();
+    row('model').querySelector('.tf-grip').dispatchEvent(new DragEvent('dragstart', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    row('name').dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    row('name').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  });
+  await until(p, async () => ((await import('/js/01-core.js')).FIELD_LAYOUT.pc?.order || [])[0] === 'model');
+  await p.click('.tf-row[data-drag]:has([data-flab=model]) [data-fdown]');
+  await until(p, async () => ((await import('/js/01-core.js')).FIELD_LAYOUT.pc?.order || [])[0] === 'name');
   // Domains are defined once in Settings and picked from a dropdown on the PC.
   await openSetTab(p, 'domains'); await p.waitForSelector('#dmName');
   await p.fill('#dmName', 'corp.test'); await p.click('#dmAdd');
@@ -45,8 +55,8 @@ try {
   for (let i = 0; i < 150 && (loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag !== 'AT-42'; i++) await new Promise(r => setTimeout(r, 100));
   assert.equal((loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag, 'AT-42', 'the value is saved when the field is left');
   // Built-in fields: a PC's Firmware is renamed BIOS and its Disks are hidden; the object page shows that.
-  await p.click('#setBtn'); await openSetTab(p, 'types'); await p.waitForSelector('#tfType');
-  await p.selectOption('#tfType', 'pc');
+  await p.click('#setBtn'); await openSetTab(p, 'types'); await p.waitForSelector('[data-tsel]');
+  await p.click(`[data-tsel=${'pc'}]`); await p.waitForSelector(`[data-tsel=${'pc'}].on`);
   await p.fill('[data-flab="fw"]', 'BIOS'); await p.press('[data-flab="fw"]', 'Tab');
   await until(p, async () => (await import('/js/01-core.js')).FIELD_LAYOUT.pc?.labels?.fw === 'BIOS');
   await p.uncheck('[data-fhide="disk"]');
@@ -68,13 +78,13 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('ph1'));
   await p.waitForSelector('#f_ph1_mac');
   assert.equal(await p.locator('#f_ph1_ip').count(), 0, 'a phone starts without its IP address');
-  await p.click('#setBtn'); await openSetTab(p, 'types'); await p.waitForSelector('#tfType');
-  await p.selectOption('#tfType', 'pc');
+  await p.click('#setBtn'); await openSetTab(p, 'types'); await p.waitForSelector('[data-tsel]');
+  await p.click(`[data-tsel=${'pc'}]`); await p.waitForSelector(`[data-tsel=${'pc'}].on`);
   const row = k => p.locator(`.tf-row:has([data-flab="${k}"])`);
   assert.match(await row('boot').textContent(), /Only while Lansweeper is on/);
   assert.match(await row('ports').textContent(), /Only on devices with ports/);
   assert.match(await row('patch').textContent(), /From Lansweeper/, 'a field Lansweeper fills in is listed');
-  await p.selectOption('#tfType', 'android');
+  await p.click(`[data-tsel=${'android'}]`); await p.waitForSelector(`[data-tsel=${'android'}].on`);
   assert.equal(await p.isChecked('[data-fhide="ip"]'), false, 'phones: IP address unticked');
   assert.equal(await p.isChecked('[data-fhide="mac"]'), true, 'phones: MAC address ticked');
   await p.check('[data-fhide="ip"]');

@@ -6,7 +6,7 @@ import { renderSetApi } from './settings-api.js';
 import { renderSetTypes } from './settings-types.js';
 import { renderSetGraph } from './settings-graph.js';
 import { renderSetLdap } from './settings-ldap.js';
-import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSetModels } from './settings-feed.js';
+import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules } from './settings-feed.js';
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
 import { comboHtml } from './17-fields.js';
 import { collapsedPanels, rememberPanel, bindPolicy, followOnTop } from './03-object-modals.js';
@@ -96,7 +96,7 @@ export function renderSetPane(){
     sources: '<div id="setSources"></div>',
     locations: '<div id="setLocs"></div>',
     vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div>', subnets: '<div class="panelbox" id="setSubnets"></div>', domains: '<div class="panelbox" id="setDomains"></div>',
-    types: '<div class="panelbox"><div class="hdr">Device types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
+    types: '<div id="setTypes"></div>',
     users: '<div id="setUsers"></div>', access: '<div id="setAccess"></div><div id="setApi"></div>', company: '<div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>', backups: '<div id="setMaint"></div>', mail: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
@@ -110,7 +110,7 @@ export function renderSetPane(){
   const mt = $('#mergeTwins'); if (mt) mt.onchange = () => { st.mergeTwins = mt.checked; queueServerSave(); };
   bindIntakeRows(document);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); renderSourceFields(); }, directory: () => { renderSetLdap(); renderSourceFields(); }, entra: () => { renderSetGraph(); renderSourceFields(); }, sources: renderSetSources, locations: renderSetLocs, vlans: renderSetVlans, subnets: renderSetSubnets, domains: renderSetDomains, types: () => { renderSetTypes(); renderSetModels(); }, users: renderSetUsers, access: () => { renderSetAccess(); renderSetApi(); }, company: renderSetCompany, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); renderSourceFields(); }, directory: () => { renderSetLdap(); renderSourceFields(); }, entra: () => { renderSetGraph(); renderSourceFields(); }, sources: renderSetSources, locations: renderSetLocs, vlans: renderSetVlans, subnets: renderSetSubnets, domains: renderSetDomains, types: renderSetTypes, users: renderSetUsers, access: () => { renderSetAccess(); renderSetApi(); }, company: renderSetCompany, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 

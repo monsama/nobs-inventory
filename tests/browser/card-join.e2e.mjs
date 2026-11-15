@@ -81,11 +81,10 @@ try {
   assert.notEqual(await page.locator('table.grid tbody tr').first().getAttribute('data-open'), first, 'Enter on a header sorts the other way');
 
   // a type a type rule still names is not deleted
-  await page.evaluate(async () => { (await import('/js/01-core.js')).st.setTab = 'types'; (await import('/js/04-settings.js')).openSettings(); });
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'types'; c.st.typeSel = 'dect'; (await import('/js/04-settings.js')).openSettings(); });
   await page.waitForSelector('[data-td="dect"]');
-  await page.click('[data-td="dect"]');
-  assert.match(await page.textContent('#toast'), /used by type rule 1/);
-  assert.equal(await page.getAttribute('#toast', 'role'), 'status');
+  assert.equal(await page.isDisabled('[data-td="dect"]'), true, 'a type a rule leads to can be deleted');
+  assert.match(await page.textContent('.tp-foot'), /Type rule 1 leads to it/);
   assert.ok(await page.evaluate(async () => !!(await import('/js/01-core.js')).TYPES.dect), 'the type is still there');
 
   // a name typed by hand stays that person, even when another person has it as login
