@@ -8,7 +8,8 @@ const FIELD_NAMES = { category: 'Category', enrollType: 'How enrolled', enrollPr
 import { isAdmin, applyRole } from './04-settings.js';
 import { st, byId, $, dayText, toast, SYNC, objs } from './01-core.js';
 import { html, rawHtml } from './html.js';
-import { statusHeaderHtml } from './settings-status.js';
+import { RUN_KEY, statusHeaderHtml } from './settings-status.js';
+import { runOf } from './16-sync.js';
 /* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
 export function graphSummary(c){
   const n = (k, one, many) => c[k] ? ` ${c[k]} ${c[k] === 1 ? one : many}` : '';
@@ -61,6 +62,14 @@ export async function renderSetGraph(){
   const chosen = g.certs.find(c => c.chosen && c.onServer);
   /* A step that is done says so at the right of its title, in the same chip as other states. */
   const done = ok => ok && html`<span class="chip ok gs-done">Done</span>`;
+  /* The four setup steps, done or not: the permissions only show as granted once a sync has read the devices. The first
+     one not done is the one to do now; the marker of each says which it is. */
+  /* A viewer is told neither the IDs, the certificates nor the sync runs: a connection that works counts as set up. */
+  const working = !j && !!g.configured, run = runOf(RUN_KEY.graph);
+  const synced = working || !!(g.configured && run && run.ok);
+  const stepsDone = [ids || fromServer || working, !!chosen || fromServer || working, synced, synced];
+  const nowAt = stepsDone.indexOf(false), nDone = stepsDone.filter(Boolean).length;
+  const stepCls = i => stepsDone[i] ? 'gs-ok' : i === nowAt ? 'gs-now' : '';
   const day = t => dayText(String(t || '').slice(0, 10));
   const left = t => Math.floor((+new Date(t) - Date.now()) / 86400000);
   const certRows = g.certs.map(c => html`<tr><td class="mono">${c.thumbprint}</td><td>${day(c.created)}</td>
@@ -71,8 +80,9 @@ export async function renderSetGraph(){
   root.innerHTML = html`${rawHtml(statusHeaderHtml('graph', { test: { id: 'graphTest', ready }, sync: { id: 'graphSync', ready }, msg: 'graphMsg' }))}<div class="panelbox"><div class="hdr">Connection <span class="cnt">Microsoft Graph</span></div>
     <p class="note">Reads what Microsoft Entra and Intune know of each device: join type, management, compliance, encryption, primary user and last contact, shown on the device. Devices are matched by serial number, else by name. Fields a device does not have yet are filled in; ones it has stay, except on devices added from here, which Graph keeps up to date until Lansweeper takes them over. It only reads: it changes nothing in Entra or Intune.</p>
     ${fromServer && html`<p class="note" style="padding:8px 12px">The connection is set by the server settings (NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT, NI_GRAPH_KEY). Remove them on the server to use the steps below instead.</p>`}
+    <div class="gs-progress" role="status"><span>${nDone === 4 ? 'Set up' : `Setup: ${nDone} of 4 steps done`}</span><span class="gs-bar" aria-hidden="true"><i style="${'width:' + (nDone * 25) + '%'}"></i></span></div>
     <ol class="graph-steps">
-      <li><div class="gs-head"><b>Register the app in Entra</b>${done(ids || fromServer)}</div>
+      <li class="${stepCls(0)}"><div class="gs-head"><b>Register the app in Entra</b>${done(stepsDone[0])}</div>
         <details class="how" ${ids || fromServer ? '' : 'open'}><summary>Step by step in Entra</summary><ol class="gs-sub">
           <li>Open the <a class="link" style="text-decoration:underline" href="${ENTRA}" target="_blank" rel="noopener">Entra admin center</a> → <b>Applications</b> → <b>App registrations</b> → <b>New registration</b>.</li>
           <li><b>Name:</b> <span class="mono">NOBS Inventory</span></li>
@@ -85,7 +95,7 @@ export async function renderSetGraph(){
           <label for="gClient">Application (client) ID</label><input id="gClient" class="mono" value="${g.clientId}" placeholder="${fromServer ? 'Set on the server' : '9a8b7c6d-…'}" autocomplete="off" ${fromServer ? 'disabled' : ''}>
         </div>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="gSave" ${fromServer ? 'disabled' : ''}>Save IDs</button><span class="note" id="gSaveMsg" role="status"></span></div></li>
-      <li><div class="gs-head"><b>Give the app a certificate</b>${done(!!chosen || fromServer)}</div>
+      <li class="${stepCls(1)}"><div class="gs-head"><b>Give the app a certificate</b>${done(stepsDone[1])}</div>
         <details class="how" ${!!chosen || fromServer ? '' : 'open'}><summary>Step by step in Entra</summary><ol class="gs-sub">
           <li>Click <b>Create a certificate</b> below. The server keeps its private key, encrypted; the key never leaves the server.</li>
           <li>Click <b>Download the .cer</b>.</li>
@@ -93,43 +103,47 @@ export async function renderSetGraph(){
           <li>Entra lists it with a thumbprint: the same as in the list at the bottom of this box.</li>
         </ol></details>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphCert" ${edit && !fromServer ? '' : 'disabled'}>Create a certificate</button>${chosen && html`<a class="link" href="api/graph/cert/${chosen.thumbprint}/cer" download>Download the .cer</a>`}</div></li>
-      <li><div class="gs-head"><b>Allow it to read devices</b></div>
+      <li class="${stepCls(2)}"><div class="gs-head"><b>Allow it to read devices</b>${done(synced)}</div>
         <details class="how" ${g.configured ? '' : 'open'}><summary>Step by step in Entra</summary><ol class="gs-sub">
           <li>In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>Microsoft Graph</b> → <b>Application permissions</b> (not Delegated).</li>
-          <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>. For people from Entra (step 4) also <span class="mono">User.Read.All</span>.</li>
+          <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>. For People from Entra (optional, below) also <span class="mono">User.Read.All</span>.</li>
           <li>Click <b>Grant admin consent for</b> your organisation → <b>Yes</b>. Both lines then show a green tick.</li>
           <li><span class="mono">User.Read</span> (Delegated), which Entra adds by itself, can stay: it only applies when a person signs in to the app, which never happens. Removing it is tidier, not needed.</li>
         </ol></details>
         <details class="gs-why"><summary>Why Application and not Delegated?</summary>
           <p class="note">Delegated permissions act for a person who signs in, and only reach what that person may see. The inventory reads the devices by itself, every night, with nobody signed in, so it needs Application permissions, which an admin grants once for the whole organisation. Both are read-only: the inventory cannot change anything in Entra or Intune.</p></details></li>
-      <li><div class="gs-head"><b>People from Entra</b> <span class="muted">(optional)</span></div>
+      <li class="${stepCls(3)}"><div class="gs-head"><b>Test and sync</b>${done(synced)}</div>
+        <p class="note">Test connection at the top signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs by itself, as set here.</p>
+        ${scheduleRowHtml('graph', edit)}</li>
+    </ol>
+    <div class="ds-subhdr gs-opthdr">Optional <span class="muted">more from the same connection, each turned on here</span></div>
+    <ol class="graph-steps gs-opt">
+      <li><div class="gs-head"><b>People from Entra</b></div>
         <p class="note">Beside the devices, the sync can read Entra's people (members, no guests) and show in Settings → Users who is in the directory (LDAP), in Entra, or in both. It fills in an empty department of anyone, and an empty name of a person from Lansweeper, and otherwise changes nobody from LDAP or added here; LDAP takes over a person Entra added when the same login comes. Needs <span class="mono">User.Read.All</span>; without it the devices still sync.</p>
         <div class="form" style="padding:8px 0 0"><label for="gPeople">People</label><select id="gPeople" ${edit ? '' : 'disabled'}>
           <option value="off" ${g.people === 'off' ? 'selected' : ''}>Don't read people</option>
           <option value="match" ${(g.people || 'match') === 'match' ? 'selected' : ''}>Mark the people who are in Entra</option>
           <option value="add" ${g.people === 'add' ? 'selected' : ''}>Mark them, and add the primary users of the devices</option></select></div></li>
-      <li><div class="gs-head"><b>Windows Autopilot</b> <span class="muted">(optional)</span></div>
+      <li><div class="gs-head"><b>Windows Autopilot</b></div>
         <p class="note">The sync can read the devices registered in Windows Autopilot: each device gets its group tag and order number, and a device registered but not set up yet comes in by its serial number (in To review), before Intune knows it. Needs <span class="mono">DeviceManagementServiceConfig.Read.All</span> (Microsoft Graph, Application permissions), then <b>Grant admin consent</b>. Read only, like the others.</p>
         <div class="form" style="padding:8px 0 0"><label for="gAutopilot">Autopilot</label><select id="gAutopilot" ${edit ? '' : 'disabled'}>
           <option value="off" ${(g.autopilot || 'off') === 'off' ? 'selected' : ''}>Don't read Autopilot</option>
           <option value="on" ${g.autopilot === 'on' ? 'selected' : ''}>Read Windows Autopilot</option></select></div></li>
-      <li><div class="gs-head"><b>Secure Boot</b> <span class="muted">(optional)</span></div>
+      <li><div class="gs-head"><b>Secure Boot</b></div>
         <p class="note">The sync can read whether Secure Boot is on, from Intune's health attestation of each Windows device it manages. Graph gives that only device by device, so the sync asks in batches of 20, which makes it a little longer. No other permission is needed. Shown on the device, with the filter Secure Boot off.</p>
         <div class="form" style="padding:8px 0 0"><label for="gSecureBoot">Secure Boot</label><select id="gSecureBoot" ${edit ? '' : 'disabled'}>
           <option value="off" ${(g.secureBoot || 'off') === 'off' ? 'selected' : ''}>Don't read Secure Boot</option>
           <option value="on" ${g.secureBoot === 'on' ? 'selected' : ''}>Read Secure Boot</option></select></div></li>
-      <li><div class="gs-head"><b>Sign-in with Microsoft</b> <span class="muted">(optional)</span></div>
+      <li><div class="gs-head"><b>Sign-in with Microsoft</b></div>
         <p class="note">People sign in with their Microsoft account (with your Entra rules: multi-factor, conditional access) instead of a password here. They must be users of the inventory with a role, found by their Entra account, user principal name or e-mail; nobody new gets in this way. Passwords keep working. In the app registration, add this as a <b>Web</b> redirect URI (Authentication → Add a platform → Web):</p>
         <div class="gs-uri"><span class="mono" id="gSsoUri">${location.origin + location.pathname.replace(/[^/]*$/, '') + 'api/sso/callback'}</span><button type="button" class="mini" id="gSsoCopy">Copy</button></div>
         <div class="form" style="padding:8px 0 0"><label for="gSso">Sign-in</label><select id="gSso" ${edit && g.configured ? '' : 'disabled'}>
           <option value="off" ${(g.sso || 'off') === 'off' ? 'selected' : ''}>Passwords only</option>
           <option value="on" ${g.sso === 'on' ? 'selected' : ''}>Also with Microsoft</option></select></div></li>
-      <li><div class="gs-head"><b>Test and sync</b>${done(g.configured)}</div>
-        <p class="note">Test connection at the top signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs by itself, as set here.</p>
-        ${scheduleRowHtml('graph', edit)}</li>
     </ol>
     ${certRows.length > 0 && html`<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
     <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>`}
+    <div class="ds-subhdr">Sync</div>
     <div style="padding:0 0 8px">${rawHtml(intakeRowHtml('graph'))}<p class="note" style="padding:0 12px">Devices in Entra or Intune that the inventory does not have yet are added as new devices; disabled records never do, and ones not heard from for 90 days always wait in To review.</p></div>${ambiguousHtml()}</div>`;
   /* Defender for Endpoint: read by the same sync, so it has no header of its own; a section below the fields. */
   const dh = $('#setDefender'), seen = objs.filter(o => o.defender).length;

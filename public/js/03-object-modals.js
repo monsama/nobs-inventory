@@ -853,7 +853,8 @@ export function renderObj(o){
 
 /* The field policy as checkboxes. Same state in Settings and in the feed wizard. */
 /* Two groups: the fields of a device, and what else the feed brings (each with what it does as a tooltip). */
-export const policyGrid = () => String(html`<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => html`<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`)}</div>
+/* keys: only these device fields (the Lansweeper tab leaves out those its field table has a box for). */
+export const policyGrid = (keys = Object.keys(FIELD_LABEL)) => String(html`<div class="pgrid">${keys.map(k => html`<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`)}</div>
   <div class="pgrid pgrid-extra">${Object.keys(FEED_EXTRA).map(k => html`<label class="pchk" title="${FEED_EXTRA_HINT[k]}"><input type="checkbox" data-pol="${k}" ${st.policy[k] !== false ?'checked':''}> ${FEED_EXTRA[k]}</label>`)}</div>`);
 export function bindPolicy(root){
   root.querySelectorAll('[data-pol]').forEach(c => c.onchange = () => {

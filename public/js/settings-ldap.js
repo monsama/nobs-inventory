@@ -62,6 +62,8 @@ function bindCa(){
     if (r.ok){ toast('CA certificate removed'); await reloadFromServer(); renderSetLdap(); }
   };
 }
+/* Advanced stays open while this page is open, once opened: a change in it draws the page again. */
+let ldapAdvOpen = false;
 /* LDAP: the directory settings, saved in the inventory (the service password encrypted on the server), the CA, a
    test and a sync. */
 export function renderSetLdap(){
@@ -73,38 +75,43 @@ export function renderSetLdap(){
   $('#setLdap').innerHTML = html`${rawHtml(statusHeaderHtml('ad', { test: { id: 'ldapTest', ready }, sync: { id: 'ldapSync', ready }, msg: 'ldapMsg' }))}<div class="panelbox"><div class="hdr">Connection <span class="cnt">LDAP</span></div>
     <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account’s password is kept apart, encrypted on the server: it can be replaced or removed here, never shown, and it is not in backups.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
+      <div class="form-sec">Server</div>
       ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
       <label for="lk_security">Connection security</label><div><select id="lk_security" ${ro}>
         ${SECURITY_OPTS.map(([v, t]) => html`<option value="${v}" ${(L.security || '') === v ? 'selected' : ''}>${t}</option>`)}</select>
         ${securityNote(L)}</div>
       ${L.security !== 'plain' && html`<label>CA certificate</label><div class="ctlrow" id="ldapCa">${caHtml(edit)}</div>`}
-      ${L.security !== 'plain' && html`<label for="lk_legacyTls">Old certificates</label><div>
-        <label class="pchk" style="width:auto"><input type="checkbox" id="lk_legacyTls" ${L.legacyTls === 'on' ? 'checked' : ''} ${ro}> Accept old certificates (RSA keys from 1024 bits)</label>
-        <p class="note" style="padding:4px 0 0;margin:0">${L.legacyTls === 'on'
-          ? html`<span class="chip warn">On</span> <span style="color:var(--danger)">Not recommended: a 1024-bit key is no longer considered safe. Only for compatibility, until the domain controller’s certificate is renewed with a 2048-bit key; then switch this off.</span>`
-          : 'Not recommended. Only for a domain controller whose certificate still has a 1024-bit key (“key too weak”), until it is renewed. The certificate is still checked against the CA and the name.'}</p></div>`}
-      ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
+      <div class="form-sec">Account <span class="muted">the account the inventory reads the directory with</span></div>
       ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
       <label for="lk_pw">Service password</label><div class="ctlrow" id="ldapPw"><span class="muted">…</span></div>
+      ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
+      <div class="form-sec">Who may sign in</div>
       ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
       ${L.url && !String(L.group || '').trim() ? html`<span></span><p class="fieldnote warn">Without a sign-in group, the sync adds every account in the directory as a user (with no access until you give them a role).</p>` : ''}
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
     </div>
-    <details class="ldap-adv" ${L.bindTemplate || L.loginAttr || L.userFilter || L.computerBase || L.computerGroups === 'off' ? 'open' : ''}><summary>Advanced: only when the defaults do not suit your directory</summary>
+    <details class="ldap-adv" id="ldapAdv" ${ldapAdvOpen || L.bindTemplate || L.loginAttr || L.userFilter || L.computerBase || L.computerGroups === 'off' || L.legacyTls === 'on' ? 'open' : ''}><summary>Advanced: only when the defaults do not suit your directory</summary>
       <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
         ${field('bindTemplate', 'Sign-in name', bindDefault(L.searchBase) + '   (or EXAMPLE\\{login})')}
         ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
         ${field('userFilter', 'User filter', '(&(objectClass=person)(!(objectClass=computer)))')}
         ${field('computerBase', 'Computers search base', computerDefault(L.searchBase))}
+        ${L.security !== 'plain' && html`<label for="lk_legacyTls">Old certificates</label><div>
+        <label class="pchk" style="width:auto"><input type="checkbox" id="lk_legacyTls" ${L.legacyTls === 'on' ? 'checked' : ''} ${ro}> Accept old certificates (RSA keys from 1024 bits)</label>
+        <p class="note" style="padding:4px 0 0;margin:0">${L.legacyTls === 'on'
+          ? html`<span class="chip warn">On</span> <span style="color:var(--danger)">Not recommended: a 1024-bit key is no longer considered safe. Only for compatibility, until the domain controller’s certificate is renewed with a 2048-bit key; then switch this off.</span>`
+          : 'Not recommended. Only for a domain controller whose certificate still has a 1024-bit key (“key too weak”), until it is renewed. The certificate is still checked against the CA and the name.'}</p></div>`}
         <label for="lk_computerGroups">Computer groups</label><label class="pchk" style="width:auto"><input type="checkbox" id="lk_computerGroups" ${L.computerGroups === 'off' ? '' : 'checked'} ${ro}> Read the computer accounts: their groups, last logon, and new devices</label>
       </div>
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
+    <div class="ds-subhdr">Sync</div>
     ${rawHtml(intakeRowHtml('ad'))}
     <p class="note" style="padding:0 12px 4px">Computer accounts that match no device here are added as new devices; disabled accounts never do, and ones with no logon for 90 days always wait in To review.</p>
     <p class="note" style="padding:0 12px 4px">Only the fields listed under Fields from this source are read from a computer account, never its LAPS password or BitLocker keys.</p>
     <div style="padding:8px 12px 12px">${scheduleRowHtml('ldap', edit)}</div></div>`;
   bindScheduleRows($('#setLdap'));
+  $('#ldapAdv').ontoggle = e => { ldapAdvOpen = /** @type {HTMLDetailsElement} */ (e.target).open; };
   if (edit) loadLdapPassword(); else $('#ldapPw').innerHTML = '<span class="muted">Only an admin can see this</span>';
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => {
     st.ldap[i.dataset.lk] = i.value.trim();

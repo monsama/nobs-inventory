@@ -1,7 +1,7 @@
 /* Settings → Data sources: who wins when several sources know a field, for all of them (All fields) and for one (Fields
    from this source, on its own tab), and what else each brings. Drawn from sync-map.js (the lists the syncs themselves
    use) and from the current settings, so it changes with them and is never out of date. */
-import { $$, $, DEFAULT_POLICY, SYNC, objs, st, toastUndo } from './01-core.js';
+import { $$, $, DEFAULT_POLICY, FIELD_LABEL, SYNC, objs, st, toastUndo } from './01-core.js';
 import { closeModal, modal } from './19-modal.js';
 import { LS_FILL, MODES, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldMode, fieldOrder, maySet } from './sync-map.js';
 import { queueServerSave, render } from './07-render.js';
@@ -105,17 +105,28 @@ function confirmChange(title, next, keys, apply){
   $('#dpCancel').onclick = () => closeModal();
   $('#dpOk').onclick = () => { closeModal(); apply(); };
 }
+/* One field's settings, to put back on Undo without touching what changed in other fields meanwhile. */
+const without = (o, k) => { if (!o || !(k in o)) return o || null; const r = { ...o }; delete r[k]; return Object.keys(r).length ? r : null; };
+const fieldState = k => ({ order: st.fieldOrder && st.fieldOrder[k], mode: st.fieldMode && st.fieldMode[k], policy: (st.policy || {})[k], hasPolicy: k in (st.policy || {}) });
+function restoreField(k, b){
+  st.fieldOrder = b.order ? { ...(st.fieldOrder || {}), [k]: b.order } : without(st.fieldOrder, k);
+  st.fieldMode = b.mode ? { ...(st.fieldMode || {}), [k]: b.mode } : without(st.fieldMode, k);
+  const p = { ...(st.policy || {}) }; if (b.hasPolicy) p[k] = b.policy; else delete p[k]; st.policy = p;
+}
 /* Sets the sources of field k to list (in order), kept with Lansweeper's "Feed may overwrite" box, with Undo; shown first
    when it changes devices. */
 function setOrder(k, list, what, modes = null){
   const policy = SOURCES_OF(k).includes('ls') && !LS_FILL[k] ? { ...(st.policy || {}), [k]: list.includes('ls') } : st.policy;
-  const fo = { ...(st.fieldOrder || {}), [k]: list };
-  const fm = modes ? { ...(st.fieldMode || {}), [k]: Object.fromEntries(list.map(x => [x, modes[x] || 'update'])) } : st.fieldMode;
+  /* The default order (with the box as it is then) and plain updates: the field goes back to the default, not Custom. */
+  const plain = !(modes ? list.some(x => modes[x] === 'fill') : st.fieldMode && st.fieldMode[k]);
+  const isDefault = plain && fieldOrder({ ...st, policy, fieldOrder: null }, k).join() === list.join();
+  const fo = isDefault ? without(st.fieldOrder, k) : { ...(st.fieldOrder || {}), [k]: list };
+  const fm = isDefault ? without(st.fieldMode, k) : modes ? { ...(st.fieldMode || {}), [k]: Object.fromEntries(list.map(x => [x, modes[x] || 'update'])) } : st.fieldMode;
   confirmChange(`${SYNC_FIELD_LABEL[k]}: ${what}`, { fieldOrder: fo, fieldMode: fm, policy }, [k], () => {
-    const before = { fieldOrder: st.fieldOrder, fieldMode: st.fieldMode, policy: st.policy };
+    const before = fieldState(k);
     st.fieldOrder = fo; st.fieldMode = fm; st.policy = policy;
     queueServerSave(); redraw();
-    toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { Object.assign(st, before); queueServerSave(); redraw(); });
+    toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { restoreField(k, before); queueServerSave(); redraw(); });
   });
   /* Until applied, the lists show what is saved. */
   redraw();
@@ -147,13 +158,13 @@ function matrixHtml(on, only = null){
   for (const o of objs) if (o.status !== 'retired') for (const k of ORDER_FIELDS) if ((o.pick && o.pick[k] === 'hand') || (o.src && o.src[k] === 'hand')) hand[k] = (hand[k] || 0) + 1;
   const isSet = k => !!((st.fieldOrder && st.fieldOrder[k]) || (st.fieldMode && st.fieldMode[k]));
   const row = k => html`<tr${isSet(k) ? html` class="ds-set"` : ''}><th scope="row">${SYNC_FIELD_LABEL[k]}${isSet(k) ? html` <span class="chip ds-custom" title="Set here, not the default">Custom</span>` : ''}${hand[k] ? html`<button type="button" class="link ds-hand" data-dshand="${k}" title="Devices where this field was set by hand: no source changes it">${hand[k]} set by hand</button>` : ''}</th>
-    <td class="ds-chain">${chain(k)}</td><td class="ds-how">${orderSentence(k, fieldOrder(st, k))}</td>${edit ? html`<td class="ds-act"><button type="button" class="mini" data-dsedit="${k}" aria-label="Change the sources of ${SYNC_FIELD_LABEL[k]}">Change…</button></td>` : ''}</tr>`;
+    ${only ? html`<td class="ds-write"><input type="checkbox" data-dswrite="${k}" ${fieldOrder(st, k).includes(only) ? 'checked' : ''} ${edit ? '' : 'disabled'} aria-label="${SOURCE_LABEL[only]} writes ${SYNC_FIELD_LABEL[k]}"></td>` : ''}<td class="ds-chain"><span class="ds-chainin">${chain(k)}</span></td><td class="ds-how">${orderSentence(k, fieldOrder(st, k))}</td>${edit ? html`<td class="ds-act"><button type="button" class="mini" data-dsedit="${k}" aria-label="Change the sources of ${SYNC_FIELD_LABEL[k]}">Change…</button></td>` : ''}</tr>`;
   /* Sources not set up are marked once, above the table, not in every row's sentence. */
   const idle = ['ls', 'graph', 'ad'].filter(x => !on[x] && ORDER_FIELDS.some(k => (!only || SOURCES_OF(k).includes(only)) && fieldOrder(st, k).includes(x)));
   const legend = idle.length ? html`<p class="note ds-legend"><span class="ds-src ds-dim">${SHORT[idle[0]]}</span> Dashed, like this: not set up yet (${list(idle.map(x => SHORT[x]))}). It writes nothing until it is; then the rules below apply.</p>` : '';
   const groups = groupsOf().map(([n, ks]) => /** @type {[string, string[]]} */ ([n, ks.filter(k => !only || SOURCES_OF(k).includes(only))])).filter(g => g[1].length);
-  return html`${legend}<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? html`<th><span class="sr-only">Change</span></th>` : ''}</tr></thead>
-    ${groups.map(([name, keys]) => html`<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${name}</th></tr>${keys.map(row)}</tbody>`)}</table>`;
+  return html`${legend}<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th>${only ? html`<th class="ds-write" title="Whether ${SOURCE_LABEL[only]} writes the field; a source not ticked is only shown beside it">Writes it</th>` : ''}<th>Sources, in order</th><th>What happens</th>${edit ? html`<th><span class="sr-only">Change</span></th>` : ''}</tr></thead>
+    ${groups.map(([name, keys]) => html`<tbody><tr class="ds-grp"><th colspan="${(edit ? 4 : 3) + (only ? 1 : 0)}" scope="rowgroup">${name}</th></tr>${keys.map(row)}</tbody>`)}</table>`;
 }
 /* One explanation, used everywhere the field rules are. */
 const fieldNote = edit => html`<details class="how ds-how"><summary>How a field is filled</summary><div class="ds-explain"><p>A value typed or picked by hand on a device always stays. Otherwise the sources write it in the order shown; a source higher up replaces what one below it wrote.</p>
@@ -177,7 +188,7 @@ export function renderSetSources(){
     <p class="ds-srcwhat">${SOURCE_BLURB[src]}</p><button type="button" class="ds-srcbtn${ready ? '' : ' primary'}" data-dstab="${SOURCE_TAB[src]}" aria-label="${(ready ? 'Open ' : 'Set up ') + SOURCE_LABEL[src]}">${ready ? 'Open' : 'Set up'}</button></div>`; });
   /* Three common setups, each one click (with the preview and Undo); the one the fields follow now is marked. */
   const same = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
-  const presetNow = custom ? ['ls', 'graph'].find(p => { const n = presetOf(p); return same(n.fieldOrder, st.fieldOrder) && same(n.fieldMode, st.fieldMode); }) : '';
+  const presetNow = custom ? ['ls', 'graph', 'fill'].find(p => { const n = presetOf(p); return same(n.fieldOrder, st.fieldOrder) && same(n.fieldMode, st.fieldMode); }) : '';
   const presets = edit ? html`<div class="ds-presets"><span class="muted">Quick setup:</span>${Object.entries(PRESETS).map(([k, [l, tip]]) => html`<button type="button" data-dspreset="${k}" title="${tip}" aria-pressed="${String(presetNow === k)}" class="${presetNow === k ? 'on' : ''}">${l}</button>`)}</div>` : '';
   const nSet = Object.keys(st.fieldOrder || {}).length;
   const reset = edit && custom ? html`<div class="ds-foot"><span class="muted">${nSet} field${nSet === 1 ? '' : 's'} set here (Custom)</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
@@ -220,18 +231,37 @@ export function renderSourceFields(){
     : src === 'graph' ? html`<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${ro}> Fill in empty fields from Intune</label></div>
       <p class="note ds-intro">Intune can fill in a device's empty operating system, model, MAC address, memory and disks. A value set by hand or from Lansweeper goes first; one from Active Directory gives way. The device shows where a value came from.</p>` : '';
   /* Lansweeper also writes fields that have no order (its user, software, links…): ticked per field. */
-  const lsWrites = src === 'ls' ? html`<div class="ds-subhdr">What Lansweeper writes</div>${rawHtml(policyGrid())}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set above and in All fields. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>` : '';
+  /* The fields in the table are ticked there (Writes it); here only what has no row: its user, and what else it brings. */
+  const lsWrites = src === 'ls' ? html`<div class="ds-subhdr">Also from Lansweeper</div>${rawHtml(policyGrid(Object.keys(FIELD_LABEL).filter(k => !ORDER_FIELDS.includes(k) || !SOURCES_OF(k).includes('ls'))))}<p class="note" style="padding:10px 12px">A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>` : '';
   const extras = [src, ...(src === 'graph' ? ['autopilot'] : [])].flatMap(x => SOURCE_EXTRAS[x] || []);
   root.innerHTML = html`<div class="panelbox"><div class="hdr">Fields from this source</div>${fill}${fieldNote(edit)}<div class="ds-scroll">${matrixHtml(on, src)}</div>${lsWrites}
     ${extras.length ? html`<details class="how ds-beyond-src"><summary>What else it brings</summary><dl class="ds-dl ds-pad">${extras.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></details>` : ''}</div>
     ${src === 'graph' ? intuneCoverageHtml() : ''}`;
   bindMatrix(root, on);
   if (!edit) return;
+  root.querySelectorAll('[data-dswrite]').forEach(c => c.onchange = () => toggleSource(c.dataset.dswrite, src, c.checked));
   /* Filling turned off makes the source "off" in its rules: they are drawn again. */
   const ad = $('#lk_fillAd'); if (ad) ad.onchange = () => { st.fillAd = ad.checked; queueServerSave(); renderSourceFields(); $('#lk_fillAd')?.focus(); };
   const gf = $('#gFill'); if (gf) gf.onchange = () => { st.fillGraph = gf.checked; queueServerSave(); renderSourceFields(); $('#gFill')?.focus(); };
   bindPolicy(root);
   root.querySelectorAll('[data-pol]').forEach(c => c.addEventListener('change', () => { const k = c.dataset.pol; renderSourceFields(); $(`#srcFields [data-pol="${k}"]`)?.focus(); }));
+}
+/* "Writes it" on a source's tab: the source into the field's order (first, as Lansweeper's box did) or out of it, shown
+   first when it changes devices, with Undo. Lansweeper on a field without an order set only turns its box. */
+function toggleSource(k, src, use){
+  const order = fieldOrder(st, k).filter(x => x !== src), what = `${SOURCE_LABEL[src]} ${use ? 'writes it' : 'only shown'}`;
+  if (src === 'ls' && !(k in LS_FILL) && !(st.fieldOrder && st.fieldOrder[k])) {
+    const policy = { ...(st.policy || {}), [k]: use };
+    confirmChange(`${SYNC_FIELD_LABEL[k]}: ${what}`, { policy }, [k], () => {
+      const before = fieldState(k); st.policy = policy; queueServerSave(); redraw();
+      toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { restoreField(k, before); queueServerSave(); redraw(); });
+    });
+    redraw(); return;
+  }
+  /* Back in: Lansweeper first; another source at its usual place when the order is the usual one, else last. */
+  const known = SOURCES_OF(k), usual = order.every((x, i) => i === 0 || known.indexOf(order[i - 1]) < known.indexOf(x));
+  const next = !use ? order : src === 'ls' ? ['ls', ...order] : usual ? known.filter(x => x === src || order.includes(x)) : [...order, src];
+  setOrder(k, next, what);
 }
 /* Change… for one field: its sources as a list in their order, each used or shown only, moved up and down; what that
    means is said below as it changes. Save shows what it changes on the devices first (confirmChange). */
@@ -276,9 +306,9 @@ function editOrder(k, on){
     /* Lansweeper's "may overwrite" box for the field goes back to its default too: the default order follows it. */
     const policy = k in DEFAULT_POLICY ? { ...(st.policy || {}), [k]: DEFAULT_POLICY[k] } : st.policy;
     confirmChange(`${SYNC_FIELD_LABEL[k]}: back to the default`, { fieldOrder: fo, fieldMode: fm, policy }, [k], () => {
-      const before = { fieldOrder: st.fieldOrder, fieldMode: st.fieldMode, policy: st.policy };
+      const before = fieldState(k);
       st.fieldOrder = fo; st.fieldMode = fm; st.policy = policy; queueServerSave(); redraw();
-      toastUndo(`${SYNC_FIELD_LABEL[k]}: back to the default`, () => { Object.assign(st, before); queueServerSave(); redraw(); });
+      toastUndo(`${SYNC_FIELD_LABEL[k]}: back to the default`, () => { restoreField(k, before); queueServerSave(); redraw(); });
     });
   };
 }

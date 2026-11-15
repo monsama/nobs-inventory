@@ -1598,7 +1598,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;padding:8px 12px}
 .ds-presets button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 .ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
-@media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
+@media (max-width:760px){table.stack.ds-matrix td.ds-act,table.grid.ds-matrix.stack td.ds-write{width:auto;text-align:left}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
 .ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
 
@@ -1767,7 +1767,7 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 /* Data sources: a source not set up is marked by its dashed border and badge, not by fading its text (contrast). */
 .ds-card.off{opacity:1;border-style:dashed;background:var(--panel2)}
 .ds-dim{opacity:1;color:var(--muted);border-style:dashed;background:transparent}
-.ds-dim b{background:var(--muted)}
+.ds-dim b{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--muted)}
 /* Merged records: names break between words, the date stays on one line. */
 .nics.merged .nic-name{overflow-wrap:break-word;word-break:normal}
 .nics.merged .nic-meta{white-space:normal}
@@ -2132,3 +2132,28 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .ip-give{margin-left:8px;font-size:12.5px}
 /* A retired device: kept for the record, so nothing is added or linked to it on its page */
 .obj.is-retired :is(.addrel,.xadd,.xhide){display:none}
+/* "Writes it" on a source's own tab: a narrow centred box column. */
+table.grid.ds-matrix .ds-write{width:72px;text-align:center;white-space:nowrap}
+table.grid.ds-matrix td.ds-write input{margin:0}
+/* Entra & Intune setup: numbered steps with a marker that says done (tick), now (filled) or later (outlined), and how
+   far the setup is; the optional reads below with a plain dot. */
+.graph-steps{list-style:none;counter-reset:gs}
+.graph-steps>li{position:relative;counter-increment:gs}
+.graph-steps>li::before{content:counter(gs);position:absolute;left:-28px;top:6px;width:20px;height:20px;box-sizing:border-box;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;border:1.5px solid var(--bd);color:var(--muted);background:var(--bg)}
+.graph-steps>li.gs-now::before{background:var(--accentbtn);border-color:var(--accentbtn);color:var(--accentfg)}
+.graph-steps>li.gs-ok::before{content:'✓';background:var(--okdot);border-color:var(--okdot);color:#fff}
+.graph-steps.gs-opt>li::before{content:'';width:8px;height:8px;left:-22px;top:13px;border:0;background:var(--muted)}
+.gs-progress{display:flex;align-items:center;gap:12px;padding:10px 12px 2px;font-size:12.5px;font-weight:600}
+.gs-bar{flex:1;max-width:260px;height:6px;border-radius:3px;background:var(--panel2);border:1px solid var(--bd2);overflow:hidden}
+.gs-bar>i{display:block;height:100%;background:var(--okdot);border-radius:3px}
+.gs-opthdr .muted{font-weight:400;margin-left:6px;font-size:12px}
+/* A small heading inside a two-column form, over the fields that belong together. */
+.form>.form-sec{grid-column:1/-1;margin:10px 0 0;padding-top:10px;border-top:1px solid var(--bd2);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.form>.form-sec:first-child{margin-top:0;padding-top:0;border-top:0}
+.form>.form-sec .muted{text-transform:none;letter-spacing:0;font-weight:400;margin-left:6px}
+/* A field's sources: the chips in a row that wraps as a whole (also beside its label on a phone), what is only shown
+   below them. */
+.ds-chainin{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.ds-chainin>.ds-src,.ds-chainin>.ds-arrow{flex:none}
+.ds-chainin>.ds-also{flex-basis:100%}
+@media (min-width:761px){.ds-chainin{flex-wrap:nowrap}.ds-chainin:has(.ds-also){flex-wrap:wrap}}

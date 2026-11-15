@@ -54,6 +54,10 @@ try {
   page.once('dialog', d => d.accept());
   await page.click('#caRemove');
   await page.waitForSelector('#ldapCa:has-text("None: only certificates from public CAs")');
+  // the connection in three groups; old certificates (not recommended) under Advanced, which stays open once opened
+  assert.deepEqual((await page.locator('#setLdap .form-sec').allTextContents()).map(t => t.split(/\s{2,}| the /)[0].trim()), ['Server', 'Account', 'Who may sign in']);
+  assert.equal(await page.isVisible('#lk_legacyTls'), false, 'old certificates are not in the way');
+  await page.click('#ldapAdv > summary');
   // old certificates: off by default, on only after confirming, with a warning shown while it is on
   assert.equal(await page.isChecked('#lk_legacyTls'), false);
   page.once('dialog', d => d.dismiss());
@@ -66,6 +70,7 @@ try {
   assert.equal(await page.evaluate(async () => (await import('/js/01-core.js')).st.ldap.legacyTls), 'on');
   await page.uncheck('#lk_legacyTls');
   await page.waitForFunction(() => !document.querySelector('#setLdap .chip.warn'));
+  assert.equal(await page.isVisible('#lk_legacyTls'), true, 'Advanced stayed open');
   // the service account password: saved, never shown again, removable
   await page.waitForSelector('#lk_pw');
   await page.fill('#lk_pw', 'svc-secret'); await page.click('#lpSave');
