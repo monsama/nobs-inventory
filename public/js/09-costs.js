@@ -6,7 +6,7 @@ import { contactLabel } from './contacts.js';
 import { contactCompanies, contactModal } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
-import { closeModal, confirmModal, modal } from './19-modal.js';
+import { closeModal, modal } from './19-modal.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
 /* Suppliers for a contract and for a device: the companies in Contacts, the contracts' suppliers and the devices'. */
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier), ...objs.map(o => typeof o.supplier === 'string' ? o.supplier.trim() : '')].filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -169,7 +169,7 @@ export function contractModal(c, preset = []){
   $('#ctCancel').onclick = closeModal;
   /* Contracts are an admin's: anyone else sees one, read only. */
   if (!isAdmin()) { $('#mdl').querySelectorAll('input, select, textarea, button').forEach(el => { if (el.id !== 'ctCancel' && !el.closest('.mh')) el.disabled = true; }); const ok = $('#ctOk'); if (ok) ok.hidden = true; const del = $('#ctDel'); if (del) del.hidden = true; $('#ctCancel').textContent = 'Close'; }
-  if (!isNew) $('#ctDel').onclick = () => deleteContract(cur);
+  if (!isNew) $('#ctDel').onclick = () => { closeModal(); deleteContract(cur); };
   $('#ctOk').onclick = () => {
     const err = m => { $('#ctErr').textContent = m; $('#ctErr').classList.add('err'); };
     const name = $('#ctName').value.trim();
@@ -233,18 +233,18 @@ export const licencesFor = pkg => COSTS.licences.filter(l => pkg.toLowerCase().i
 
 /* Deleting a contract or a licence: asked first, then gone at once with Undo, from its row or its dialog. The devices stay. */
 function deleteContract(c){
-  confirmModal(`Delete the contract ${c.name}?`, html`<b>${c.name}</b> is removed from the contracts. The devices it lists stay; only their tie to it goes.`, 'Delete contract', () => {
+  {
     const i = COSTS.contracts.indexOf(c);
     COSTS.contracts = COSTS.contracts.filter(x => x !== c); queueServerSave(); render();
     toastUndo(`Contract ${c.name} deleted`, () => { COSTS.contracts.splice(Math.min(i, COSTS.contracts.length), 0, c); queueServerSave(); render(); });
-  });
+  }
 }
 function deleteLicence(l){
-  confirmModal(`Delete the licence ${l.name}?`, html`<b>${l.name}</b> is removed from the licences. The software on the devices stays.`, 'Delete licence', () => {
+  {
     const i = COSTS.licences.indexOf(l);
     COSTS.licences = COSTS.licences.filter(x => x !== l); queueServerSave(); render();
     toastUndo(`Licence ${l.name} deleted`, () => { COSTS.licences.splice(Math.min(i, COSTS.licences.length), 0, l); queueServerSave(); render(); });
-  });
+  }
 }
 /* The Licences box over the Software tab, as HTML: each licence with its seats used, a bar, its cost and end. New
    licence is for admins. */
@@ -285,7 +285,7 @@ export function licenceModal(l, name = ''){
   const hint = () => { const n = $('#licName').value.trim(); $('#licErr').classList.remove('err'); $('#licErr').textContent = n ? `${licenceUse({ name: n, seats: 0 }, objs).used} devices have software named so.` : ''; };
   hint(); $('#licName').oninput = hint;
   $('#licCancel').onclick = closeModal;
-  if (!isNew) $('#licDel').onclick = () => deleteLicence(cur);
+  if (!isNew) $('#licDel').onclick = () => { closeModal(); deleteLicence(cur); };
   $('#licOk').onclick = () => {
     const nm = $('#licName').value.trim();
     if (!nm){ $('#licErr').textContent = 'Give the name of the software.'; $('#licErr').classList.add('err'); return; }

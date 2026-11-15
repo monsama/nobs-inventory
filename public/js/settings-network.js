@@ -75,9 +75,14 @@ export function renderSetSubnets(){
   const nb = $('#snNew'); if (nb) nb.onclick = () => open('new');
   root.querySelectorAll('[data-sx]').forEach(b => b.onclick = () => {
     const gone = SUBNETS[+b.dataset.sx];
-    if (!confirm(`Delete the subnet ${gone.name} (${gone.cidr})? Devices on it keep their addresses.`)) return;
-    for (const o of objs) if (o.subnet === gone.cidr){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
-    SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets();
+    const i = +b.dataset.sx, on = objs.filter(o => o.subnet === gone.cidr);
+    for (const o of on){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
+    SUBNETS.splice(i, 1); queueServerSave(); renderSetSubnets();
+    toastUndo(`Subnet ${gone.name} deleted; devices on it keep their addresses`, () => {
+      SUBNETS.splice(Math.min(i, SUBNETS.length), 0, gone);
+      for (const o of on){ o.subnet = gone.cidr; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) back (delete undone) by ${who()}`); }
+      queueServerSave(); renderSetSubnets();
+    });
   });
   /* A suggestion as a subnet: name, gateway, DNS, the types seen there and a range per kind of address seen. */
   const fromSuggestion = n => ({name: n.name || n.cidr, cidr: n.cidr, vid: null, gateway: n.gateway || '', dns: n.dns || [],

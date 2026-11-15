@@ -847,7 +847,7 @@ function areaMenu(plan, area, x, y){
     <button type="button" role="menuitem" data-ctx="shape" title="Show the handles of each rectangle, to resize, move or remove one">${planShapeEdit === area.id ? 'Lock rectangles' : 'Edit rectangles'}</button>
     <button type="button" role="menuitem" data-ctx="edit">Edit area…</button>
     <button type="button" role="menuitem" data-ctx="dup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>
-    <button type="button" role="menuitem" data-ctx="del" class="danger-text">Remove area…</button>`);
+    <button type="button" role="menuitem" data-ctx="del" class="danger-text">Remove area</button>`);
   document.body.append(m);
   const w = m.offsetWidth, h = m.offsetHeight;
   m.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + 'px';
@@ -888,20 +888,18 @@ export function addPartsToArea(plan){
   queueServerSave(); renderPlans();
   toastUndo(`Added to ${area.name}`, () => { setAreaGeom(area, before); queueServerSave(); renderPlans(); });
 }
-/* Asks before removing an area from the plan. Devices placed inside it lose their place on the plan; their locations
-   and history stay. */
+/* Removes an area from the plan at once, with Undo. Devices placed inside it lose their place on the plan, and devices in
+   its location leave the plan on their own; their locations and history stay. Undo puts the area and the places back. */
 export function areaRemoveModal(plan, area){
-  modal(html`<div class="mh">Remove ${area.name}?</div>
-    <div class="mb"><p class="note">Devices placed inside it leave the plan, and so do devices in its location. Nothing in the inventory changes: locations and history stay as they are.</p></div>
-    <div class="mf"><button id="arrCancel">Cancel</button><button id="arrOk" class="danger-text">Remove area</button></div>`, 'sm');
-  $('#arrCancel').onclick = closeModal;
-  $('#arrOk').onclick = () => {
-    /* Removing an area is a change to the plan only: devices placed by hand inside it lose that place on the plan, and devices
-       in its location leave the plan on their own. Locations and history are not changed. */
-    const rects = areaRects(area);
-    for (const o of planDevices(plan)) if (o.planPos && rects.some(q => inRect(q, o.planPos.x, o.planPos.y))) delete o.planPos;
-    plan.areas = plan.areas.filter(a => a.id !== area.id); queueServerSave(); closeModal(); toast('Area removed'); renderPlans();
-  };
+  const rects = areaRects(area), moved = [];
+  for (const o of planDevices(plan)) if (o.planPos && rects.some(q => inRect(q, o.planPos.x, o.planPos.y))) { moved.push([o, o.planPos]); delete o.planPos; }
+  const i = plan.areas.indexOf(area);
+  plan.areas = plan.areas.filter(a => a.id !== area.id); queueServerSave(); renderPlans();
+  toastUndo(`Area ${area.name} removed from the plan; the devices keep their location`, () => {
+    plan.areas.splice(Math.min(i, plan.areas.length), 0, area);
+    for (const [o, pos] of moved) o.planPos = pos;
+    queueServerSave(); renderPlans();
+  });
 }
 /* The New area dialog for the rectangles just drawn: a name and a room of the plan's site (or a new room named like
    the area). Adds the area to the plan and its room to the locations, and saves. */

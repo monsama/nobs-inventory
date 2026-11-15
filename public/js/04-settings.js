@@ -7,6 +7,7 @@ import { renderSetTypes } from './settings-types.js';
 import { renderSetGraph } from './settings-graph.js';
 import { renderSetLdap } from './settings-ldap.js';
 import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules } from './settings-feed.js';
+import { settingHits } from './settings-find.js';
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
 import { comboHtml } from './17-fields.js';
 import { collapsedPanels, rememberPanel, bindPolicy, followOnTop } from './03-object-modals.js';
@@ -39,7 +40,7 @@ export function openSettings(){
   setSettingsOpener(openSettings);
   resetSubnetEdit();
   modal(html`<div class="mh">Settings</div>
-    <div id="setTabs"><div class="settabs">${TOP_TABS.map(([k,l]) => SET_GROUPS[k] ? html`<button class="tab" data-sg="${k}">${l}</button>` : html`<button class="tab" data-st="${k}">${l}</button>`)}</div>
+    <div id="setTabs"><div class="settabs">${TOP_TABS.map(([k,l]) => SET_GROUPS[k] ? html`<button class="tab" data-sg="${k}">${l}</button>` : html`<button class="tab" data-st="${k}">${l}</button>`)}${isAdmin() ? html`<div class="set-find"><input id="setFind" type="search" placeholder="Find a setting" aria-label="Find a setting" autocomplete="off" role="combobox" aria-controls="setFindList" aria-expanded="false"><div id="setFindList" class="set-find-list" role="listbox" hidden></div></div>` : ''}</div>
       ${Object.entries(SET_GROUPS).map(([g, list]) => html`<div class="settabs setsub" data-sub="${g}" hidden>${list.map(([k, l]) => html`<button class="tab" data-st="${k}">${l}</button>`)}</div>`)}</div>
     <div class="mb" id="setPane"></div>
     <div class="mf"><button type="button" class="link" id="setAboutBtn" data-st="about">About NOBS Inventory</button><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
@@ -50,6 +51,7 @@ export function openSettings(){
   };
   const go = e => { const g = e.target.closest('[data-sg]'), t = e.target.closest('[data-st]'); if (!g && !t) return; st.setTab = g ? (g.dataset.sg === 'sources' ? firstSource() : g.dataset.sg) : t.dataset.st; renderSetPane(); $('#setPane').scrollTop = 0; };
   $('#setTabs').addEventListener('click', go); $('#setAboutBtn').addEventListener('click', go);
+  bindSetFind();
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;
   renderSetPane();
@@ -68,11 +70,25 @@ export function collapsibleSections(root, prefix){
     const closed = !!collapsedPanels()[keyOf(h)];
     h.parentNode.classList.toggle('collapsed', closed); h.setAttribute('aria-expanded', String(!closed));
   });
+  /* A long note under a section's title shows its first line, with More beside it: the rest is there when wanted (kept
+     open in this browser once opened). */
+  const clampNotes = () => root.querySelectorAll('.panelbox > .hdr + .note:not(.lempty):not([data-clamp]), .panelbox > .hdr + div > p.note:first-child:not(.lempty):not([data-clamp])').forEach(n => {
+    n.dataset.clamp = '1';
+    if (n.textContent.trim().length < 140) return;
+    const h = n.closest('.panelbox').querySelector(':scope > .hdr'), key = 'note:' + keyOf(h), open = !!collapsedPanels()[key];
+    n.classList.add('clamp'); n.classList.toggle('open', open);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'link note-more'; b.dataset.noteKey = key;
+    b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'Less' : 'More'; n.append(b);
+  });
   const toggle = h => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); rememberPanel(keyOf(h), c); };
-  root.addEventListener('click', e => { const h = e.target.closest('.panelbox:not(details) > .hdr.sechdr'); if (h && !e.target.closest('button,input,select,a,label')) toggle(h); });
+  root.addEventListener('click', e => {
+    const m = e.target.closest('.note-more');
+    if (m){ const n = m.closest('.note'), open = n.classList.toggle('open'); m.textContent = open ? 'Less' : 'More'; m.setAttribute('aria-expanded', String(open)); rememberPanel(m.dataset.noteKey, open); return; }
+    const h = e.target.closest('.panelbox:not(details) > .hdr.sechdr'); if (h && !e.target.closest('button,input,select,a,label')) toggle(h);
+  });
   root.addEventListener('keydown', e => { const h = e.target.closest('.panelbox:not(details) > .hdr.sechdr'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); toggle(h); } });
-  new MutationObserver(apply).observe(root, {childList: true, subtree: true});
-  apply();
+  new MutationObserver(() => { apply(); clampNotes(); }).observe(root, {childList: true, subtree: true});
+  apply(); clampNotes();
 }
 /* The Lansweeper type names and type rules: under Advanced, kept open while Settings is, once opened. */
 let typeAdvOpen = false;
@@ -112,6 +128,31 @@ export function renderSetPane(){
   fullTextTooltips(pane);
   ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); renderSourceFields(); }, directory: () => { renderSetLdap(); renderSourceFields(); }, entra: () => { renderSetGraph(); renderSourceFields(); }, sources: renderSetSources, locations: renderSetLocs, vlans: renderSetVlans, subnets: renderSetSubnets, domains: renderSetDomains, types: renderSetTypes, users: renderSetUsers, access: () => { renderSetAccess(); renderSetApi(); }, company: renderSetCompany, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
+}
+
+/* Find a setting: the pages and sections whose name or words hold what is typed; Enter or a click opens the first or the
+   one picked. Arrows move through the list, Escape empties the field. */
+function bindSetFind(){
+  const f = /** @type {HTMLInputElement | null} */ ($('#setFind')), list = $('#setFindList');
+  if (!f || !list) return;
+  let hits = [], at = 0;
+  const draw = () => {
+    const q = f.value.trim().toLowerCase();
+    hits = q ? settingHits(q).slice(0, 8) : []; at = 0;
+    list.hidden = !q; f.setAttribute('aria-expanded', String(!!q));
+    list.innerHTML = hits.length ? html`${hits.map((h, i) => html`<button type="button" role="option" class="set-find-hit${i === at ? ' on' : ''}" aria-selected="${String(i === at)}" data-sf="${i}"><span>${h.label}</span><span class="muted">${h.path}</span></button>`)}` : html`<p class="muted set-find-none">No setting is called that.</p>`;
+  };
+  const pick = i => { const h = hits[i]; if (!h) return; f.value = ''; draw(); h.go(); };
+  const mark = i => { at = Math.max(0, Math.min(hits.length - 1, i)); list.querySelectorAll('[data-sf]').forEach(b => { const on = +(/** @type {HTMLElement} */ (b).dataset.sf) === at; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); }); };
+  f.oninput = draw;
+  f.onkeydown = e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); mark(at + (e.key === 'ArrowDown' ? 1 : -1)); }
+    else if (e.key === 'Enter'){ e.preventDefault(); pick(at); }
+    else if (e.key === 'Escape' && f.value){ e.preventDefault(); e.stopPropagation(); f.value = ''; draw(); }
+  };
+  f.onblur = () => setTimeout(() => { if (document.activeElement !== f) { list.hidden = true; f.setAttribute('aria-expanded', 'false'); } }, 150);
+  list.addEventListener('mousedown', e => e.preventDefault());
+  list.addEventListener('click', e => { const b = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-sf]')); if (b) pick(+b.dataset.sf); });
 }
 
 /* About, as in NOBS SQL Editor: the version comes from the server, the licence text is the same. */

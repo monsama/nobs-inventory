@@ -1,8 +1,14 @@
 /* The search at the top: always through everything, whatever the filters on the left or the tab say.
-   It finds devices (racks too), people, contacts, contracts, rooms and saved views and lists them under the field, grouped; a hit opens where it
+   It finds devices (racks too), actions (New device, Back up now, the views), people, contacts, contracts, rooms, saved
+   views and settings, and lists them under the field, grouped; a hit opens where it
    lives. On a list (Cards, Table, Relationships) it filters that list too as one types. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
 import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, matchesQ, objs, st, tico } from './01-core.js';
-import { USERS, SET_TABS, isAdmin, openSettings } from './04-settings.js';
+import { USERS, isAdmin } from './04-settings.js';
+import { settingHits, openSetting } from './settings-find.js';
+import { newObjModal } from './05-new-object.js';
+import { importCsvModal } from './views-csv.js';
+import { clearConfirm } from './server-save.js';
+import { handOutToModal } from './27-handout.js';
 import { openObj } from './02-views.js';
 import { render } from './07-render.js';
 import { showDevicesOf } from './settings-users.js';
@@ -19,15 +25,36 @@ let items = [], active = -1;
 const ico = d => html`<span class="tico sm gs-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="${d}"/></svg></span>`;
 const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0'), contact: ico('M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'),
   contract: ico('M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6'), view: ico('M4 5h16M7 12h10M10 19h4'), room: ico('M3 11l9-7 9 7v10H3zM9 21v-6h6v6'),
+  action: ico('M13 3 4 14h7l-1 7 9-11h-7z'),
   setting: ico('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12h2M3 12h2M12 3v2M12 19v2M17 7l1.4-1.4M5.6 18.4 7 17M17 17l1.4 1.4M5.6 5.6 7 7') };
-/* The pages of Settings an admin looks for by another word: Backups by restore, E-mail by SMTP or digest … */
-const SET_WORDS = { maintenance: 'system health certificate https photos clear reset', backups: 'backup restore copy export azure s3 snapshot', mail: 'email e-mail smtp digest notification',
-  log: 'audit history errors', users: 'people roles viewer admin sso duplicates', access: 'groups viewers token api', company: 'logo company name', directory: 'ldap ad active directory sync test connection', entra: 'graph intune defender autopilot azure microsoft sync test connection',
-  feed: 'lansweeper sync push token', sources: 'fields policy order sources', vlans: 'network vlan', subnets: 'ip range dhcp', types: 'object types models', locations: 'sites rooms', about: 'version licence' };
-const SET_PATH = { users: 'Users → People', access: 'Users → Access', company: 'Users → Company', maintenance: 'System → Health', backups: 'System → Backups', mail: 'System → E-mail', log: 'System → Log', feed: 'Data sources → Lansweeper', directory: 'Data sources → Active Directory', entra: 'Data sources → Entra & Intune', sources: 'Data sources → All fields', vlans: 'Network → VLANs', subnets: 'Network → Subnets', domains: 'Network → Domains' };
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
 const row = (i, icon, main, sub) => html`<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${main}</span>${sub ? html`<span class="gs-sub">${sub}</span>` : ''}</li>`;
 
+/* The actions: [name, other words, for admins only, what it does]. The views of the tab bar are actions too. */
+const goTab = t => () => { st.tab = t; render(); };
+const ACTIONS = [
+  ['New device…', 'add create device object', true, () => newObjModal()],
+  ['Import devices from a CSV file…', 'csv import upload excel spreadsheet', true, () => importCsvModal()],
+  ['Back up now', 'backup save copy snapshot', true, () => { openSetting('backups'); requestAnimationFrame(() => { const b = $('#bkNew'); if (b) b.click(); }); }],
+  ['Clear inventory…', 'delete all devices start again empty', true, () => clearConfirm()],
+  ['Start an inventory check', 'stocktake count audit verify', true, goTab('stocktake')],
+  ['Go to the Overview', 'dashboard home summary', false, goTab('overview')],
+  ['Go to IP addresses', 'ip list addresses static dhcp free', false, goTab('ips')],
+  ['Go to Floor plans', 'plan map building floor', false, goTab('plans')],
+  ['Go to Ports', 'switch ports patch network', false, goTab('net')],
+  ['Go to Racks', 'rack cabinet units', false, goTab('rack')],
+  ['Go to Software', 'software installed licences programs', false, goTab('sw')],
+  ['Go to Contracts', 'contracts warranty support costs', false, goTab('contracts')],
+  ['Go to Contacts', 'contacts partners supplier', false, goTab('contacts')],
+  ['Go to To review', 'review new devices inbox waiting', true, goTab('review')],
+];
+function actions(q){
+  const admin = isAdmin();
+  const list = ACTIONS.filter(([l, w, a]) => (admin || !a) && has(q, l, w)).map(([l, , , go]) => ({ label: l, sub: '', go }));
+  /* Handing out to a person found by name. */
+  if (admin && q.length > 1) for (const u of USERS.filter(x => x.active !== false && has(q, x.name)).slice(0, 2)) list.push({ label: `Hand out a device to ${u.name}…`, sub: u.dept || '', go: () => handOutToModal(u) });
+  return list;
+}
 /* Every kind of thing the search knows, each with what to show and where it opens. */
 function results(q){
   const out = [];
@@ -49,6 +76,10 @@ function results(q){
     icon: ICON.person, main: u.name,
     sub: [u.dept, `${owned.get(u.name) || 0} device${owned.get(u.name) === 1 ? '' : 's'}`].filter(Boolean).join(' · '),
     go: () => showDevicesOf(u.id) }))]);
+  /* Things to do and views to go to, by their name or a word for them: New device, Back up now, IP addresses …; after
+     the people, so a name typed opens the person first. */
+  const acts = actions(q);
+  if (acts.length) out.push(['Actions', acts.length, acts.slice(0, MAX.other).map(a => ({ icon: ICON.action, main: a.label, sub: a.sub, go: a.go }))]);
   const contacts = (CONTACTS.list || []).filter(c => has(q, c.name, c.company, c.email, c.phone, c.mobile, c.area));
   if (contacts.length) out.push(['Contacts', contacts.length, contacts.slice(0, MAX.other).map(c => ({
     icon: ICON.contact, main: c.name, sub: [c.company, c.area || c.role].filter(Boolean).join(' · '),
@@ -67,11 +98,9 @@ function results(q){
   if (savedViews.length) out.push(['Views', savedViews.length, savedViews.slice(0, MAX.other).map(v => ({
     icon: ICON.view, main: v.name, sub: 'Saved view',
     go: () => restoreView(v) }))]);
-  /* Settings pages, for an admin: found by their name or a word for what they hold. */
-  const pages = isAdmin() ? SET_TABS.filter(([k, l]) => has(q, l, SET_PATH[k], SET_WORDS[k])) : [];
-  if (pages.length) out.push(['Settings', pages.length, pages.slice(0, MAX.other).map(([k, l]) => ({
-    icon: ICON.setting, main: l, sub: 'Settings → ' + (SET_PATH[k] || l),
-    go: () => { st.setTab = k; openSettings(); } }))]);
+  /* Settings, for an admin: a page or a section in one, found by its name or a word for what it holds. */
+  const sets = isAdmin() ? settingHits(q) : [];
+  if (sets.length) out.push(['Settings', sets.length, sets.slice(0, MAX.other).map(h => ({ icon: ICON.setting, main: h.label, sub: h.path, go: h.go }))]);
   return out;
 }
 

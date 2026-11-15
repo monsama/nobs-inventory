@@ -4,7 +4,7 @@
 import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
-import { closeModal, confirmModal, modal } from './19-modal.js';
+import { closeModal, modal } from './19-modal.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
@@ -27,11 +27,11 @@ export const contactCompanies = () => [...new Set(CONTACTS.list.filter(c => c.ki
 /* The company field of a contact offers the companies there are, in the app's own list (as Model and Supplier do). */
 COMBO_SOURCES.company = () => contactCompanies();
 
-/* Deleting a contact: asked first, then gone at once with Undo, from its card or its dialog. The devices it was
+/* Deleting a contact: gone at once, with Undo, from its card or its dialog. The devices it was
    responsible for lose it as their responsible, and get it back with Undo. */
 function deleteContact(c){
   const devs = objs.filter(o => o.respIn === c.id || o.respEx === c.id);
-  confirmModal(`Delete the contact ${c.name}?`, html`<b>${c.name}</b> is removed from the contacts.${devs.length ? ` ${devs.length} ${devs.length === 1 ? 'device loses' : 'devices lose'} this responsible.` : ''}`, 'Delete contact', () => {
+  {
     const was = devs.map(o => [o, o.respIn, o.respEx]), i = CONTACTS.list.indexOf(c);
     for (const o of devs){ for (const k of ['respIn', 'respEx']) if (o[k] === c.id) delete o[k]; hist(o, now(), `Responsible ${c.name} removed (contact deleted) by ${who()}`); }
     CONTACTS.list = CONTACTS.list.filter(x => x !== c);
@@ -42,7 +42,7 @@ function deleteContact(c){
       for (const [o, a, b] of was){ if (a) o.respIn = a; if (b) o.respEx = b; hist(o, now(), `Responsible ${c.name} back (delete undone) by ${who()}`); }
       queueServerSave(); render();
     });
-  });
+  }
 }
 /* One contact's card as HTML: name and role, what to ask them about, how to reach them, the note, and their devices.
    Delete only for admins. */
@@ -183,7 +183,7 @@ export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
   $('#cn_user').onchange = e => { const u = USERS.find(x => x.id === e.target.value); if (u && !$('#cn_name').value.trim()) $('#cn_name').value = u.name; };
   $('#cnCancel').onclick = closeModal;
   if (!edit) return;
-  if (!isNew) $('#cnDel').onclick = () => deleteContact(cur);
+  if (!isNew) $('#cnDel').onclick = () => { closeModal(); deleteContact(cur); };
   $('#cnOk').onclick = () => {
     const k = kindNow(), val = id => $('#cn_' + id).value.trim();
     const next = { id: cur.id, kind: k, name: val('name').replace(/\s+/g, ' ') };

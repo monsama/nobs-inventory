@@ -2100,3 +2100,19 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .tf-row.dragging{opacity:.45}.tf-row.drop-at{box-shadow:inset 0 2px 0 var(--accent)}
 .tf-row .fl-move{display:flex;align-items:center}
 @media (max-width:760px){#setPane #setTypes>.tp-split{grid-template-columns:minmax(0,1fr)}.tp-side{position:static}.tp-list{max-height:220px}.tp-look{grid-template-columns:minmax(0,1fr)}.tp-form{grid-template-columns:minmax(0,1fr)}}
+/* Find a setting, at the end of the row of Settings tabs */
+.set-find{position:relative;margin-left:auto;align-self:center}
+.set-find input{width:200px;height:28px}
+.set-find-list{position:absolute;right:0;top:calc(100% + 4px);z-index:20;width:340px;max-width:80vw;display:flex;flex-direction:column;padding:4px;background:var(--in);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
+.set-find-hit{display:flex;flex-direction:column;align-items:flex-start;gap:1px;height:auto;padding:6px 8px;border:0;background:none;font-weight:400;text-align:left;filter:none}
+.set-find-hit .muted{font-size:12px}
+.set-find-hit:hover,.set-find-hit.on{background:var(--hover)}
+.set-find-none{margin:6px 8px;font-size:12px}
+.set-flash{animation:set-flash 1.6s ease-out}
+@keyframes set-flash{from{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}to{box-shadow:0 0 0 3px transparent}}
+@media (prefers-reduced-motion:reduce){.set-flash{animation:none}}
+@media (max-width:760px){.set-find{display:none}}
+/* A long note under a Settings section's title: its first line, and More */
+#setPane .note.clamp{position:relative;padding-right:64px!important}
+#setPane .note.clamp:not(.open){display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+#setPane .note.clamp>.note-more{position:absolute;right:12px;top:8px;font-size:12.5px;height:auto;padding:0}
