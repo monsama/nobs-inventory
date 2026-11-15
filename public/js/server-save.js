@@ -173,14 +173,19 @@ function refusedModal(items){
     closeModal(); saveData(); render(); toast(n ? 'Your changes are applied again' : 'Nothing to apply');
   };
 }
-/* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay, the
-   racks too unless their box is ticked.
+/* Clears the devices, relations and history on the server for everyone; types and settings stay, and users, rooms,
+   sites, models and the racks too unless their box is ticked.
    It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 export function clearConfirm(){
   modal(html`<div class="mh">Clear the whole inventory?</div>
-    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone, and takes them out of the contracts that list them. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you tick the boxes below. A backup is taken first and kept until you delete it: restoring it (Settings → System → Backups) brings the devices back.</p>
+    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone, and takes them out of the contracts that list them. Floor plans, contracts and settings stay. Users, rooms, sites, models, the racks and the objects excluded from sync stay too, unless you tick their boxes below. A backup is taken first and kept until you delete it: restoring it (Settings → System → Backups) brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrRacks"> Also delete the racks</label>
+      <p class="note" style="margin-top:10px">What the syncs bring back by themselves can go too, so they start afresh:</p>
+      <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrPeople" style="margin-top:2px"> Also delete the people from AD, Entra and Lansweeper, but not the admins and not you. The next sync brings them back; a role given by hand goes, roles from groups come back.</label>
+      <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrPlaces" style="margin-top:2px"> Also delete the rooms and sites nothing kept uses (no floor plan, store room, rack, subnet, room mapping or kept device)</label>
+      <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrModels" style="margin-top:2px"> Also delete the device models no kept device uses; the Lansweeper names mapped to a model stay</label>
+      <p class="note">The lists about the deleted devices (inventory checks, the changes of each sync, the devices Entra or AD could not match) are emptied in any case; the next syncs fill them again.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrConn" style="margin-top:2px"> Also remove the connections: LDAP, Microsoft Graph with its certificates and keys, the Lansweeper API settings and push token</label>
       <label class="note" for="clrWord" style="display:block;margin-top:6px">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR" style="width:100%"></div>
     <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text" disabled>Clear inventory</button></div>`, 'sm');
@@ -232,6 +237,34 @@ async function clearAll(){
     if (!res.ok){ toast('Not cleared: ' + (r1.error || res.status)); await reloadFromServer(); return; }
     j.conflicts.push(...(r1.conflicts || []));
   }
+  /* Then what is about the deleted devices only, and what was ticked of what the syncs bring back: people, rooms and
+     sites, models. Measured against what is kept, so nothing still in use goes. */
+  const keptObjs = d.objs.filter(o => !removed.has(o.id));
+  const me = USERS.find(u => u.id === st.meId);
+  const people = $('#clrPeople') && $('#clrPeople').checked ? d.users.filter(u => ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.role !== 'admin' && u.id !== (me && me.id) && !keptObjs.some(o => o.uid === u.id)) : [];
+  const gonePeople = new Set(people.map(u => u.id));
+  const keptJson = JSON.stringify([keptObjs, d.users.filter(u => !gonePeople.has(u.id)), d.plans, d.stockRooms, d.racks, d.subnets, d.locMap, d.adLocMap, d.contracts, d.licences, d.savedViews, d.groupRoles, d.modelMap, d.lifecycle]);
+  const used = v => keptJson.includes(JSON.stringify(v));
+  const later = [];
+  if ($('#clrPlaces') && $('#clrPlaces').checked){
+    const locs = (d.locs || []).filter(l => used(l)), sites = (d.sites || []).filter(x => used(x) || locs.some(l => l.split(' / ')[0] === x));
+    if (locs.length !== (d.locs || []).length) later.push({kind: 'setting', id: 'locs', value: locs, base: base('setting', 'locs')});
+    if (sites.length !== (d.sites || []).length) later.push({kind: 'setting', id: 'sites', value: sites, base: base('setting', 'sites')});
+  }
+  if ($('#clrModels') && $('#clrModels').checked){
+    const models = (d.models || []).filter(m => used(m));
+    if (models.length !== (d.models || []).length) later.push({kind: 'setting', id: 'models', value: models, base: base('setting', 'models')});
+  }
+  if (Array.isArray(d.stocktakes) && d.stocktakes.length) later.push({kind: 'setting', id: 'stocktakes', value: [], base: base('setting', 'stocktakes')});
+  const laterDels = people.map(u => ({kind: 'user', id: String(u.id), base: base('user', u.id)}));
+  for (const b of batches(later, laterDels)){
+    const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(b)});
+    const r1 = await res.json().catch(() => ({}));
+    if (!res.ok){ toast('The devices are cleared, but not the rest: ' + (r1.error || res.status)); await reloadFromServer(); return; }
+    j.conflicts.push(...(r1.conflicts || []));
+  }
+  await fetch('api/sync-lists/clear', {method: 'POST', credentials: 'same-origin'}).catch(() => null);
+  const extra = [people.length ? `${people.length} ${people.length === 1 ? 'person' : 'people'}` : '', ...later.filter(c => c.id !== 'stocktakes').map(c => ({locs: 'unused rooms', sites: 'unused sites', models: 'unused models'})[c.id])].filter(Boolean);
   /* The connections go after the devices, so the save above cannot write their settings back. */
   let connMsg = '';
   if ($('#clrConn') && $('#clrConn').checked){
@@ -240,5 +273,5 @@ async function clearAll(){
   }
   leaveSettings(); closeModal();   /* the emptied inventory is shown, not Settings */
   await reloadFromServer();
-  toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded device' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
+  toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded device' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + (extra.length ? '. Also removed: ' + extra.join(', ') + '.' : '') + connMsg);
 }

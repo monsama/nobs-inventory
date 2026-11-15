@@ -2,7 +2,7 @@
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { inScope, planInScope, scopeKey, scopeOf, scopeState } from './scope.js';
-import { stateTag, stateSeq, changesSince, ADMIN_SETTINGS, CONNECTION_SETTINGS, SETTING_KEYS, PAGE_SETTINGS, SETTING_NAMES, settingOf, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, stateSeq, changesSince, ADMIN_SETTINGS, CONNECTION_SETTINGS, SETTING_KEYS, PAGE_SETTINGS, SETTING_NAMES, settingOf, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections, clearSyncLists } from './state.js';
 import { autoBackup } from './backup.js';
 import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
@@ -142,6 +142,9 @@ export function registerStateRoutes(app, ctx) {
   });
   /* The connections to other systems are removed: LDAP and Microsoft Graph settings, Graph's certificates and keys,
      the Lansweeper API settings and push token. The inventory itself stays. */
+  app.post('/api/sync-lists/clear', requireUser, requireAdmin, (req, res, next) => {
+    try { clearSyncLists(db); audit(db, req.user.id, 'sync lists emptied after clearing the inventory'); res.json({ ok: true }); } catch (e) { next(e); }
+  });
   app.post('/api/connections/clear', requireUser, requireAdmin, (req, res, next) => {
     try {
       clearConnections(db);

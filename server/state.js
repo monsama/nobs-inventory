@@ -112,6 +112,16 @@ export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'gr
 /* Disconnect: removes the connection settings listed above, the Lansweeper push token, Graph's stored keys and every
    sealed app secret (the passwords saved in Settings), in one transaction. Only an admin's POST /api/connections/clear
    calls it. */
+/* The lists about devices that the syncs keep (the changes of each run, the devices Entra or AD could not match):
+   emptied when the inventory is cleared, as they are about devices that are gone. The next syncs fill them again. */
+export const SYNC_LISTS = ['syncChanges', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched'];
+export function clearSyncLists(db) {
+  db.exec('BEGIN');
+  try {
+    for (const id of SYNC_LISTS) if (db.prepare("DELETE FROM docs WHERE kind = 'setting' AND id = ?").run(id).changes) bumpRev(db, 'setting', id);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
 export function clearConnections(db) {
   db.exec('BEGIN');
   try {
