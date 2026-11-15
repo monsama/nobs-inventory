@@ -113,7 +113,7 @@ export async function syncLansweeper(db, cfg, now = new Date(), fetchImpl = fetc
   const records = await fetchAssets(cfg, fetchImpl);
   const s = loadState(db);
   const counts = mergeRecords(s, records, now);
-  if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper sync'); saveState(db, s); }
+  if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper sync', { daily: true }); saveState(db, s); }
   audit(db, null, 'lansweeper api sync: ' + JSON.stringify({ assets: records.length, ...counts }));
   return { assets: records.length, ...counts };
 }

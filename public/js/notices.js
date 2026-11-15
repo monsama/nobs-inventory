@@ -83,7 +83,7 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
     for (const src of sources) {
       const r = runs[src], state = syncState(r, plan[src], today.getTime());
       if (state === 'failed') out.push({ id: `sync-${src}`, sev: 'bad', title: `${SYNC_NAMES[src]} sync failed`, text: String(r.error || 'The last run failed.').slice(0, 160), fp: `failed|${r.at}`, go: { settings: src } });
-      else if (state === 'late') out.push({ id: `sync-${src}`, sev: 'warn', title: `${SYNC_NAMES[src]} sync is late`, text: `It last ran on ${dateText(String(r.at).slice(0, 10))}, less often than planned`, fp: `late|${r.at}`, go: { settings: src } });
+      else if (state === 'late') out.push({ id: `sync-${src}`, sev: 'warn', title: `${SYNC_NAMES[src]} sync is late`, text: r.how === 'push' ? `No push since ${dateText(String(r.at).slice(0, 10))}: check the scheduled task on the Lansweeper server` : `It last ran on ${dateText(String(r.at).slice(0, 10))}, less often than planned`, fp: `late|${r.at}`, go: { settings: src } });
     }
     const rt = s.restoreTest, copy = s.backupExportRun;
     if (rt && rt.ok === false) out.push({ id: 'restore-test', sev: 'bad', title: 'Restore test failed', text: String(rt.error || 'The newest backup could not be restored.').slice(0, 160), fp: String(rt.at), go: { settings: 'backups' } });

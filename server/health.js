@@ -2,9 +2,10 @@
    short value and what to do. The server and its database, free disk, backups, each sync and its schedule, the
    certificates that expire, and the errors in the log. Numbers and dates only: no secret, no data of a device or person. */
 import fs from 'node:fs';
-import { scheduleOf, syncState } from '../public/js/schedule.js';
+import { PUSH_STOPPED_DAYS, scheduleOf, syncState } from '../public/js/schedule.js';
 import { dateText, dateTimeText } from '../public/js/dates.js';
 import { backupStorage } from './backup-store.js';
+import { HISTORY_MAX_BYTES, MAX_BYTES, storedSizes } from './state.js';
 
 const DAY = 864e5;
 const mb = n => n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${(n / 1048576).toFixed(1)} MB`;
@@ -35,6 +36,13 @@ export function healthReport(db, s, { version = '', on = {}, graphCert = null, p
   /* Counted as everywhere in the app: the inventory's objects, not those waiting in To review or ignored there. */
   const docs = db.prepare("SELECT COUNT(*) AS n FROM docs WHERE kind = 'object' AND json_extract(data, '$.review') IS NULL").get().n;
   add('Server', 'Database', 'ok', file ? `${mb(size)} · ${docs} records` : `${docs} records (in memory)`);
+  /* The inventory and the history each have a limit (state.js): past it every save and sync is refused, so it is
+     said well before. */
+  {
+    const z = storedSizes(db), use = Math.max(z.inventory / MAX_BYTES, z.history / HISTORY_MAX_BYTES);
+    add('Server', 'Inventory size', use >= 0.9 ? 'bad' : use >= 0.7 ? 'warn' : 'ok', `${mb(z.inventory)} of ${mb(MAX_BYTES)} · history ${mb(z.history)} of ${mb(HISTORY_MAX_BYTES)}`,
+      use >= 0.7 ? `${Math.round(use * 100)}% of the limit: at 100% saves and syncs are refused. Remove devices or software lists that are no longer needed, or ask for the limit to be raised.` : '');
+  }
   if (photos && photos.n) add('Server', 'Device photos', photos.bytes > 3.5 * 1073741824 ? 'warn' : 'ok', `${photos.n} photo${photos.n === 1 ? '' : 's'} of ${photos.devices} device${photos.devices === 1 ? '' : 's'} · ${mb(photos.bytes)}`,
     photos.bytes > 3.5 * 1073741824 ? 'Close to the 4 GB the photos may take together: remove photos that are no longer needed.' : 'In the database, and in every backup (each photo stored once).');
   if (file) {
@@ -66,7 +74,7 @@ export function healthReport(db, s, { version = '', on = {}, graphCert = null, p
       !restore ? 'Not tested yet' : restore.ok ? `${ago(restore.at, now)} · ${restore.objects} devices came back` : `Failed ${ago(restore.at, now)}: ${restore.error || 'unknown'}`,
       !restore ? 'The newest backup is restored into memory each Sunday at 03:30, or with Test now under System → Backups.' : !restore.ok ? 'Look at the error; then take a new backup and use Test now.' : age > 8 ? 'The weekly test did not run: use Test now under System → Backups.' : '');
   }
-  add('Backups', 'Automatic backups', s.autoBackups === false ? 'warn' : 'ok', s.autoBackups === false ? 'Off' : 'Before every sync, push and import, and once a day before the first change',
+  add('Backups', 'Automatic backups', s.autoBackups === false ? 'warn' : 'ok', s.autoBackups === false ? 'Off' : 'Before syncs, pushes and imports, and once a day before the first change; one of each of the last 14 days is kept',
     s.autoBackups === false ? 'Without them a sync that goes wrong cannot be undone.' : '');
 
   /* Syncs: each one set up, its last run and its schedule. */
@@ -78,9 +86,11 @@ export function healthReport(db, s, { version = '', on = {}, graphCert = null, p
     if (!on[src]) { add('Syncs', names[src], 'off', 'Not set up'); continue; }
     const r = runs[src], every = plan[src] && plan[src].every, state = syncState(r, plan[src], now);
     const push = src === 'lansweeper' && r && r.how === 'push';
-    add('Syncs', names[src], state === 'none' || state === 'late' ? 'warn' : state === 'failed' ? 'bad' : 'ok',
+    /* A push that stopped for a week is bad, so the weekly e-mail names it too. */
+    const stopped = push && state === 'late' && now - Date.parse(r.at) > PUSH_STOPPED_DAYS * DAY;
+    add('Syncs', names[src], stopped || state === 'failed' ? 'bad' : state === 'none' || state === 'late' ? 'warn' : 'ok',
       !r ? 'Not run yet' : `${r.ok ? 'Last run' : 'Last run failed'} ${ago(r.at, now)}${push ? ' (push)' : ''}${every ? ` · runs ${every === 24 ? 'daily' : `every ${every} h`}` : ' · only by hand'}`,
-      !r ? 'Run it once with Sync now.' : !r.ok ? String(r.error || '').slice(0, 200) : state === 'late' ? 'It has not run as often as planned: is the server kept running?' : '');
+      !r ? 'Run it once with Sync now.' : !r.ok ? String(r.error || '').slice(0, 200) : state === 'late' ? (push ? 'No push from Lansweeper for more than two days: check the scheduled task on the Lansweeper server (Lansweeper-Push.ps1), its log and its token.' : 'It has not run as often as planned: is the server kept running?') : '');
   }
 
   /* Certificates that expire: the one the server signs in to Graph with, and the directory's CA. */

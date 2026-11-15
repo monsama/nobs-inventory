@@ -178,7 +178,7 @@ export function registerSyncRoutes(app, ctx) {
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
       const s = loadState(db);
       const counts = mergeRecords(s, recordsFromJson(records), new Date(), cleanIpLocations(req.body.ipLocations));
-      if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper push', { hourly: true }); saveState(db, s); }
+      if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper push', { daily: true }); saveState(db, s); }
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
       recordSync(db, 'lansweeper', { ok: true, counts, how: 'push' });
       res.json({ counts });

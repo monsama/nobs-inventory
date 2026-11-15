@@ -33,8 +33,15 @@ export const intakeOf = (s, src) => ((s.intake || {})[src] === 'direct' ? 'direc
 export const PAGE_SETTINGS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame', 'groupRoles', 'lifecycle'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 /* The largest inventory stored: generous (5000 devices with their software are about 11 MB), it only guards against a
-   runaway import. A page save is limited to 30 MB before it gets here. */
-const MAX_BYTES = 100 * 1024 * 1024;
+   runaway import. A page save is limited to 30 MB before it gets here. The devices' history is not counted in it: it
+   grows with every sync, and is held short per device instead (HISTORY_KEEP), under a limit of its own. */
+export const MAX_BYTES = 100 * 1024 * 1024;
+export const HISTORY_MAX_BYTES = 400 * 1024 * 1024;
+/* What is stored, in bytes: the inventory without the history, and the history. For the limits and for Health. */
+export const storedSizes = db => {
+  const r = db.prepare("SELECT COALESCE(SUM(CASE WHEN kind != 'history' THEN LENGTH(data) END), 0) AS inv, COALESCE(SUM(CASE WHEN kind = 'history' THEN LENGTH(data) END), 0) AS hist FROM docs").get();
+  return { inventory: r.inv, history: r.hist };
+};
 const MAX_CHANGES = 5000;
 const DEFAULT_POLICY = { ip: true, ip6: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: true, av: false, domain: true, user: false, loc: false,
   software: true, links: true, dept: true, ipRoom: true,
@@ -527,8 +534,9 @@ function checkStateRules(s, size = true, newRels = null) {
     }
   }
   /* Measured as stored: the revisions and the empty flag that loadState adds are not part of it. */
-  const { revs: _revs, empty: _empty, ...stored } = s;   // eslint-disable-line no-unused-vars
+  const { revs: _revs, empty: _empty, history, ...stored } = s;   // eslint-disable-line no-unused-vars
   if (size && JSON.stringify(stored).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  if (size && JSON.stringify(history).length > HISTORY_MAX_BYTES) throw new HttpError(413, 'The history of the devices is too large.');
 }
 
 function rowsOf(s) {
@@ -583,8 +591,24 @@ function writeDocs(db, s, only = null) {
 }
 
 /* The history of an object keeps its newest entries; older ones are dropped, so the inventory and its backups stay a
-   sane size. Both saveState and the page's saves (applyChanges) trim it. */
-export const HISTORY_KEEP = 500;
+   sane size. Both saveState and the page's saves (applyChanges) trim it, and trimHistory once at start for what was
+   kept longer before. */
+export const HISTORY_KEEP = 200;
+/* History stored longer than HISTORY_KEEP (500 lines were kept before 0.9.129) is cut to it, without a new revision
+   (nothing a page shows changes but the oldest lines). Returns how many were cut. */
+export function trimHistory(db) {
+  const put = db.prepare("UPDATE docs SET data = ? WHERE kind = 'history' AND id = ?");
+  let n = 0;
+  db.exec('BEGIN');
+  try {
+    for (const r of db.prepare("SELECT id, data FROM docs WHERE kind = 'history' AND LENGTH(data) > 2000").all()) {
+      const h = JSON.parse(r.data);
+      if (Array.isArray(h) && h.length > HISTORY_KEEP) { put.run(JSON.stringify(h.slice(0, HISTORY_KEEP)), r.id); n++; }
+    }
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  return n;
+}
 /* Replaces the stored inventory with the one sent. Used by the admin's full save and by the server's own jobs
    (feed, directory). Logins and sessions are not touched. */
 export function saveState(db, s) {
@@ -677,7 +701,10 @@ export function applyChanges(db, body, guard = () => {}) {
   const revs = {};
   for (const c of [...puts, ...dels]) { const r = revOf.get(c.kind, c.id); if (r) revs[docKey(c.kind, c.id)] = r.rev; }
   const conflicts = [];
+  /* History is only ever added to by a page: its lines are merged with the stored ones (below), so a sync's line written
+     meanwhile is never a conflict, and a page that has not read a device's history yet sends only its new lines. */
   const usable = c => {
+    if (c.kind === 'history') return true;
     if (c.base === null || c.base === undefined){ if (c.kind === 'setting' && LAST_WINS.includes(c.id)) return true; bad('A change needs the revision it was based on.'); }   /* a preference: the last save wins */
     if (!Number.isInteger(c.base)) bad('A change needs the revision it was based on.');
     const key = docKey(c.kind, c.id);
@@ -690,6 +717,10 @@ export function applyChanges(db, body, guard = () => {}) {
      loaded, so a save to a large inventory does not read every device's history. */
   const s = loadState(db, { history: false });
   delete s.revs; delete s.empty;
+  /* A device deleted takes its history along, also when the page did not have it to send its removal. */
+  const goneHistory = new Set(okDels.filter(c => c.kind === 'object').map(c => String(c.id)));
+  const storedHistory = db.prepare("SELECT data FROM docs WHERE kind = 'history' AND id = ?");
+  const lineKey = e => (e && e.t || '') + '\u0000' + (e && e.msg);
   for (const c of okDels) {
     if (c.kind === 'object') s.objs = s.objs.filter(o => o.id !== c.id);
     else if (c.kind === 'rel') s.rels = s.rels.filter(r => String(r.id) !== c.id);
@@ -719,7 +750,14 @@ export function applyChanges(db, body, guard = () => {}) {
       const i = s.users.findIndex(u => String(u.id) === c.id);
       if (i >= 0) s.users[i] = v2; else s.users.push(v2);
     } else if (c.kind === 'type') s.types[c.id] = v;
-    else if (c.kind === 'history') s.history[c.id] = Array.isArray(v) ? v.slice(0, HISTORY_KEEP) : v;   /* kept short, as in saveState */
+    else if (c.kind === 'history') {
+      /* The lines the page sends that are not stored yet go on top of the stored ones; none is lost. Kept short, as in
+         saveState. */
+      const old = storedHistory.get(String(c.id)), stored = old ? JSON.parse(old.data) : [];
+      if (!Array.isArray(v) || !Array.isArray(stored)) s.history[c.id] = v;
+      else { const have = new Set(stored.map(lineKey)); s.history[c.id] = [...v.filter(e => !have.has(lineKey(e))), ...stored].slice(0, HISTORY_KEEP); }
+      goneHistory.delete(String(c.id));
+    }
     else if (c.kind === 'setting') s[c.id] = v;
   }
   /* A change refused as stale can be one the rest of the save needs (a connection to an object deleted in the same save).
@@ -729,10 +767,12 @@ export function applyChanges(db, body, guard = () => {}) {
   /* The size is what is stored plus what this save sends, read from the database: turning the whole inventory into
      text only to measure it took longer than the rest of the save. */
   /* Each record a save replaces counts once, at its new size; refused (stale) changes do not count. */
-  const storedBytes = db.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM docs').get().n;
+  /* The history apart, under its own limit (see MAX_BYTES). */
+  const sizes = storedSizes(db);
   const sizeOf = db.prepare('SELECT LENGTH(data) AS n FROM docs WHERE kind = ? AND id = ?');
-  const delta = okPuts.reduce((t, c) => t + JSON.stringify(c.value).length - ((sizeOf.get(c.kind, c.id) || {}).n || 0), 0);
-  if (storedBytes + delta > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  const grow = list => list.reduce((t, c) => t + JSON.stringify(c.kind === 'history' ? s.history[c.id] : c.value).length - ((sizeOf.get(c.kind, c.id) || {}).n || 0), 0);
+  if (sizes.inventory + grow(okPuts.filter(c => c.kind !== 'history')) > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  if (sizes.history + grow(okPuts.filter(c => c.kind === 'history')) > HISTORY_MAX_BYTES) throw new HttpError(413, 'The history of the devices is too large.');
   try { checkState(s, { size: false, newRels: new Set(okPuts.filter(c => c.kind === 'rel' && !keptRels.has(String(c.id))).map(c => String(c.id))) }); }
   catch (e) {
     if (!conflicts.length) throw e;
@@ -742,10 +782,13 @@ export function applyChanges(db, body, guard = () => {}) {
   /* Only the records the page sent are written, and the code counter when a new object got its code. */
   const touched = new Set([...okPuts, ...okDels].map(c => docKey(c.kind, c.id)));
   if (Object.keys(codes).length) touched.add(docKey('setting', 'codeN'));
+  for (const id of goneHistory) { delete s.history[id]; touched.add(docKey('history', id)); }
   writeDocs(db, s, touched);
   const applied = {};
   for (const c of [...okPuts, ...okDels]) { const r = revOf.get(c.kind, c.id); applied[docKey(c.kind, c.id)] = r ? r.rev : 0; }
   /* The code counter moved with this save: the page learns its new version, so it does not take it for someone else's change. */
   if (Object.keys(codes).length) { const r = revOf.get('setting', 'codeN'); if (r) applied[docKey('setting', 'codeN')] = r.rev; }
+  /* So is the history that went with a deleted device. */
+  for (const id of goneHistory) { const r = revOf.get('history', id); if (r) applied[docKey('history', id)] = r.rev; }
   return { revs: applied, codes, conflicts };
 }

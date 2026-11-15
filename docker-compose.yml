@@ -69,6 +69,9 @@ services:
     networks:
       - default
       - nobs-proxy
+    # An init process runs the app, so the app ending itself when it is stuck (server/watchdog.js) ends the container,
+    # and restart brings it back. Docker alone does not restart a container that is only unhealthy.
+    init: true
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
       interval: 30s

@@ -31,6 +31,7 @@ import { registerBackupRoutes } from './backup-routes.js';
 import { registerLiveEvents } from './live-events.js';
 import { registerLogRoutes } from './log-routes.js';
 import { registerViewMailRoutes } from './view-mail.js';
+import { healthCheck } from './watchdog.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
@@ -42,7 +43,7 @@ const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.js
 /* Builds the Express app on an open database, without listening (index.js does that). The options are the connections
    as the server's environment sets them (a value, or a function read on each use), the cookie and proxy settings, the
    key that seals stored secrets, and stand-ins the tests pass (graphFetch, mailTransport, diskSpace, certProbe). */
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, diskSpace = undefined, mailTransport = null, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, diskSpace = undefined, mailTransport = null, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0, healthExit = null }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
   setBackupSheetKey(SHEET_KEY);
@@ -191,7 +192,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   };
   const requireAdmin = (req, res, next) => (req.user.role === 'admin' ? next() : next(new HttpError(403, 'Only an admin can change this.')));
 
-  app.get('/api/health', (req, res) => res.json({ ok: true, version: APP_VERSION }));
+  /* For the container's health check: the database answers too. A server started by index.js ends after a few failures
+     in a row (watchdog.js), so Docker starts it again; a test's app does not. */
+  const dbAnswers = healthCheck(db, { exit: healthExit || (() => {}) });
+  app.get('/api/health', (req, res) => (dbAnswers() ? res.json({ ok: true, version: APP_VERSION }) : res.status(503).json({ ok: false, version: APP_VERSION, error: 'The database does not answer.' })));
 
   /* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate.
      Set up in Settings: the tenant and app (client) id, and a certificate made here, whose key the server keeps sealed.

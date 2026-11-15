@@ -7,8 +7,12 @@ import { migrateState } from './migrate.js';
 
 /* Backups of the whole inventory: the devices, relations, history, types, settings, floor-plan images, device photos and
    the users (never the passwords). Taken by hand and before what changes much at once: a Lansweeper sync, push or import, an LDAP
-   or Graph sync, adding Graph, applying type rules, and a restore. The newest are kept (Settings → Backups). */
+   or Graph sync, adding Graph, applying type rules, and a restore. The newest are kept (Settings → Backups), and one of each
+   of the last 14 days. */
 const KEEP_DEFAULT = 10;
+/* Beside the newest ones, the first automatic backup of each of the last 14 days is kept, so a wrong change found days
+   later still has a backup from before it, however often the syncs run. */
+export const DAILY_DAYS = 14;
 const COUNTERS = ['seq', 'codeN', 'rseq'];
 /* How backups are taken is not part of the inventory: a restore of an old backup never switches them off or keeps fewer. */
 const BACKUP_SETTINGS = ['autoBackups', 'backupKeep', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp'];
@@ -23,12 +27,13 @@ let sheetKey = null;
 export const setBackupSheetKey = key => { sheetKey = key; };
 
 /* A backup taken by the app itself, before one of the changes above. Off when the setting "Automatic backups" is off.
-   daily: at most one a day for this reason (a sync that runs every few hours); hourly: at most one an hour (a push
-   that comes in many requests of 500 devices, each of which would otherwise take its own). */
-export function autoBackup(db, reason, { daily = false, hourly = false } = {}) {
+   daily: at most one a calendar day (the server's) for this reason, the first, before the day's first change: a sync
+   that runs every few hours, or a push that comes in many requests of 500 devices. A sync at the same time each day
+   still gets its backup each day. */
+export function autoBackup(db, reason, { daily = false } = {}, now = new Date()) {
   if (settingOf(db, 'autoBackups') === false) return null;
-  const within = daily ? 864e5 : hourly ? 36e5 : 0;
-  if (within && db.prepare("SELECT 1 FROM backups WHERE reason = ? AND at > ?").get(reason, new Date(Date.now() - within).toISOString())) return null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (daily && db.prepare("SELECT 1 FROM backups WHERE reason = ? AND at >= ?").get(reason, today.toISOString())) return null;
   return takeBackup(db, reason);
 }
 /* Entry sheets as a backup keeps them: sealed, and never with a password. A kept password is taken out (the sheet reads
@@ -42,6 +47,22 @@ function sheetsForBackup(db) {
     try { const sheet = openSheet(sheetKey, r.data); delete sheet.password; return [{ ...r, password: 'expired', data: sealSheet(sheetKey, sheet) }]; }
     catch { return []; }
   });
+}
+/* Removes the automatic backups beyond the newest keep, except the first of each of the last DAILY_DAYS days (by the
+   server's local date). Those taken by hand and before clearing are never removed here. */
+export function pruneAuto(db, keep, now = Date.now()) {
+  const rows = db.prepare('SELECT id, at FROM backups WHERE reason NOT IN (?, ?) ORDER BY id DESC').all(BY_HAND, BEFORE_CLEAR);
+  const kept = new Set(rows.slice(0, keep).map(r => r.id));
+  const since = now - DAILY_DAYS * 864e5, firstOfDay = new Map();
+  for (const r of rows) {
+    const t = Date.parse(r.at);
+    if (!(t >= since)) continue;
+    const d = new Date(t), day = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    firstOfDay.set(day, r.id);   /* newest first, so the last one seen is the day's first */
+  }
+  for (const id of firstOfDay.values()) kept.add(id);
+  const del = db.prepare('DELETE FROM backups WHERE id = ?');
+  for (const r of rows) if (!kept.has(r.id)) del.run(r.id);
 }
 /* gc false: the parts no backup lists any more stay until the next backup (a restore still reading from one). */
 export function takeBackup(db, reason, { gc = true } = {}) {
@@ -64,7 +85,7 @@ export function takeBackup(db, reason, { gc = true } = {}) {
   try {
     const { manifest, size } = storeBackup(db, data);
     id = Number(db.prepare('INSERT INTO backups (at, reason, objects, data, format, size) VALUES (?, ?, ?, ?, 2, ?)').run(data.created, reason, s.objs.filter(o => !o.review).length, manifest, size).lastInsertRowid);
-    db.prepare('DELETE FROM backups WHERE reason NOT IN (?, ?) AND id NOT IN (SELECT id FROM backups WHERE reason NOT IN (?, ?) ORDER BY id DESC LIMIT ?)').run(BY_HAND, BEFORE_CLEAR, BY_HAND, BEFORE_CLEAR, keep);
+    pruneAuto(db, keep);
     if (gc) collectParts(db);
     db.exec('RELEASE backup');
   } catch (e) { db.exec('ROLLBACK TO backup'); db.exec('RELEASE backup'); throw e; }

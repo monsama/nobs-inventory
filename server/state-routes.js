@@ -73,11 +73,14 @@ export function registerStateRoutes(app, ctx) {
     }
     /* Nothing changed since the page's copy (same revisions, same person and role): 304, without loading anything. The
        page polls every 15 seconds, so this spares loading and sending the whole inventory each time. */
-    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}"`;
+    /* history=0: without the devices' history, the bulk of a large inventory. The page reads a device's history when its
+       page opens (GET /api/history/:id) and gets the history that changes later with what changed (since=). */
+    const lean = req.query.history === '0';
+    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}${lean ? '.h0' : ''}"`;
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
     if (req.get('if-none-match') === tag) return res.status(304).end();
     const cseq = stateSeq(db);
-    const s = scopeState(loadState(db), sc); delete s.empty;
+    const s = scopeState(loadState(db, { history: !lean }), sc); delete s.empty;
     if (!admin) {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
       for (const k of ADMIN_SETTINGS) delete s[k];
@@ -88,6 +91,18 @@ export function registerStateRoutes(app, ctx) {
     }
     s.cseq = cseq;
     res.json(s);
+  });
+
+  /* One device's history, newest first, for a page that loaded the inventory without it (history=0). Only for a device
+     the person may see. */
+  app.get('/api/history/:id', requireUser, (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const o = db.prepare("SELECT data FROM docs WHERE kind = 'object' AND id = ?").get(id);
+      if (!o || !inScope(JSON.parse(o.data), scopeOf(req.user))) throw new HttpError(404, 'No such device.');
+      const h = db.prepare("SELECT data FROM docs WHERE kind = 'history' AND id = ?").get(id);
+      res.set('Cache-Control', 'no-store').json({ id, history: h ? JSON.parse(h.data) : [] });
+    } catch (e) { next(e); }
   });
 
   /* The whole inventory replaced in one save (the page itself saves only its changes, below). It must keep the admin

@@ -111,7 +111,7 @@ export async function syncLdapUsers(db, config) {
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
   if (linked.length) counts.linked = linked.length;
   const listChanged = counts.listChanged; delete counts.listChanged;
-  if (counts.created || counts.updated || counts.linked || counts.merged || counts.deactivated || counts.computers || listChanged) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  if (counts.created || counts.updated || counts.linked || counts.merged || counts.deactivated || counts.computers || listChanged) { autoBackup(db, 'before an LDAP sync', { daily: true }); saveState(db, s); }
   for (const id of linked) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(id);
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));
   return counts;

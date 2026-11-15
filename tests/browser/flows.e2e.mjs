@@ -109,7 +109,7 @@ try {
   await q.reload(); await q.waitForSelector('#lgUser, #tabsbar');
   if (await q.isVisible('#lgUser')) await signIn(q);
   await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('PERSIST-CHECK-1') !== undefined); }, null, { timeout: 10000 });
-  const hist = await q.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].HISTORY[__mods[0].byName('PERSIST-CHECK-1').id].map(h => h.msg).join(' ')); });
+  const hist = await q.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return ((await (await fetch('api/history/' + __mods[0].byName('PERSIST-CHECK-1').id, { credentials: 'same-origin' })).json()).history.map(h => h.msg).join(' ')); });
   assert.match(hist, /Created manually by Administrator/, 'the history does not name the person who made the change: ' + hist);
   await q.click('#setBtn'); await openSetTab(q, 'users');
   await q.fill('#nuFirst', 'Test'); await q.fill('#nuLast', 'Person'); await q.fill('#nuDept', 'QA'); await q.click('#nuAdd');
