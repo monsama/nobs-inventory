@@ -74,7 +74,8 @@ export function collapsibleSections(root, prefix){
      open in this browser once opened). */
   const clampNotes = () => root.querySelectorAll('.panelbox > .hdr + .note:not(.lempty):not([data-clamp]), .panelbox > .hdr + div > p.note:first-child:not(.lempty):not([data-clamp])').forEach(n => {
     n.dataset.clamp = '1';
-    if (n.textContent.trim().length < 140) return;
+    /* Steps, lists and controls stay whole: only plain text is cut to a line. */
+    if (n.textContent.trim().length < 140 || n.querySelector('details, ol, ul, a, button, input, select, label')) return;
     const h = n.closest('.panelbox').querySelector(':scope > .hdr'), key = 'note:' + keyOf(h), open = !!collapsedPanels()[key];
     n.classList.add('clamp'); n.classList.toggle('open', open);
     const b = document.createElement('button'); b.type = 'button'; b.className = 'link note-more'; b.dataset.noteKey = key;

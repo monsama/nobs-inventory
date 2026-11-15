@@ -16,7 +16,7 @@ bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const s0 = loadState(db);
 saveState(db, { ...s0, sites: ['HQ'], locs: ['HQ / Office'], users: [...s0.users, { id: 'p1', login: 'anna', name: 'Anna Example', dept: 'Sales', role: 'none', groups: [], source: 'manual', active: true }],
   subnets: [{ name: 'Office', cidr: '10.1.1.0/24', gateway: '10.1.1.1', dns: [], types: [], ranges: [] }],
-  objs: [{ id: 'a', code: 'INV-a', type: 'pc', name: 'PC-A', status: 'active', subnet: '10.1.1.0/24', ip: '10.1.1.5' }], rels: [], history: {} });
+  objs: [{ id: 'a', code: 'INV-a', type: 'pc', name: 'PC-A', status: 'active', subnet: '10.1.1.0/24', ip: '10.1.1.5' }, { id: 'r', code: 'INV-r', type: 'pc', name: 'PC-OLD', status: 'retired' }], rels: [], history: {} });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
@@ -26,7 +26,7 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await until(p, async () => (await import('/js/01-core.js')).objs.length === 1);
+  await until(p, async () => (await import('/js/01-core.js')).objs.length === 2);
   const hits = () => p.$$eval('#gsList li', l => l.map(x => x.textContent.replace(/\s+/g, ' ').trim()));
 
   // actions: a view by another word, New device, handing out to a person found
@@ -69,6 +69,12 @@ try {
   assert.equal(loadState(db).objs[0].subnet, undefined);
   await p.click('#toast .t-undo');
   await storedBy(() => loadState(db), s => (s.subnets || []).length === 1 && s.objs[0].subnet === '10.1.1.0/24');
+  await p.keyboard.press('Escape');
+  // a retired device: no adders, Bring back to stock with Undo
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('r')); await p.waitForSelector('#bringBack');
+  assert.equal(await p.locator('.obj.is-retired .addrel:visible, .obj.is-retired .xadd:visible').count(), 0, 'adders shown on a retired device');
+  await p.click('#bringBack');
+  await storedBy(() => loadState(db), s => s.objs.find(o => o.id === 'r').status === 'stock');
   assert.deepEqual(errors, [], 'page errors');
   console.log('find and actions: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

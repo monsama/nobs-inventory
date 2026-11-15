@@ -66,11 +66,11 @@ export function newObjModal(pre={}){
       <label for="nLoc">Location</label><select id="nLoc"><option value="">No location</option>${LOCS.map(l => html`<option>${l}</option>`)}</select>
       ${!LOCS.length && html`<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>`}
       <label for="nStatus">Status</label><select id="nStatus">${Object.entries(STATUS).filter(([k]) => k !== 'retired').map(([k, v]) => html`<option value="${k}">${v.label}</option>`)}</select>
+      <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => html`<option value="${u.id}">${u.name}</option>`)}</select>
       <label for="nUnits" hidden>Height (U)</label><input id="nUnits" type="number" min="1" max="60" value="42" hidden>
-    </div><details class="nmore" id="nMore" ${c || pre.sw ? 'open' : ''}><summary>More details <span class="muted">model, serial number, user, where it is plugged in</span></summary><div class="form" style="padding:0">
+    </div><details class="nmore" id="nMore" ${c || pre.sw ? 'open' : ''}><summary>More details <span class="muted">model, serial number, where it is plugged in</span></summary><div class="form" style="padding:0">
       <label for="nModel">Model</label><input id="nModel" placeholder="e.g. Mini desktop, 16 GB">
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
-      <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => html`<option value="${u.id}">${u.name}</option>`)}</select>
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
       ${outletField('nOutlet')}

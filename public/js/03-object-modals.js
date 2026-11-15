@@ -306,7 +306,8 @@ export function renderObj(o){
   $('#toolbar').innerHTML = html`${rawHtml(tico(o.type))}<span class="obj-id"><b class="mono" id="objTitle" tabindex="-1">${o.name}</b><span class="code">${o.code}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     ${o.review ? html`<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : html`<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}</span>${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? html`<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${PLANS.find(p => p.id === o.planPos.plan).name}</button>` : ''}<div class="grow"></div><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + savedAt(o.handAt) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>${handBtn(o)}
     ${rawHtml(menuHtml('More', more))}`;
-  $('#view').innerHTML = html`${rawHtml(reviewBanner(o))}${twinBanner(o)}<div class="obj">
+  const retiredBar = o.status === 'retired' && !o.review && edit ? html`<div class="rv-banner"><span>Retired: kept for the record. Nothing new is linked to it.</span><button type="button" id="bringBack" class="primary">Bring back to stock</button></div>` : '';
+  $('#view').innerHTML = html`${rawHtml(reviewBanner(o))}${twinBanner(o)}${retiredBar}<div class="obj${o.status === 'retired' ? ' is-retired' : ''}">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row)}
         ${rawHtml(rackFields(o))}
@@ -340,6 +341,9 @@ export function renderObj(o){
     if (st.showPanels) st.showPanels.delete(o.id + ':' + b.dataset.xhide);
     view();
   });
+  /* A retired device back in stock: its status only, with a line in its history and Undo. */
+  const bb = $('#bringBack');
+  if (bb) bb.onclick = () => { o.status = 'stock'; hist(o, now(), `Brought back to stock by ${who()}`); queueServerSave(); render(); toastUndo(`${o.name} is in stock again`, () => { o.status = 'retired'; hist(o, now(), 'Bring back undone'); queueServerSave(); render(); }); };
   /* Add: shows the panel (kept open while this device is open) and moves the focus into it. */
   $('#view').querySelectorAll('[data-xadd]').forEach(b => b.onclick = () => {
     const k = b.dataset.xadd, el = $('#view').querySelector(`[data-xpanel="${k}"]`); if (!el) return;

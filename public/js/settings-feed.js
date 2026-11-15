@@ -26,7 +26,8 @@ export function renderLsToggle(){
         <option value="push" ${api ? '' : 'selected'}>Script push (recommended): the script on the Lansweeper server sends the data</option>
         <option value="api" ${api ? 'selected' : ''}>Lansweeper API: this server fetches the data</option></select>
         <p class="note" style="margin:6px 0 0">Only one of the two runs at a time, so they cannot overwrite each other. A manual CSV import is always available.</p></div>
-    </div></div>` : html`<p class="note src-offnote">Lansweeper is off: it is not used, and its settings, data and panels are hidden. Turn it on above to connect it.</p>`}`;
+    </div></div>` : html`<div class="panelbox src-offbox"><p class="note src-offnote">Lansweeper is off: it is not used, and its settings, data and panels are hidden.</p>${isAdmin() ? html`<div class="addrel" style="padding:0 12px 12px"><button type="button" id="lsTurnOn" class="primary">Turn on Lansweeper</button><span class="muted">Then choose how the data comes: the push script (recommended) or the API.</span></div>` : ''}</div>`}`;
+  const turnOn = $('#lsTurnOn'); if (turnOn) turnOn.onclick = () => { st.useLansweeper = true; queueServerSave(); renderSetPane(); render(); };
   const c = $('#useLs');
   if (c && isAdmin()) c.onchange = () => { st.useLansweeper = c.checked; queueServerSave(); renderSetPane(); render(); };
   const src = $('#lsSource');

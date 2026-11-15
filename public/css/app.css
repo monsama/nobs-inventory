@@ -2116,3 +2116,10 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 #setPane .note.clamp{position:relative;padding-right:64px!important}
 #setPane .note.clamp:not(.open){display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 #setPane .note.clamp>.note-more{position:absolute;right:12px;top:8px;font-size:12.5px;height:auto;padding:0}
+/* Give a free IP address to a device: one line per device */
+.ho-item{display:flex;align-items:center;gap:8px;height:auto;min-height:30px;padding:4px 8px;border:0;background:none;font-weight:400;text-align:left;justify-content:flex-start;filter:none}
+.ho-item:hover,.ho-item:focus-visible{background:var(--hover)}
+.ho-item .muted{font-size:12px;margin-left:auto}
+.ip-give{margin-left:8px;font-size:12.5px}
+/* A retired device: kept for the record, so nothing is added or linked to it on its page */
+.obj.is-retired :is(.addrel,.xadd,.xhide){display:none}

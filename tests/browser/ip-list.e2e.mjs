@@ -25,6 +25,7 @@ saveState(db, { ...loadState(db),
     { ...dev('f', 'PRN-F', { ip: '10.1.1.4' }), type: 'printer' },
     dev('g', 'PC-G', { ip: '172.16.0.5', subnet: '10.1.1.0/28' }),
     dev('r', 'PC-R', { ip: '10.1.1.3', status: 'retired' }),
+    dev('n', 'NB-NEW', { type: 'notebook' }),
   ],
   rels: [], history: {} });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
@@ -94,6 +95,13 @@ try {
   assert.match(await pv.textContent('p.sub'), /Subnet Office \(10\.1\.1\.0\/28\)/);
   assert.ok(await pv.locator('tbody tr').count() >= 14, 'the print view does not list the subnet');
   await pv.close();
+  // a free address given to a device from here: the device without an address first, set static, with Undo
+  await p.click('[data-ipgive="10.1.1.2"]'); await p.waitForSelector('#igList [data-ig]');
+  assert.equal(await p.getAttribute('#igList [data-ig]', 'data-ig'), 'n', 'the device without an address is not first');
+  await p.click('#igList [data-ig="n"]');
+  await storedBy(() => loadState(db), s => s.objs.find(o => o.id === 'n').ip === '10.1.1.2');
+  assert.equal(loadState(db).objs.find(o => o.id === 'n').dhcp, 'static');
+  assert.ok(!(await p.$$eval('table.grid.ips tr.ip-free td:first-child', l => l.map(x => x.textContent.trim()))).includes('10.1.1.2'), 'the address is still listed as free');
   // the assignment set here: saved on the device, with a history line, and the row says so
   await p.selectOption('[data-ipas="b"]', 'dhcp');
   await storedBy(() => loadState(db), s => s.objs.find(o => o.id === 'b').dhcp === 'dhcp');
