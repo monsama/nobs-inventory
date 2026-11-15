@@ -13,6 +13,12 @@ import { intuneCoverageHtml } from './settings-graph.js';
 import { html, rawHtml } from './html.js';
 
 const SHORT = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'AD' };
+/* What each source brings, in one line, on its card in All fields. */
+const SOURCE_BLURB = {
+  ls: 'Devices found on the network: hardware, software, network details, warranty and who uses them.',
+  ad: 'People with their sign-in and department, and computer accounts: operating system, domain and location.',
+  graph: 'Devices joined to Entra or managed by Intune: compliance, encryption, primary user and phone details.',
+};
 /* Quick setups for every field at once: [name, what it does]. */
 const PRESETS = {
   ls: ['Lansweeper leads', 'Lansweeper first, keeping the fields up to date; Entra & Intune and AD only fill what it leaves empty'],
@@ -47,7 +53,8 @@ const list = names => names.length < 2 ? names.join('') : `${names.slice(0, -1).
 /* What the order of field k means, in one plain sentence: who sets it, who only fills a gap, who is only shown. */
 /* The field-by-field table stays open while this page is open, once opened. */
 let advOpen = false;
-export function orderSentence(k, order, modes = st.fieldMode){
+/* idle: also say which of them are not set up yet (the dialog says it in the sentence; the tables mark the chip). */
+export function orderSentence(k, order, modes = st.fieldMode, idle = false){
   const used = order.filter(x => !globalOff(x)), shown = SOURCES_OF(k).filter(x => !used.includes(x));
   if (!used.length) return `No source writes it: it is kept as typed.${shown.length ? ` ${list(shown.map(x => SHORT[x]))} ${shown.length === 1 ? 'is' : 'are'} shown beside the field.` : ''}`;
   const mode = x => fieldMode({ fieldMode: modes, fieldOrder: st.fieldOrder, policy: st.policy }, k, x);
@@ -55,8 +62,8 @@ export function orderSentence(k, order, modes = st.fieldMode){
     : i === 0 ? (x === 'ls' && !LS_FILL[k] ? 'Lansweeper keeps it up to date at every scan' : `${SHORT[x]} keeps it up to date`)
     : `${SHORT[x]} keeps it up to date where ${list(used.slice(0, i).map(y => SHORT[y]))} ${i === 1 ? 'has' : 'have'} no value`);
   /* A source in the order that is not set up writes nothing yet: said, so the sentence is not read as what happens now. */
-  const idle = SOURCES_ON ? used.filter(x => !SOURCES_ON[x]) : [];
-  return says.join('; ') + '.' + (idle.length ? ` ${list(idle.map(x => SHORT[x]))} ${idle.length === 1 ? 'is' : 'are'} not set up: ${idle.length === 1 ? 'it writes' : 'they write'} nothing yet.` : '');
+  const off = idle && SOURCES_ON ? used.filter(x => !SOURCES_ON[x]) : [];
+  return says.join('; ') + '.' + (off.length ? ` ${list(off.map(x => SHORT[x]))} ${off.length === 1 ? 'is' : 'are'} not set up: ${off.length === 1 ? 'it writes' : 'they write'} nothing yet.` : '');
 }
 /* Which sources are set up, as the Health check on Maintenance says (the server's settings), set when the tab is drawn. */
 let SOURCES_ON = null;
@@ -141,8 +148,11 @@ function matrixHtml(on, only = null){
   const isSet = k => !!((st.fieldOrder && st.fieldOrder[k]) || (st.fieldMode && st.fieldMode[k]));
   const row = k => html`<tr${isSet(k) ? html` class="ds-set"` : ''}><th scope="row">${SYNC_FIELD_LABEL[k]}${isSet(k) ? html` <span class="chip ds-custom" title="Set here, not the default">Custom</span>` : ''}${hand[k] ? html`<button type="button" class="link ds-hand" data-dshand="${k}" title="Devices where this field was set by hand: no source changes it">${hand[k]} set by hand</button>` : ''}</th>
     <td class="ds-chain">${chain(k)}</td><td class="ds-how">${orderSentence(k, fieldOrder(st, k))}</td>${edit ? html`<td class="ds-act"><button type="button" class="mini" data-dsedit="${k}" aria-label="Change the sources of ${SYNC_FIELD_LABEL[k]}">Change…</button></td>` : ''}</tr>`;
+  /* Sources not set up are marked once, above the table, not in every row's sentence. */
+  const idle = ['ls', 'graph', 'ad'].filter(x => !on[x] && ORDER_FIELDS.some(k => (!only || SOURCES_OF(k).includes(only)) && fieldOrder(st, k).includes(x)));
+  const legend = idle.length ? html`<p class="note ds-legend"><span class="ds-src ds-dim">${SHORT[idle[0]]}</span> Dashed, like this: not set up yet (${list(idle.map(x => SHORT[x]))}). It writes nothing until it is; then the rules below apply.</p>` : '';
   const groups = groupsOf().map(([n, ks]) => /** @type {[string, string[]]} */ ([n, ks.filter(k => !only || SOURCES_OF(k).includes(only))])).filter(g => g[1].length);
-  return html`<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? html`<th><span class="sr-only">Change</span></th>` : ''}</tr></thead>
+  return html`${legend}<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? html`<th><span class="sr-only">Change</span></th>` : ''}</tr></thead>
     ${groups.map(([name, keys]) => html`<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${name}</th></tr>${keys.map(row)}</tbody>`)}</table>`;
 }
 /* One explanation, used everywhere the field rules are. */
@@ -163,15 +173,18 @@ export function renderSetSources(){
   const on = sourcesOn(), edit = isAdmin();
   const custom = !!((st.fieldOrder && Object.keys(st.fieldOrder).length) || (st.fieldMode && Object.keys(st.fieldMode).length));
   /* The sources, each opening its own tab: the same dot as its page's header. */
-  const srcs = ['ls', 'ad', 'graph'].map(src => { const s = sourceState(src); return html`<button type="button" class="ds-srcbtn" data-dstab="${SOURCE_TAB[src]}"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${SOURCE_LABEL[src]}</b><span class="muted">${s.text}</span></button>`; });
-  /* Three common setups, each one click (with the preview and Undo). */
-  const presets = edit ? html`<div class="ds-presets"><span class="muted">Quick setup:</span>${Object.entries(PRESETS).map(([k, [l, tip]]) => html`<button type="button" data-dspreset="${k}" title="${tip}">${l}</button>`)}</div>` : '';
+  const srcs = ['ls', 'ad', 'graph'].map(src => { const s = sourceState(src), ready = on[src]; return html`<div class="ds-srccard${ready ? '' : ' idle'}"><div class="ds-srctop"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${SOURCE_LABEL[src]}</b><span class="muted">${s.text}</span></div>
+    <p class="ds-srcwhat">${SOURCE_BLURB[src]}</p><button type="button" class="ds-srcbtn${ready ? '' : ' primary'}" data-dstab="${SOURCE_TAB[src]}" aria-label="${(ready ? 'Open ' : 'Set up ') + SOURCE_LABEL[src]}">${ready ? 'Open' : 'Set up'}</button></div>`; });
+  /* Three common setups, each one click (with the preview and Undo); the one the fields follow now is marked. */
+  const same = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
+  const presetNow = custom ? ['ls', 'graph'].find(p => { const n = presetOf(p); return same(n.fieldOrder, st.fieldOrder) && same(n.fieldMode, st.fieldMode); }) : '';
+  const presets = edit ? html`<div class="ds-presets"><span class="muted">Quick setup:</span>${Object.entries(PRESETS).map(([k, [l, tip]]) => html`<button type="button" data-dspreset="${k}" title="${tip}" aria-pressed="${String(presetNow === k)}" class="${presetNow === k ? 'on' : ''}">${l}</button>`)}</div>` : '';
   const nSet = Object.keys(st.fieldOrder || {}).length;
   const reset = edit && custom ? html`<div class="ds-foot"><span class="muted">${nSet} field${nSet === 1 ? '' : 's'} set here (Custom)</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
   const extras = Object.entries(SOURCE_EXTRAS).map(([src, list]) => html`<div class="ds-card${on[src] ? '' : ' off'}"><div class="ds-head"><b>${SOURCE_LABEL[src]}</b></div>
     <dl class="ds-dl">${list.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></div>`);
 
-  root.innerHTML = html`<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">Each source has a tab of its own: how it is doing, its connection and its fields. This page shows the fields of all of them together, drawn from the same lists the syncs use.</p><div class="ds-srcs">${srcs}</div></div>
+  root.innerHTML = html`<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">Where the inventory's data comes from. Each is optional and only read, never written to: set up the ones you have.</p><div class="ds-srcs">${srcs}</div></div>
     <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote(edit)}${presets}<details class="ds-adv" id="dsAdv" ${custom || advOpen ? 'open' : ''}><summary>Advanced: field by field</summary><div class="ds-scroll">${matrixHtml(on)}</div>${reset}</details></div>
     <details class="panelbox fold ds-beyond"><summary class="hdr">Beyond the fields <span class="cnt">what else each source brings</span></summary><div class="ds-cards ds-wide">${extras}</div></details>
     <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></div>
@@ -234,7 +247,7 @@ function editOrder(k, on){
       ${use.has(x) ? html`<select data-dsmode="${x}" aria-label="How ${SOURCE_LABEL[x]} writes it"><option value="update" ${modes[x] === 'update' ? 'selected' : ''}>Updates</option><option value="fill" ${modes[x] === 'fill' ? 'selected' : ''}>Only if empty</option></select>` : ''}
       <span class="muted ds-li-note">${!on[x] ? 'not set up' : globalOff(x) ? 'filling is off in its tab' : use.has(x) ? '' : 'shown only'}</span>
       <span class="ds-move"><button type="button" class="icon ghost" data-dsup="${x}" aria-label="Move ${SOURCE_LABEL[x]} up" ${!use.has(x) || order.indexOf(x) === 0 ? 'disabled' : ''}>▲</button><button type="button" class="icon ghost" data-dsdown="${x}" aria-label="Move ${SOURCE_LABEL[x]} down" ${!use.has(x) || order.indexOf(x) === order.length - 1 ? 'disabled' : ''}>▼</button></span></li>`)}`;
-    $('#dsSays').textContent = orderSentence(k, order, { ...(st.fieldMode || {}), [k]: modes });
+    $('#dsSays').textContent = orderSentence(k, order, { ...(st.fieldMode || {}), [k]: modes }, true);
     $$('[data-dsmode]').forEach(sel => sel.onchange = () => { modes[sel.dataset.dsmode] = sel.value; draw(); });
 
     $$('[data-dsuse]').forEach(c => c.onchange = () => { const x = c.dataset.dsuse; if (c.checked){ use.add(x); order.push(x); } else { use.delete(x); order = order.filter(y => y !== x); } draw(); $(`[data-dsuse="${x}"]`)?.focus(); });

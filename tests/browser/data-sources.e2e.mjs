@@ -47,7 +47,10 @@ try {
   const bare = t => t.replace(/ [^.]* (is|are) not set up: (it writes|they write) nothing yet\.$/, '');
   const how = async label => bare(await row(label).locator('.ds-how').textContent());
   const says = async () => bare(await p.textContent('#dsSays'));
-  assert.equal(await row('IP address').locator('.ds-how').textContent(), 'Lansweeper keeps it up to date at every scan. Lansweeper is not set up: it writes nothing yet.');
+  assert.equal(await row('IP address').locator('.ds-how').textContent(), 'Lansweeper keeps it up to date at every scan.', 'a source not set up is not repeated in every row');
+  assert.match(await p.textContent('.ds-legend'), /Dashed, like this: not set up yet \(Lansweeper, Entra & Intune and AD\)/);
+  assert.equal(await row('IP address').locator('.ds-src.ds-dim').count(), 1, 'the chip of a source not set up is dashed');
+  assert.deepEqual(await p.locator('.ds-srccard button').allTextContents(), ['Set up', 'Set up', 'Set up']);
   assert.equal(await chain('IP address'), '1Lansweeper');
   assert.equal(await how('IP address'), 'Lansweeper keeps it up to date at every scan.');
   assert.equal(await chain('Disks'), '1Entra & Intune shown only: Lansweeper', 'Intune comes first where Lansweeper only shows its value');

@@ -1588,8 +1588,15 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .src-offnote{padding:4px 2px 12px}
 .src-offtext{margin:0;font-size:12.5px}
 .src-hist{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
-.ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
-.ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:var(--ctl);padding:0 12px}
+.ds-srcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:12px}
+.ds-srccard{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
+.ds-srccard.idle{border-style:dashed;background:var(--panel2)}
+.ds-srctop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ds-srctop .muted{margin-left:auto;font-size:12.5px}
+.ds-srcwhat{margin:0;flex:1;font-size:12.5px;color:var(--muted);line-height:1.45}
+.ds-srcbtn{align-self:flex-start}
+.ds-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;padding:8px 12px}
+.ds-presets button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 .ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
 @media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
@@ -1759,7 +1766,8 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .cn-foot{display:flex;gap:4px 14px;flex-wrap:wrap}
 /* Data sources: a source not set up is marked by its dashed border and badge, not by fading its text (contrast). */
 .ds-card.off{opacity:1;border-style:dashed;background:var(--panel2)}
-.ds-dim{opacity:1;color:var(--muted)}
+.ds-dim{opacity:1;color:var(--muted);border-style:dashed;background:transparent}
+.ds-dim b{background:var(--muted)}
 /* Merged records: names break between words, the date stays on one line. */
 .nics.merged .nic-name{overflow-wrap:break-word;word-break:normal}
 .nics.merged .nic-meta{white-space:normal}
