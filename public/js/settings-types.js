@@ -4,7 +4,7 @@ import { typeFieldsOf, canAddPorts, fieldKind } from './17-fields.js';
 import { cardLines, CARD_FIELDS, resetFilters } from './02-views.js';
 import { cardHtml } from './views-cards.js';
 import { renderSetModels } from './settings-feed.js';
-import { isAdmin } from './04-settings.js';
+import { applyRole, isAdmin } from './04-settings.js';
 import { closeModal } from './19-modal.js';
 import { queueServerSave, render } from './07-render.js';
 import { VIEWBOX_RE, ICON, iconSvg, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol, tico, relIndex, modelNames, REVIEW } from './01-core.js';
@@ -53,18 +53,30 @@ export const fieldKey = label => {
 export function renderSetTypeFields(){ renderTypeDetail(); }
 const MODELS_KEY = '__models';
 const devicesOf = k => objs.filter(o => o.type === k);
+/* A change saved on leaving a field redraws the type, while the focus has already moved on (Tab to the next field):
+   fn runs, and the focus is put back on the field it went to, found again by its data attribute. */
+function keepFocus(fn){ setTimeout(() => keepFocusNow(fn)); }
+/* Run a moment later than the change itself: the change of a field comes before the focus has gone to the next one. */
+function keepFocusNow(fn){
+  const a = /** @type {HTMLElement | null} */ (document.activeElement), box = $('#tpDetail');
+  const at = a && box && box.contains(a) ? ['data-tl', 'data-ts', 'data-tc', 'data-flab', 'data-fhide', 'data-cl', 'id'].find(x => a.hasAttribute(x)) : null;
+  const sel = at ? `[${at}="${CSS.escape(a.getAttribute(at) || '')}"]` : '';
+  fn();
+  if (sel) /** @type {HTMLElement | null} */ (document.querySelector('#tpDetail ' + sel))?.focus();
+}
 /* Records waiting in To review hold their type too: a type they have cannot be deleted. */
 const reviewOf = k => REVIEW.filter(o => o.type === k);
 function renderTypeDetail(){
   const box = $('#tpDetail');
   if (!box) return;
-  if (st.typeSel === MODELS_KEY){ box.innerHTML = '<div class="panelbox" id="setModels"></div>'; renderSetModels(); return; }
+  /* Drawn on its own (a type clicked, the arrow keys, Find a type): a viewer's controls are locked here as well. */
+  if (st.typeSel === MODELS_KEY){ box.innerHTML = '<div class="panelbox" id="setModels"></div>'; renderSetModels(); applyRole(); return; }
   const type = st.typeSel, t = TYPES[type], list = TYPE_FIELDS[type] || [];
   const n = devicesOf(type).length, waiting = reviewOf(type).length, edit = isAdmin();
   const rule = (Array.isArray(st.typeRules) ? st.typeRules : []).findIndex(r => r && r.to === type);
   const named = Object.keys(st.typeMap || {}).find(x => st.typeMap[x] === type);
   const lock = BUILTIN.includes(type) ? 'A built-in type stays.' : n ? `${n} ${n === 1 ? 'device has' : 'devices have'} this type: give them another first.` : waiting ? `${waiting} ${waiting === 1 ? 'record' : 'records'} in To review ${waiting === 1 ? 'has' : 'have'} this type: decide on them first.` : rule >= 0 ? `Type rule ${rule + 1} leads to it (Data sources → Lansweeper).` : named ? `The Lansweeper type name “${named}” leads to it (Data sources → Lansweeper).` : '';
-  box.innerHTML = html`<div class="tp-head"><span class="tp-tile" style="--tc:${tcol(type)}">${rawHtml(tico(type, 'tico'))}</span><div class="tp-title"><h3>${t.label}</h3><span class="muted">${n ? `${n} ${n === 1 ? 'device' : 'devices'}` : 'No devices yet'} · ${BUILTIN.includes(type) ? 'built in' : 'your own'}</span></div>${n ? html`<button type="button" id="tpShow">Show the ${n === 1 ? 'device' : `${n} devices`}</button>` : ''}</div>
+  box.innerHTML = html`<div class="tp-head"><span class="tp-tile" style="--tc:${tcol(type)}">${rawHtml(tico(type, 'tico'))}</span><div class="tp-title"><h3>${t.label}</h3><span class="muted">${n ? `${n} ${n === 1 ? 'device' : 'devices'}` : 'No devices yet'} · ${BUILTIN.includes(type) ? 'built in' : 'your own'}</span></div>${n ? html`<button type="button" id="tpShow" data-view>Show the ${n === 1 ? 'device' : `${n} devices`}</button>` : ''}</div>
     <div class="panelbox"><div class="hdr">Look and card</div>
       <div class="tp-look"><div class="tp-form">
         <label>Name<input data-tl="${type}" value="${t.label}" maxlength="60"></label>
@@ -90,6 +102,7 @@ function renderTypeDetail(){
   renderBuiltinFields($('#tfBuiltin'), type);
   renderCardLines($('#tfCard'), type);
   bindTypeLook(box, type);
+  applyRole();
 }
 /* A card of the type as the Cards view draws it: one of its devices, or an example when it has none. */
 function previewCard(type){
@@ -149,7 +162,7 @@ export function renderBuiltinFields(box, type){
         ${mine ? html`<button class="icon ghost tf-del" data-tfd="${own.findIndex(x => 'custom.' + x.key === k)}" aria-label="Remove field ${name}" title="Remove this field (its values are kept)">×</button>` : html`<span></span>`}
       </div>`;
     })}</div>`;
-  box.querySelectorAll('[data-flab]').forEach(i => i.onchange = () => {
+  box.querySelectorAll('[data-flab]').forEach(i => i.onchange = () => keepFocus(() => {
     const k = i.dataset.flab, name = i.value.trim(), f = ordered.find(x => x[0] === k);
     if (f[3]){
       if (!name){ i.value = f[1]; toast('A field needs a name.'); return; }
@@ -158,7 +171,7 @@ export function renderBuiltinFields(box, type){
     const labels = {...(lay.labels || {})};
     if (!name || name === f[1]) delete labels[k]; else labels[k] = name;
     put({labels});
-  });
+  }));
   box.querySelectorAll('[data-fhide]').forEach(c => c.onchange = () => {
     const k = c.dataset.fhide, hidden = hiddenOf(type).filter(x => x !== k);
     if (!c.checked) hidden.push(k);
@@ -226,7 +239,7 @@ export function renderSetTypes(){
 }
 /* Name, short name, colour, icon and Delete of the type on the right. Each change is saved and drawn at once. */
 function bindTypeLook(box, k){
-  const redraw = () => { renderSetTypes(); render(); queueServerSave(); };
+  const redraw = () => keepFocus(() => { renderSetTypes(); render(); queueServerSave(); });
   box.querySelectorAll('[data-tc]').forEach(i => { i.oninput = () => { TYPES[k].color = i.value; render(); const tile = box.querySelector('.tp-tile'); if (tile) tile.style.setProperty('--tc', i.value); }; i.onchange = () => { redraw(); }; });
   box.querySelectorAll('[data-tl]').forEach(i => i.onchange = () => { TYPES[k].label = typeName(i.value) || TYPES[k].label; redraw(); });
   box.querySelectorAll('[data-ts]').forEach(i => i.onchange = () => { TYPES[k].short = typeName(i.value) || TYPES[k].short; redraw(); });

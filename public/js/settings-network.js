@@ -79,7 +79,12 @@ export function renderSetSubnets(){
     for (const o of on){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
     SUBNETS.splice(i, 1); queueServerSave(); renderSetSubnets();
     toastUndo(`Subnet ${gone.name} deleted; devices on it keep their addresses`, () => {
-      if (!SUBNETS.some(n => n.cidr === gone.cidr)) SUBNETS.splice(Math.min(i, SUBNETS.length), 0, gone);
+      if (!SUBNETS.some(n => n.cidr === gone.cidr)){
+        const at = Math.min(i, SUBNETS.length);
+        SUBNETS.splice(at, 0, gone);
+        /* A subnet being edited meanwhile stays the one in the editor: its place moves down with the one put back. */
+        if (typeof snEdit === 'number' && snEdit >= at) snEdit++;
+      }
       for (const d of on){ const o = objs.find(x => x.id === d.id); if (!o) continue; o.subnet = gone.cidr; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) back (delete undone) by ${who()}`); }
       queueServerSave(); renderSetSubnets();
     }, { anyEpoch: true });

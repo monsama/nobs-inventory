@@ -369,7 +369,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       const t = o.excluded && o.review && o.review.merged ? s.objs.find(x => x.id === o.review.merged) : o;
       if (!t || t.excluded || t.detached || (o !== t && (t.accessories || []).some(a => lc(a.seenAs) === lc(o.name)))) continue;
       const cand = { ref, day: scanOf.get(ref), merged: o !== t }, had = best.get(t.id);
-      if (!had) { best.set(t.id, cand); continue; }
+      /* The same asset twice in one push (a repeated row): not two records of one device, it updates it as before. */
+      if (!had || had.ref === ref) { if (!had) best.set(t.id, cand); continue; }
       const wins = cand.day > had.day || (cand.day === had.day && cand.merged && !had.merged);
       superseded.add(wins ? had.ref : ref);
       if (wins) best.set(t.id, cand);

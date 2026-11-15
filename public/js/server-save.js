@@ -192,7 +192,8 @@ export function clearConfirm(){
   $('#clrWord').oninput = () => { $('#clrOk').disabled = $('#clrWord').value.trim() !== 'CLEAR'; };
   $('#clrWord').focus();
   $('#clrCancel').onclick = closeModal;
-  $('#clrOk').onclick = () => clearAll();
+  /* Once: a second click while it runs would take a second backup and send stale changes. */
+  $('#clrOk').onclick = async () => { const b = $('#clrOk'); if (b.disabled) return; b.disabled = true; try { await clearAll(); } finally { if (b.isConnected) b.disabled = false; } };
 }
 /* Clears the devices, relations and history on the server, all of them, including any another person added since
    this page loaded. Users, locations, types and settings stay. */

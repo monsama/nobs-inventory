@@ -2,7 +2,7 @@
    adapters), in address order, with the device, whether it is static or dynamic, its subnet, and what is wrong with it:
    two devices on one address, a static address inside a DHCP range, the gateway taken by a device. The filters on the
    left and the search apply as in Cards and the Table. With one subnet picked, its free addresses can be shown too. */
-import { $, STATUS, SUBNETS, TYPES, filtered, hist, menuHtml, now, objs, setByHand, st, tico, toast, toastUndo } from './01-core.js';
+import { $, STATUS, SUBNETS, TYPES, filtered, hist, menuHtml, now, objs, restoreSnapshot, setByHand, snapshot, st, tico, toast, toastUndo } from './01-core.js';
 import { closeModal, modal } from './19-modal.js';
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin, me } from './04-settings.js';
@@ -209,11 +209,13 @@ function giveIpModal(ip){
   };
   const give = o => {
     if (!o) return;
-    const was = { ip: o.ip, dhcp: o.dhcp };
-    setByHand(o, 'ip'); setByHand(o, 'dhcp'); o.ip = ip; o.dhcp = 'static';
-    hist(o, now(), `IP address ${was.ip ? `changed from ${was.ip} ` : ''}set to ${ip} (free address, from the IP list)`);
+    const was = o.ip, snap = snapshot([o]);
+    /* Set by hand (so the next sync keeps it), static, and in the subnet the address belongs to. */
+    setByHand(o, 'ip', ip); setByHand(o, 'dhcp', 'static'); o.ip = ip; o.dhcp = 'static';
+    if (o.subnet) { const n = SUBNETS.find(x => x.cidr === o.subnet), sp = n && subnetSpan(n), v = ipInt(ip); if (!sp || v === null || v < sp.first || v > sp.last) delete o.subnet; }
+    hist(o, now(), `IP address ${was ? `changed from ${was} ` : ''}set to ${ip} (free address, from the IP list)`);
     closeModal(); queueServerSave(); render();
-    toastUndo(`${ip} given to ${o.name}`, () => { if (was.ip) o.ip = was.ip; else delete o.ip; if (was.dhcp) o.dhcp = was.dhcp; else delete o.dhcp; hist(o, now(), `IP address ${ip} given back`); queueServerSave(); render(); });
+    toastUndo(`${ip} given to ${o.name}`, () => { restoreSnapshot(snap, `IP address ${ip} given back`); queueServerSave(); render(); });
   };
   $('#igNo').onclick = closeModal;
   $('#igQ').oninput = draw; draw(); $('#igQ').focus();

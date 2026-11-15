@@ -722,7 +722,12 @@ export function applyChanges(db, body, guard = () => {}) {
     if ((revs[key] ?? 0) !== c.base) { conflicts.push(key); return false; }
     return true;
   };
-  const okPuts = puts.filter(usable), okDels = dels.filter(usable);
+  const okPuts0 = puts.filter(usable), okDels0 = dels.filter(usable);
+  /* The history lines a page sends with a change of its device describe that change: when the change is refused as stale,
+     its lines are left out too (the page reloads and offers the change again, with them), so the history never tells of a
+     change that was not made. */
+  const staleDevice = new Set(conflicts.filter(k => k.startsWith('object|')).map(k => k.slice(7)));
+  const okPuts = okPuts0.filter(c => c.kind !== 'history' || !staleDevice.has(String(c.id))), okDels = okDels0.filter(c => c.kind !== 'history' || !staleDevice.has(String(c.id)));
 
   /* The history of the devices is checked entry by entry, never against the rest: only the records this save sends are
      loaded, so a save to a large inventory does not read every device's history. */

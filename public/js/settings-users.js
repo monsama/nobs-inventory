@@ -412,12 +412,12 @@ export function passwordModal(u){
 const USERS_HELP = [
   ['Roles', [['Admin', 'Changes everything: devices, people and Settings.'],
     ['Viewer', 'Looks only: everything, some sites, or only their own devices.'],
-    ['No access', 'Cannot sign in. People found by LDAP, Entra or Lansweeper start here; give them Viewer to let them in.']]],
+    ['No access', 'Cannot sign in. Everyone found by a sync, or only named as a device\'s user (typed or from a CSV), starts here; give them Viewer to let them in.']]],
   ['Columns', [['Login', 'What they sign in with; "No sign-in" when they have none.'],
     ['Source', 'Where the person comes from (LDAP, Entra, Lansweeper, made here), and whether Microsoft Entra knows them too (Settings → Entra & Intune → People).'],
     ['Devices', 'How many devices name this person; click the number to see them.'],
     ['Active', 'Off for someone who left: their devices are listed to take back.']]],
-  ['Good to know', [['From LDAP', 'Name, department and groups come from the directory and are changed there. They cannot be removed here, only deactivated.']]],
+  ['Good to know', [['From LDAP', 'Name, department and groups come from the directory and are changed there. Removed here, a person comes back with the next sync while the directory has them: No access keeps them out instead.']]],
 ];
 export function usersHelpModal(){
   modal(html`<div class="mh">Roles and columns</div><div class="mb">${USERS_HELP.map(([title, rows]) => html`<div class="u-help"><div class="u-help-h">${title}</div><dl class="u-help-dl">${rows.map(([k, v]) => html`<dt>${k}</dt><dd>${v}</dd>`)}</dl></div>`)}</div>
