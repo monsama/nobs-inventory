@@ -765,8 +765,13 @@ export function applyChanges(db, body, guard = () => {}) {
          saveState. */
       const old = storedHistory.get(String(c.id)), stored = old ? JSON.parse(old.data) : [];
       if (!Array.isArray(v) || !Array.isArray(stored)) s.history[c.id] = v;
-      else { const have = new Set(stored.map(lineKey)); s.history[c.id] = [...v.filter(e => !have.has(lineKey(e))), ...stored].slice(0, HISTORY_KEEP); }
-      goneHistory.delete(String(c.id));
+      else {
+        /* The page adds its lines on top: only those before the first line already stored are new. A line further down
+           that is no longer stored was cut off as the oldest, and does not come back. */
+        const have = new Set(stored.map(lineKey)), fresh = [];
+        for (const e of v) { if (have.has(lineKey(e))) break; fresh.push(e); }
+        s.history[c.id] = [...fresh, ...stored].slice(0, HISTORY_KEEP);
+      }
     }
     else if (c.kind === 'setting') s[c.id] = v;
   }
@@ -790,7 +795,13 @@ export function applyChanges(db, body, guard = () => {}) {
   }
   guard(s);
   /* Only the records the page sent are written, and the code counter when a new object got its code. */
-  const touched = new Set([...okPuts, ...okDels].map(c => docKey(c.kind, c.id)));
+  /* History belongs to a device: it goes only with the device (a removal sent for a device that stays, its delete refused
+     as stale, is not done), and is kept only for a device there is (lines sent for one deleted meanwhile are dropped). */
+  const exists = id => s.objs.some(o => String(o.id) === String(id));
+  const keepHistory = new Set(okDels.filter(c => c.kind === 'history' && exists(c.id)).map(c => String(c.id)));
+  for (const c of okPuts) if (c.kind === 'history' && !exists(c.id)) { delete s.history[c.id]; goneHistory.add(String(c.id)); }
+  for (const id of [...goneHistory]) if (exists(id)) goneHistory.delete(id);
+  const touched = new Set([...okPuts, ...okDels].filter(c => !(c.kind === 'history' && keepHistory.has(String(c.id)))).map(c => docKey(c.kind, c.id)));
   if (Object.keys(codes).length) touched.add(docKey('setting', 'codeN'));
   for (const id of goneHistory) { delete s.history[id]; touched.add(docKey('history', id)); }
   writeDocs(db, s, touched);

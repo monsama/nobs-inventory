@@ -99,3 +99,30 @@ test('Health says when the inventory comes close to its limit, and when the Lans
     assert.equal(push(8).state, 'bad', 'a week without a push: also in the weekly e-mail');
   } finally { await srv.close(); }
 });
+
+/* History belongs to its device: a removal of it is not done while the device stays, lines for a device that is gone are
+   not kept, and lines the server cut off as the oldest do not come back on top. */
+test('history is removed only with its device, kept only for a device there is, and old lines do not come back', async () => {
+  const srv = await startServer();
+  try {
+    const old = Array.from({ length: HISTORY_KEEP }, (_, i) => line(`2026-10-01 ${String(i).padStart(4, '0')}`, 'p' + i)).reverse();
+    saveState(srv.db, { ...loadState(srv.db), objs: [dev('a'), dev('b')], history: { a: [line('2026-11-01 08:00', 'Created')], b: old } });
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const revs = (await srv.call('GET', '/api/state?history=0', { cookie: a.cookie })).json.revs;
+    // device a changed meanwhile: its delete is stale; the history removal sent with it is not done either
+    saveState(srv.db, { ...loadState(srv.db), objs: [{ ...dev('a'), purpose: 'changed' }, dev('b')] });
+    const r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [], dels: [{ kind: 'history', id: 'a', base: revs['history|a'] }, { kind: 'object', id: 'a', base: revs['object|a'] }] } });
+    assert.deepEqual(r.json.conflicts, ['object|a']);
+    assert.equal(loadState(srv.db).history.a.length, 1, 'the history of a device that stays was removed');
+    // lines for a device that is not there are not kept
+    await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'history', id: 'gone', value: [line('2026-11-02 09:00', 'x')], base: 0 }], dels: [] } });
+    assert.equal(loadState(srv.db).history.gone, undefined, 'history kept for a device that does not exist');
+    // b at the limit: a sync adds two lines (the two oldest go); a page that still has them adds one: they stay gone
+    const synced = [line('2026-11-03 10:01', 's2'), line('2026-11-03 10:00', 's1'), ...old].slice(0, HISTORY_KEEP);
+    saveState(srv.db, { ...loadState(srv.db), history: { ...loadState(srv.db).history, b: synced } });
+    await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'history', id: 'b', value: [line('2026-11-03 11:00', 'new'), ...old], base: 0 }], dels: [] } });
+    const h = loadState(srv.db).history.b.map(e => e.msg);
+    assert.deepEqual(h.slice(0, 4), ['new', 's2', 's1', 'p199'], 'old lines came back on top: ' + h.slice(0, 6).join(','));
+    assert.equal(h.length, HISTORY_KEEP);
+  } finally { await srv.close(); }
+});
