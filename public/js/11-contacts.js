@@ -1,7 +1,7 @@
 /* Contacts: the company's own IT people and the people at its IT partners who look after the devices. The Contacts tab
    lists them, the company's own first, then each partner company; a device names one internal and one external
    responsible, on its page or for many devices at once in the table. */
-import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast } from './01-core.js';
+import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast , byId } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, modal } from './19-modal.js';
@@ -38,10 +38,11 @@ function deleteContact(c){
     if (st.resp === c.id) st.resp = null;
     queueServerSave(); render();
     toastUndo(`Contact ${c.name} deleted`, () => {
-      CONTACTS.list.splice(Math.min(i, CONTACTS.list.length), 0, c);
-      for (const [o, a, b] of was){ if (a) o.respIn = a; if (b) o.respEx = b; hist(o, now(), `Responsible ${c.name} back (delete undone) by ${who()}`); }
+      if (!CONTACTS.list.some(x => x.id === c.id)) CONTACTS.list.splice(Math.min(i, CONTACTS.list.length), 0, c);
+      /* Found again by id: a reload in between gave the page new records. */
+      for (const [d, a, b] of was){ const o = byId(d.id); if (!o) continue; if (a) o.respIn = a; if (b) o.respEx = b; hist(o, now(), `Responsible ${c.name} back (delete undone) by ${who()}`); }
       queueServerSave(); render();
-    });
+    }, { anyEpoch: true });
   }
 }
 /* One contact's card as HTML: name and role, what to ask them about, how to reach them, the note, and their devices.

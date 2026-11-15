@@ -896,10 +896,12 @@ export function areaRemoveModal(plan, area){
   const i = plan.areas.indexOf(area);
   plan.areas = plan.areas.filter(a => a.id !== area.id); queueServerSave(); renderPlans();
   toastUndo(`Area ${area.name} removed from the plan; the devices keep their location`, () => {
-    plan.areas.splice(Math.min(i, plan.areas.length), 0, area);
-    for (const [o, pos] of moved) o.planPos = pos;
+    /* Found again by id: a reload in between gave the page new records. */
+    const p = PLANS.find(x => x.id === plan.id); if (!p) return;
+    if (!p.areas.some(a => a.id === area.id)) p.areas.splice(Math.min(i, p.areas.length), 0, area);
+    for (const [d, pos] of moved){ const o = byId(d.id); if (o) o.planPos = pos; }
     queueServerSave(); renderPlans();
-  });
+  }, { anyEpoch: true });
 }
 /* The New area dialog for the rectangles just drawn: a name and a room of the plan's site (or a new room named like
    the area). Adds the area to the plan and its room to the locations, and saves. */

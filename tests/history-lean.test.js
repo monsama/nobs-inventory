@@ -126,3 +126,13 @@ test('history is removed only with its device, kept only for a device there is, 
     assert.equal(h.length, HISTORY_KEEP);
   } finally { await srv.close(); }
 });
+
+test('the same line twice in one minute is kept twice (bring back, undo, bring back)', async () => {
+  const { newLines } = await import('../public/js/history-merge.js');
+  const t = '2026-11-15 10:00', A = line(t, 'Brought back to stock'), B = line(t, 'Bring back undone'), old = [line('2026-11-01 08:00', 'Created'), line('2026-10-01 08:00', 'Bought')];
+  const stored = [B, A, ...old];
+  assert.deepEqual(newLines([A, B, A, ...old], stored), [A], 'the third line was dropped');
+  assert.deepEqual(newLines([B, A, ...old], stored), [], 'lines already stored came again');
+  assert.deepEqual(newLines([line(t, 'new')], stored), [line(t, 'new')], 'a page that never read the history: its line');
+  assert.deepEqual(newLines([A], stored), [], 'a line of its own already saved is not added twice');
+});

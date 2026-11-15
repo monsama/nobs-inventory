@@ -27,6 +27,7 @@ test('a start with an admin under another login makes no account and no password
 test('a page save keeps the history short too', async () => {
   const srv = await startServer();
   try {
+    saveState(srv.db, { ...loadState(srv.db), objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-1', status: 'active' }] });
     const a = await signIn(srv, 'admin', 'adminpass123');
     const long = Array.from({ length: HISTORY_KEEP + 300 }, (_, i) => ({ t: 'x', msg: 'note ' + i }));
     const r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'history', id: 'o1', value: long, base: 0 }], dels: [] } });

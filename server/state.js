@@ -19,6 +19,7 @@ import { savedViewsProblem } from '../public/js/saved-views.js';
 import { liftOvr } from './fill.js';
 import { cordProblem, outletClash, outletsProblem } from '../public/js/cabling.js';
 import { relationProblem } from '../public/js/relations.js';
+import { newLines } from '../public/js/history-merge.js';
 /* The inventory as stored: loading and saving the documents, the settings the page may change and how each is
    checked, the changes a page sends (with revisions against lost updates), and the deltas a page asks for. */
 
@@ -730,7 +731,6 @@ export function applyChanges(db, body, guard = () => {}) {
   /* A device deleted takes its history along, also when the page did not have it to send its removal. */
   const goneHistory = new Set(okDels.filter(c => c.kind === 'object').map(c => String(c.id)));
   const storedHistory = db.prepare("SELECT data FROM docs WHERE kind = 'history' AND id = ?");
-  const lineKey = e => (e && e.t || '') + '\u0000' + (e && e.msg);
   for (const c of okDels) {
     if (c.kind === 'object') s.objs = s.objs.filter(o => o.id !== c.id);
     else if (c.kind === 'rel') s.rels = s.rels.filter(r => String(r.id) !== c.id);
@@ -766,11 +766,9 @@ export function applyChanges(db, body, guard = () => {}) {
       const old = storedHistory.get(String(c.id)), stored = old ? JSON.parse(old.data) : [];
       if (!Array.isArray(v) || !Array.isArray(stored)) s.history[c.id] = v;
       else {
-        /* The page adds its lines on top: only those before the first line already stored are new. A line further down
-           that is no longer stored was cut off as the oldest, and does not come back. */
-        const have = new Set(stored.map(lineKey)), fresh = [];
-        for (const e of v) { if (have.has(lineKey(e))) break; fresh.push(e); }
-        s.history[c.id] = [...fresh, ...stored].slice(0, HISTORY_KEEP);
+        /* The page adds its lines on top: only those before where its list runs alongside the stored one are new
+           (history-merge.js). A line further down that is no longer stored was cut off as the oldest, and does not come back. */
+        s.history[c.id] = [...newLines(v, stored), ...stored].slice(0, HISTORY_KEEP);
       }
     }
     else if (c.kind === 'setting') s[c.id] = v;

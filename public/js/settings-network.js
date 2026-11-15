@@ -79,10 +79,10 @@ export function renderSetSubnets(){
     for (const o of on){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
     SUBNETS.splice(i, 1); queueServerSave(); renderSetSubnets();
     toastUndo(`Subnet ${gone.name} deleted; devices on it keep their addresses`, () => {
-      SUBNETS.splice(Math.min(i, SUBNETS.length), 0, gone);
-      for (const o of on){ o.subnet = gone.cidr; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) back (delete undone) by ${who()}`); }
+      if (!SUBNETS.some(n => n.cidr === gone.cidr)) SUBNETS.splice(Math.min(i, SUBNETS.length), 0, gone);
+      for (const d of on){ const o = objs.find(x => x.id === d.id); if (!o) continue; o.subnet = gone.cidr; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) back (delete undone) by ${who()}`); }
       queueServerSave(); renderSetSubnets();
-    });
+    }, { anyEpoch: true });
   });
   /* A suggestion as a subnet: name, gateway, DNS, the types seen there and a range per kind of address seen. */
   const fromSuggestion = n => ({name: n.name || n.cidr, cidr: n.cidr, vid: null, gateway: n.gateway || '', dns: n.dns || [],

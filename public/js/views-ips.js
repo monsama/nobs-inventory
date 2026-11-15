@@ -210,7 +210,7 @@ function giveIpModal(ip){
   const give = o => {
     if (!o) return;
     const was = { ip: o.ip, dhcp: o.dhcp };
-    setByHand(o, 'ip'); o.ip = ip; o.dhcp = 'static';
+    setByHand(o, 'ip'); setByHand(o, 'dhcp'); o.ip = ip; o.dhcp = 'static';
     hist(o, now(), `IP address ${was.ip ? `changed from ${was.ip} ` : ''}set to ${ip} (free address, from the IP list)`);
     closeModal(); queueServerSave(); render();
     toastUndo(`${ip} given to ${o.name}`, () => { if (was.ip) o.ip = was.ip; else delete o.ip; if (was.dhcp) o.dhcp = was.dhcp; else delete o.dhcp; hist(o, now(), `IP address ${ip} given back`); queueServerSave(); render(); });

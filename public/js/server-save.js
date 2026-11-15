@@ -241,7 +241,7 @@ async function clearAll(){
      sites, models. Measured against what is kept, so nothing still in use goes. */
   const keptObjs = d.objs.filter(o => !removed.has(o.id));
   const me = USERS.find(u => u.id === st.meId);
-  const people = $('#clrPeople') && $('#clrPeople').checked ? d.users.filter(u => ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.role !== 'admin' && u.id !== (me && me.id) && !keptObjs.some(o => o.uid === u.id)) : [];
+  const people = $('#clrPeople') && $('#clrPeople').checked ? d.users.filter(u => ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.role !== 'admin' && u.id !== (me && me.id) && !keptObjs.some(o => o.uid === u.id) && !(d.contacts || []).some(c => c && c.userId === u.id)) : [];
   const gonePeople = new Set(people.map(u => u.id));
   const keptJson = JSON.stringify([keptObjs, d.users.filter(u => !gonePeople.has(u.id)), d.plans, d.stockRooms, d.racks, d.subnets, d.locMap, d.adLocMap, d.contracts, d.licences, d.savedViews, d.groupRoles, d.modelMap, d.lifecycle]);
   const used = v => keptJson.includes(JSON.stringify(v));
