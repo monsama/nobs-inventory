@@ -16,7 +16,7 @@ const { workerData } = require('node:worker_threads');
 const fs = require('node:fs');
 const beat = new Int32Array(workerData.buf);
 setInterval(() => {
-  const age = Math.floor(Date.now() / 1000) - Atomics.load(beat, 0);
+  const age = Number(process.hrtime.bigint() / 1000000000n) - Atomics.load(beat, 0);
   if (age > workerData.limit) {
     try { fs.writeSync(2, new Date().toISOString() + ' watchdog: the server did not answer for ' + age + ' s; it is ended, so it is started again\\n'); } catch {}
     process.kill(process.pid, 'SIGKILL');
@@ -29,7 +29,8 @@ export function startWatchdog(env = process.env) {
   const limit = env.NI_WATCHDOG_SECONDS === undefined ? 120 : Number(env.NI_WATCHDOG_SECONDS);
   if (!(limit > 0)) return () => {};
   const buf = new SharedArrayBuffer(4), beat = new Int32Array(buf);
-  const tick = () => Atomics.store(beat, 0, Math.floor(Date.now() / 1000));
+  /* A clock that only moves forward: a clock set forward (NTP, a host waking up) is no hang. */
+  const tick = () => Atomics.store(beat, 0, Number(process.hrtime.bigint() / 1000000000n));
   tick();
   const timer = setInterval(tick, BEAT_MS); timer.unref();
   const worker = new Worker(WORKER, { eval: true, execArgv: [], workerData: { buf, limit: Math.max(limit, 2) } });

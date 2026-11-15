@@ -236,14 +236,14 @@ function deleteContract(c){
   {
     const i = COSTS.contracts.indexOf(c);
     COSTS.contracts = COSTS.contracts.filter(x => x !== c); queueServerSave(); render();
-    toastUndo(`Contract ${c.name} deleted`, () => { COSTS.contracts.splice(Math.min(i, COSTS.contracts.length), 0, c); queueServerSave(); render(); });
+    toastUndo(`Contract ${c.name} deleted`, () => { if (!COSTS.contracts.some(x => x.id === c.id)) COSTS.contracts.splice(Math.min(i, COSTS.contracts.length), 0, c); queueServerSave(); render(); }, { anyEpoch: true });
   }
 }
 function deleteLicence(l){
   {
     const i = COSTS.licences.indexOf(l);
     COSTS.licences = COSTS.licences.filter(x => x !== l); queueServerSave(); render();
-    toastUndo(`Licence ${l.name} deleted`, () => { COSTS.licences.splice(Math.min(i, COSTS.licences.length), 0, l); queueServerSave(); render(); });
+    toastUndo(`Licence ${l.name} deleted`, () => { if (!COSTS.licences.some(x => x.id === l.id)) COSTS.licences.splice(Math.min(i, COSTS.licences.length), 0, l); queueServerSave(); render(); }, { anyEpoch: true });
   }
 }
 /* The Licences box over the Software tab, as HTML: each licence with its seats used, a bar, its cost and end. New

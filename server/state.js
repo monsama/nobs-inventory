@@ -19,6 +19,7 @@ import { savedViewsProblem } from '../public/js/saved-views.js';
 import { liftOvr } from './fill.js';
 import { cordProblem, outletClash, outletsProblem } from '../public/js/cabling.js';
 import { relationProblem } from '../public/js/relations.js';
+import { newLines } from '../public/js/history-merge.js';
 /* The inventory as stored: loading and saving the documents, the settings the page may change and how each is
    checked, the changes a page sends (with revisions against lost updates), and the deltas a page asks for. */
 
@@ -730,7 +731,6 @@ export function applyChanges(db, body, guard = () => {}) {
   /* A device deleted takes its history along, also when the page did not have it to send its removal. */
   const goneHistory = new Set(okDels.filter(c => c.kind === 'object').map(c => String(c.id)));
   const storedHistory = db.prepare("SELECT data FROM docs WHERE kind = 'history' AND id = ?");
-  const lineKey = e => (e && e.t || '') + '\u0000' + (e && e.msg);
   for (const c of okDels) {
     if (c.kind === 'object') s.objs = s.objs.filter(o => o.id !== c.id);
     else if (c.kind === 'rel') s.rels = s.rels.filter(r => String(r.id) !== c.id);
@@ -765,8 +765,11 @@ export function applyChanges(db, body, guard = () => {}) {
          saveState. */
       const old = storedHistory.get(String(c.id)), stored = old ? JSON.parse(old.data) : [];
       if (!Array.isArray(v) || !Array.isArray(stored)) s.history[c.id] = v;
-      else { const have = new Set(stored.map(lineKey)); s.history[c.id] = [...v.filter(e => !have.has(lineKey(e))), ...stored].slice(0, HISTORY_KEEP); }
-      goneHistory.delete(String(c.id));
+      else {
+        /* The page adds its lines on top: only those before where its list runs alongside the stored one are new
+           (history-merge.js). A line further down that is no longer stored was cut off as the oldest, and does not come back. */
+        s.history[c.id] = [...newLines(v, stored), ...stored].slice(0, HISTORY_KEEP);
+      }
     }
     else if (c.kind === 'setting') s[c.id] = v;
   }
@@ -790,7 +793,13 @@ export function applyChanges(db, body, guard = () => {}) {
   }
   guard(s);
   /* Only the records the page sent are written, and the code counter when a new object got its code. */
-  const touched = new Set([...okPuts, ...okDels].map(c => docKey(c.kind, c.id)));
+  /* History belongs to a device: it goes only with the device (a removal sent for a device that stays, its delete refused
+     as stale, is not done), and is kept only for a device there is (lines sent for one deleted meanwhile are dropped). */
+  const exists = id => s.objs.some(o => String(o.id) === String(id));
+  const keepHistory = new Set(okDels.filter(c => c.kind === 'history' && exists(c.id)).map(c => String(c.id)));
+  for (const c of okPuts) if (c.kind === 'history' && !exists(c.id)) { delete s.history[c.id]; goneHistory.add(String(c.id)); }
+  for (const id of [...goneHistory]) if (exists(id)) goneHistory.delete(id);
+  const touched = new Set([...okPuts, ...okDels].filter(c => !(c.kind === 'history' && keepHistory.has(String(c.id)))).map(c => docKey(c.kind, c.id)));
   if (Object.keys(codes).length) touched.add(docKey('setting', 'codeN'));
   for (const id of goneHistory) { delete s.history[id]; touched.add(docKey('history', id)); }
   writeDocs(db, s, touched);

@@ -343,7 +343,13 @@ export function renderObj(o){
   });
   /* A retired device back in stock: its status only, with a line in its history and Undo. */
   const bb = $('#bringBack');
-  if (bb) bb.onclick = () => { o.status = 'stock'; hist(o, now(), `Brought back to stock by ${who()}`); queueServerSave(); render(); toastUndo(`${o.name} is in stock again`, () => { o.status = 'retired'; hist(o, now(), 'Bring back undone'); queueServerSave(); render(); }); };
+  if (bb) bb.onclick = () => {
+    /* Retired and excluded from the syncs: back in them too, as it is in use again. */
+    const wasExcluded = !!o.excluded;
+    o.status = 'stock'; delete o.excluded;
+    hist(o, now(), `Brought back to stock by ${who()}${wasExcluded ? ', included in the syncs again' : ''}`); queueServerSave(); render();
+    toastUndo(`${o.name} is in stock again${wasExcluded ? ' and in the syncs' : ''}`, () => { o.status = 'retired'; if (wasExcluded) o.excluded = true; hist(o, now(), 'Bring back undone'); queueServerSave(); render(); });
+  };
   /* Add: shows the panel (kept open while this device is open) and moves the focus into it. */
   $('#view').querySelectorAll('[data-xadd]').forEach(b => b.onclick = () => {
     const k = b.dataset.xadd, el = $('#view').querySelector(`[data-xpanel="${k}"]`); if (!el) return;

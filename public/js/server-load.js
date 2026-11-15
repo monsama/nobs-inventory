@@ -8,6 +8,7 @@ import { FIXED_TABS } from './02-views.js';
 import { forgetPhotos } from './23-photos.js';
 import { render } from './07-render.js';
 import { refreshHistory } from './28-restore.js';
+import { newLines } from './history-merge.js';
 import { SERVER, setSave, offlineKept, documents, pendingChanges, flushSave, queueServerSave, sendChanges } from './server-save.js';
 import { loginModal } from './signin.js';
 /* After sign-in: changes kept offline on this device go back on top of the server's inventory and are saved. */
@@ -32,29 +33,30 @@ let LOAD_FIX = null;
    save sends and the server puts on top of the stored ones (state.js applyChanges), so none is lost. */
 export const HIST_FULL = new Set();
 const histLoading = new Map();
-const lineKey = e => (e && e.t || '') + '\u0000' + (e && e.msg);
 /* Reads device id's history once, when its page opens, and draws its history panels again with it. */
 export function ensureHistory(id){
   if (!SERVER.on || !SERVER.base || HIST_FULL.has(id) || histLoading.has(id)) return;
   const epoch = UNDO.epoch;
+  let stale = false;
   histLoading.set(id, fetch(`api/history/${encodeURIComponent(id)}`, {credentials: 'same-origin'})
     .then(r => r.ok ? r.json() : null)
     .then(j => {
-      /* A reload in between replaced the page's history: it read its own. */
-      if (!j || !Array.isArray(j.history) || epoch !== UNDO.epoch || HIST_FULL.has(id)) return;
-      const have = new Set(j.history.map(lineKey));
-      const mine = (HISTORY[id] || []).filter(e => !have.has(lineKey(e)));
+      /* A reload in between replaced the page's history: read again for it (below), unless it brought the history. */
+      if (!j || !Array.isArray(j.history) || HIST_FULL.has(id)) return;
+      if (epoch !== UNDO.epoch){ stale = true; return; }
+      const mine = newLines(HISTORY[id] || [], j.history);
       if (j.history.length || mine.length) HISTORY[id] = [...mine, ...j.history].slice(0, HISTORY_KEEP);
       /* What the server holds is the base: only the lines made here and not saved yet are sent. */
       if (j.history.length) SERVER.base.set('history|' + id, JSON.stringify(j.history));
-      if (SERVER.copy) (SERVER.copy.history ||= {})[id] = j.history;
+      /* The copy keeps a newer version a change sent meanwhile brought. */
+      if (SERVER.copy) (SERVER.copy.history ||= {})[id] ??= j.history;
       HIST_FULL.add(id);
       /* Only its Timeline and All changes are drawn again: the rest of the page, and where the focus is, stay. */
       const o = st.tab === id ? byId(id) : null;
       if (o) refreshHistory(o);
     })
     .catch(() => { /* offline: what the page has is shown; tried again when the page is drawn next */ })
-    .finally(() => histLoading.delete(id)));
+    .finally(() => { histLoading.delete(id); if (stale && st.tab === id) ensureHistory(id); }));
 }
 /* Makes what the page holds now the base the next save is compared with (SERVER.base). Records the load itself made
    (LOAD_FIX) are left out, so an admin's page saves them; a viewer's page takes them into the base instead. */

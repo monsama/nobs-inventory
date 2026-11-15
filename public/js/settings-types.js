@@ -7,7 +7,7 @@ import { renderSetModels } from './settings-feed.js';
 import { isAdmin } from './04-settings.js';
 import { closeModal } from './19-modal.js';
 import { queueServerSave, render } from './07-render.js';
-import { VIEWBOX_RE, ICON, iconSvg, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol, tico, relIndex, modelNames } from './01-core.js';
+import { VIEWBOX_RE, ICON, iconSvg, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol, tico, relIndex, modelNames, REVIEW } from './01-core.js';
 import { SVG_ELEMENTS, SVG_ATTRS } from './svg-rules.js';
 import { html, rawHtml } from './html.js';
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
@@ -53,15 +53,17 @@ export const fieldKey = label => {
 export function renderSetTypeFields(){ renderTypeDetail(); }
 const MODELS_KEY = '__models';
 const devicesOf = k => objs.filter(o => o.type === k);
+/* Records waiting in To review hold their type too: a type they have cannot be deleted. */
+const reviewOf = k => REVIEW.filter(o => o.type === k);
 function renderTypeDetail(){
   const box = $('#tpDetail');
   if (!box) return;
   if (st.typeSel === MODELS_KEY){ box.innerHTML = '<div class="panelbox" id="setModels"></div>'; renderSetModels(); return; }
   const type = st.typeSel, t = TYPES[type], list = TYPE_FIELDS[type] || [];
-  const n = devicesOf(type).length, edit = isAdmin();
+  const n = devicesOf(type).length, waiting = reviewOf(type).length, edit = isAdmin();
   const rule = (Array.isArray(st.typeRules) ? st.typeRules : []).findIndex(r => r && r.to === type);
   const named = Object.keys(st.typeMap || {}).find(x => st.typeMap[x] === type);
-  const lock = BUILTIN.includes(type) ? 'A built-in type stays.' : n ? `${n} ${n === 1 ? 'device has' : 'devices have'} this type: give them another first.` : rule >= 0 ? `Type rule ${rule + 1} leads to it (Data sources → Lansweeper).` : named ? `The Lansweeper type name “${named}” leads to it (Data sources → Lansweeper).` : '';
+  const lock = BUILTIN.includes(type) ? 'A built-in type stays.' : n ? `${n} ${n === 1 ? 'device has' : 'devices have'} this type: give them another first.` : waiting ? `${waiting} ${waiting === 1 ? 'record' : 'records'} in To review ${waiting === 1 ? 'has' : 'have'} this type: decide on them first.` : rule >= 0 ? `Type rule ${rule + 1} leads to it (Data sources → Lansweeper).` : named ? `The Lansweeper type name “${named}” leads to it (Data sources → Lansweeper).` : '';
   box.innerHTML = html`<div class="tp-head"><span class="tp-tile" style="--tc:${tcol(type)}">${rawHtml(tico(type, 'tico'))}</span><div class="tp-title"><h3>${t.label}</h3><span class="muted">${n ? `${n} ${n === 1 ? 'device' : 'devices'}` : 'No devices yet'} · ${BUILTIN.includes(type) ? 'built in' : 'your own'}</span></div>${n ? html`<button type="button" id="tpShow">Show the ${n === 1 ? 'device' : `${n} devices`}</button>` : ''}</div>
     <div class="panelbox"><div class="hdr">Look and card</div>
       <div class="tp-look"><div class="tp-form">
@@ -174,7 +176,7 @@ export function renderBuiltinFields(box, type){
   let from = -1;
   box.querySelectorAll('[data-drag]').forEach(r => {
     r.addEventListener('dragstart', e => { if (e.target.closest('input,button,label')) { e.preventDefault(); return; } from = +r.dataset.drag; r.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(from)); });
-    r.addEventListener('dragend', () => { r.classList.remove('dragging'); box.querySelectorAll('.drop-at').forEach(x => x.classList.remove('drop-at')); });
+    r.addEventListener('dragend', () => { from = -1; r.classList.remove('dragging'); box.querySelectorAll('.drop-at').forEach(x => x.classList.remove('drop-at')); });
     r.addEventListener('dragover', e => { if (from < 0) return; e.preventDefault(); box.querySelectorAll('.drop-at').forEach(x => x.classList.remove('drop-at')); r.classList.add('drop-at'); });
     r.addEventListener('drop', e => { e.preventDefault(); const to = +r.dataset.drag; const i = from; from = -1; move(i, to); });
   });
