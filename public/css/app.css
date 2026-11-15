@@ -1824,7 +1824,7 @@ table.stack>tbody>tr>td>.chip,table.stack>tbody>tr>td>button.icon,table.stack>tb
 table.stack>tbody>tr>td>input:not([type=checkbox]),table.stack>tbody>tr>td>select{width:100%;min-width:0}
 table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .ov-hb{display:flex;align-items:center;gap:8px;padding-right:12px;border-bottom:1px solid var(--bd2)}.ov-done summary{cursor:pointer;padding:8px 12px;color:var(--muted);font-size:12px}.ov-hb .ov-row{flex:1;min-width:0;border-bottom:0}
-.bk-export{margin:0 12px 10px;padding:10px 12px;border:1px solid var(--bd2);border-radius:var(--r-s);display:flex;flex-direction:column;gap:8px}.bk-export .note{margin:0}.bk-exrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bk-export{margin:12px;padding:10px 12px;border:1px solid var(--bd2);border-radius:var(--r-s);display:flex;flex-direction:column;gap:8px}.bk-export .note{margin:0}.bk-exrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 /* Settings → Users: the search and filters, and the possible duplicates. */
 .ufilters{flex-wrap:wrap}.ufilters #uQ{flex:1 1 220px;min-width:0}
 .udupes{margin:0 12px 10px;border:1px solid var(--bd2);border-radius:var(--r-s)}
@@ -1950,6 +1950,7 @@ details.how[open]>summary{margin-bottom:4px}
 .nmore>summary .muted{color:var(--muted);margin-left:4px}
 .nmore[open]>summary{margin-bottom:8px}
 .ls-adv{margin:0 0 14px}
+.ls-adv>div:not(:empty)+div:not(:empty){margin-top:16px}
 .ls-adv>summary{cursor:pointer;padding:10px 4px;color:var(--linktext);font-size:13px}
 .umenu>.menu-btn{min-width:28px;height:24px;min-height:0;padding:0;border-radius:var(--r-m);font-size:16px;line-height:1}
 .umenu .menubox{min-width:190px}
@@ -2113,8 +2114,8 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 @media (prefers-reduced-motion:reduce){.set-flash{animation:none}}
 @media (max-width:760px){.set-find{display:none}}
 /* A long note under a Settings section's title: its first line, and More */
-#setPane .note.clamp{position:relative;padding-right:64px!important}
-#setPane .note.clamp:not(.open){display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+#setPane .panelbox .note.clamp.clamp{position:relative;padding-right:72px!important}
+#setPane .note.clamp:not(.open){display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #setPane .note.clamp>.note-more{position:absolute;right:12px;top:8px;font-size:12.5px;height:auto;padding:0}
 /* Give a free IP address to a device: one line per device */
 .ho-item{display:flex;align-items:center;gap:8px;height:auto;min-height:30px;padding:4px 8px;border:0;background:none;font-weight:400;text-align:left;justify-content:flex-start;filter:none}
