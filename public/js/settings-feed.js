@@ -9,7 +9,8 @@ import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './
 import { isAdmin, renderSetPane, who } from './04-settings.js';
 import { $$, $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, MODELS, toast, toastUndo, daysSince } from './01-core.js';
 import { html, rawHtml } from './html.js';
-import { statusHeaderHtml } from './settings-status.js';
+import { setupTrackHtml, statusHeaderHtml } from './settings-status.js';
+import { runOf } from './16-sync.js';
 /* The status header, with the switch that turns Lansweeper on or off for this inventory, and where its data comes from.
    Sync now only for the API: a push comes from the script on the Lansweeper server. */
 export function renderLsToggle(){
@@ -262,7 +263,10 @@ export function renderSetFeed(){
   const L = st.lansweeper, edit = isAdmin(), ro = edit ? '' : 'disabled';
   const field = (k, label, hint) => html`<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${L[k] || ''}" placeholder="${hint}" ${ro}>`;
   if (edit && pushInfo === undefined) loadPushInfo();
-  const pushPanel = edit && html`<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>
+  /* How far the push is set up: a token, the script run on the Lansweeper server, and its first data here. */
+  const push = runOf('lansweeper'), pushed = !!(push && push.how === 'push');
+  const track = setupTrackHtml([['Create a token', !!pushInfo || pushed], ['Run the script on the Lansweeper server', pushed], ['First data received', !!(pushed && push.ok)]]);
+  const pushPanel = edit && html`<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>${pushInfo === undefined ? '' : track}
     <div class="note" style="padding:10px 12px 6px">
       <details class="how" ${pushInfo ? '' : 'open'}><summary>Setup on the Lansweeper server</summary>
       <ol style="margin:0;padding-left:20px;line-height:1.6">

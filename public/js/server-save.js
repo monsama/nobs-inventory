@@ -192,7 +192,8 @@ export function clearConfirm(){
   $('#clrWord').oninput = () => { $('#clrOk').disabled = $('#clrWord').value.trim() !== 'CLEAR'; };
   $('#clrWord').focus();
   $('#clrCancel').onclick = closeModal;
-  $('#clrOk').onclick = () => clearAll();
+  /* Once: a second click while it runs would take a second backup and send stale changes. */
+  $('#clrOk').onclick = async () => { const b = $('#clrOk'); if (b.disabled) return; b.disabled = true; try { await clearAll(); } finally { if (b.isConnected) b.disabled = false; } };
 }
 /* Clears the devices, relations and history on the server, all of them, including any another person added since
    this page loaded. Users, locations, types and settings stay. */
@@ -241,7 +242,10 @@ async function clearAll(){
      sites, models. Measured against what is kept, so nothing still in use goes. */
   const keptObjs = d.objs.filter(o => !removed.has(o.id));
   const me = USERS.find(u => u.id === st.meId);
-  const people = $('#clrPeople') && $('#clrPeople').checked ? d.users.filter(u => ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.role !== 'admin' && u.id !== (me && me.id) && !keptObjs.some(o => o.uid === u.id) && !(d.contacts || []).some(c => c && c.userId === u.id)) : [];
+  /* People the syncs bring in, but not the admins and not you; those a kept device or a contact still names stay. */
+  const synced = $('#clrPeople') && $('#clrPeople').checked ? d.users.filter(u => ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.role !== 'admin' && u.id !== (me && me.id)) : [];
+  const people = synced.filter(u => !keptObjs.some(o => o.uid === u.id) && !(d.contacts || []).some(c => c && c.userId === u.id));
+  const peopleKept = synced.length - people.length;
   const gonePeople = new Set(people.map(u => u.id));
   const keptJson = JSON.stringify([keptObjs, d.users.filter(u => !gonePeople.has(u.id)), d.plans, d.stockRooms, d.racks, d.subnets, d.locMap, d.adLocMap, d.contracts, d.licences, d.savedViews, d.groupRoles, d.modelMap, d.lifecycle]);
   const used = v => keptJson.includes(JSON.stringify(v));
@@ -273,5 +277,6 @@ async function clearAll(){
   }
   leaveSettings(); closeModal();   /* the emptied inventory is shown, not Settings */
   await reloadFromServer();
-  toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded device' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + (extra.length ? '. Also removed: ' + extra.join(', ') + '.' : '') + connMsg);
+  toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded device' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + (extra.length ? '. Also removed: ' + extra.join(', ') + '.' : '')
+    + (peopleKept ? ` ${peopleKept} ${peopleKept === 1 ? 'person stays' : 'people stay'}: a kept device or a contact names them.` : '') + connMsg);
 }

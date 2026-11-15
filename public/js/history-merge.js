@@ -15,9 +15,11 @@ export function newLines(page, stored){
   stored.forEach((e, j) => { const k = keyOf(e); if (!at.has(k)) at.set(k, []); at.get(k).push(j); });
   for (let i = 0; i < page.length; i++){
     for (const j of at.get(keyOf(page[i])) || []){
-      let ok = true;
-      for (let n = 1; n < RUN && i + n < page.length && j + n < stored.length; n++) if (keyOf(page[i + n]) !== keyOf(stored[j + n])){ ok = false; break; }
-      if (ok) return page.slice(0, i);
+      /* RUN lines agree, or all the page has left does; the stored list running out first is not enough (the same line
+         twice in a minute would then hide the new lines above it). */
+      let n = 1;
+      while (n < RUN && i + n < page.length && j + n < stored.length && keyOf(page[i + n]) === keyOf(stored[j + n])) n++;
+      if (n >= RUN || i + n === page.length) return page.slice(0, i);
     }
   }
   /* Nothing runs alongside: the stored lines were all cut off since, or the page never had them. Lines that are stored

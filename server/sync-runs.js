@@ -27,3 +27,16 @@ export async function runRecorded(db, src, fn, how = '') {
     throw e;
   }
 }
+
+/* The last Test connection of the directory and of Microsoft Graph, kept as the setting testRuns: when, whether it
+   passed, and what it said (counts or the error, never a password or a key), so the source's tab still says it after a
+   reload and the setup steps can tick off the permissions without waiting for a sync. */
+export function recordTest(db, src, { ok, text = '' }, now = new Date()) {
+  if (!SOURCES.includes(src)) return null;
+  const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'testRuns'").get();
+  const runs = r ? JSON.parse(r.data) : {};
+  runs[src] = { at: now.toISOString(), ok: !!ok, text: String(text || '').slice(0, 300) };
+  db.prepare("INSERT INTO docs (kind, id, data) VALUES ('setting', 'testRuns', ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data").run(JSON.stringify(runs));
+  db.prepare("INSERT INTO revs (kind, id, rev) VALUES ('setting', 'testRuns', 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1").run();
+  return runs[src];
+}

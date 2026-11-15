@@ -36,9 +36,17 @@ try {
   await openSetTab(page, 'entra'); await page.waitForSelector('#setGraph .panelbox');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Entra & Intune does not show LDAP');
   await openSetTab(page, 'directory'); await page.waitForSelector('#setLdap #lk_url');
+  // the setup as a track of three steps; Test connection is kept and said in the header, also after the tab is drawn again
+  assert.match(await page.textContent('#setLdap .setup-track'), /Setup: 0 of 3 done\s*1\s*Server and service account \(next\)\s*2\s*Test connection passed\s*3\s*First sync/);
+  assert.equal(await page.locator('#setLdap .src-st-test').count(), 0, 'no test yet');
+  assert.equal(await page.locator('#setLdap [data-srcpreview="ad"]').count(), 1, 'Preview sync is offered before the first sync');
   // connection security: StartTLS moves the address to ldap:// and port 389, TLS back; a company CA is added and removed
   await page.fill('#lk_url', 'ldaps://dc01.example.test:636'); await page.press('#lk_url', 'Tab');
   await page.waitForFunction(() => document.querySelector('#lk_security') && document.querySelector('#lk_security').value === '');
+  await page.click('#ldapTest');
+  await page.waitForSelector('#setLdap .src-st-test.bad', { timeout: 25000 });
+  assert.match(await page.textContent('#setLdap .src-st-test'), /Last test .*: /);
+  await openSetTab(page, 'entra'); await openSetTab(page, 'directory'); await page.waitForSelector('#setLdap .src-st-test.bad');
   await page.selectOption('#lk_security', 'starttls');
   await page.waitForFunction(() => document.querySelector('#lk_url').value === 'ldap://dc01.example.test:389');
   assert.match(await page.textContent('#setLdap'), /Encrypted like ldaps:\/\/, on the usual port 389/);
@@ -54,6 +62,10 @@ try {
   page.once('dialog', d => d.accept());
   await page.click('#caRemove');
   await page.waitForSelector('#ldapCa:has-text("None: only certificates from public CAs")');
+  // the connection in three groups; old certificates (not recommended) under Advanced, which stays open once opened
+  assert.deepEqual((await page.locator('#setLdap .form-sec').allTextContents()).map(t => t.split(/\s{2,}| the /)[0].trim()), ['Server', 'Account', 'Who may sign in']);
+  assert.equal(await page.isVisible('#lk_legacyTls'), false, 'old certificates are not in the way');
+  await page.click('#ldapAdv > summary');
   // old certificates: off by default, on only after confirming, with a warning shown while it is on
   assert.equal(await page.isChecked('#lk_legacyTls'), false);
   page.once('dialog', d => d.dismiss());
@@ -66,6 +78,7 @@ try {
   assert.equal(await page.evaluate(async () => (await import('/js/01-core.js')).st.ldap.legacyTls), 'on');
   await page.uncheck('#lk_legacyTls');
   await page.waitForFunction(() => !document.querySelector('#setLdap .chip.warn'));
+  assert.equal(await page.isVisible('#lk_legacyTls'), true, 'Advanced stayed open');
   // the service account password: saved, never shown again, removable
   await page.waitForSelector('#lk_pw');
   await page.fill('#lk_pw', 'svc-secret'); await page.click('#lpSave');

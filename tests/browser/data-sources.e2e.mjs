@@ -47,7 +47,10 @@ try {
   const bare = t => t.replace(/ [^.]* (is|are) not set up: (it writes|they write) nothing yet\.$/, '');
   const how = async label => bare(await row(label).locator('.ds-how').textContent());
   const says = async () => bare(await p.textContent('#dsSays'));
-  assert.equal(await row('IP address').locator('.ds-how').textContent(), 'Lansweeper keeps it up to date at every scan. Lansweeper is not set up: it writes nothing yet.');
+  assert.equal(await row('IP address').locator('.ds-how').textContent(), 'Lansweeper keeps it up to date at every scan.', 'a source not set up is not repeated in every row');
+  assert.match(await p.textContent('.ds-legend'), /Dashed, like this: not set up yet \(Lansweeper, Entra & Intune and AD\)/);
+  assert.equal(await row('IP address').locator('.ds-src.ds-dim').count(), 1, 'the chip of a source not set up is dashed');
+  assert.deepEqual(await p.locator('.ds-srccard button').allTextContents(), ['Set up', 'Set up', 'Set up']);
   assert.equal(await chain('IP address'), '1Lansweeper');
   assert.equal(await how('IP address'), 'Lansweeper keeps it up to date at every scan.');
   assert.equal(await chain('Disks'), '1Entra & Intune shown only: Lansweeper', 'Intune comes first where Lansweeper only shows its value');
@@ -77,6 +80,16 @@ try {
   await stored(st => st.useAd === true);
   assert.equal(await p.locator('[data-srcstatus=ad] .src-offtext').count(), 0);
   await openSetTab(p, 'entra'); await p.waitForSelector('#useGraph');
+  /* The setup as four numbered steps, the one to do now marked, and how far it is; the optional reads apart. */
+  const steps = () => p.evaluate(() => [...document.querySelectorAll('.graph-steps:not(.gs-opt)>li')].map(l => l.className || '-'));
+  assert.deepEqual(await steps(), ['gs-now', '-', '-', '-']);
+  assert.equal((await p.textContent('.gs-progress')).trim(), 'Setup: 0 of 4 steps done');
+  assert.equal(await p.locator('.graph-steps.gs-opt>li').count(), 4);
+  await p.fill('#gTenant', '11111111-2222-3333-4444-555555555555'); await p.fill('#gClient', '66666666-7777-8888-9999-000000000000');
+  await p.click('#gSave');
+  await p.waitForFunction(() => document.querySelector('.graph-steps>li')?.classList.contains('gs-ok'));
+  assert.deepEqual(await steps(), ['gs-ok', 'gs-now', '-', '-'], 'the IDs saved: on to the certificate');
+  assert.equal((await p.textContent('.gs-progress')).trim(), 'Setup: 1 of 4 steps done');
   await p.uncheck('#useGraph');
   await stored(st => st.useGraph === false);
   await p.waitForSelector('[data-srcstatus=graph] .src-offtext');
@@ -98,8 +111,19 @@ try {
   assert.equal(await p.locator('table.grid tbody tr').count(), 2);
   await p.click('#setBtn'); await openSetTab(p, 'sources'); await openAdv();
   // a setting changed on the Lansweeper tab shows here at once
-  await openSetTab(p, 'feed'); await p.waitForSelector('[data-pol=disk]');
-  await p.check('[data-pol=disk]');
+  /* "Writes it" on a source's tab, with the preview when it changes devices */
+  const writes = async k => { await p.check(`[data-dswrite=${k}]`); await p.waitForTimeout(150); if (await p.locator('#dpOk').count()) await p.click('#dpOk'); };
+  await openSetTab(p, 'feed'); await p.waitForSelector('[data-dswrite=disk]');
+  assert.equal(await p.locator('[data-pol=ip]').count(), 0, 'a field in the table has no second box below it');
+  assert.equal(await p.locator('[data-pol=user]').count(), 1, 'the user has no row: its box stays');
+  await writes('disk');
+  /* Undo puts back only its own field: a box changed meanwhile on the same tab stays as it is */
+  const userWas = await p.isChecked('[data-pol=user]');
+  await p.setChecked('[data-pol=user]', !userWas);
+  await p.click('#toast .t-undo');
+  await stored(st => !st.policy.disk && !!st.policy.user === !userWas);
+  await p.setChecked('[data-pol=user]', userWas);
+  await writes('disk');
   await openSetTab(p, 'sources'); await openAdv();
   assert.equal(await chain('Disks'), '1Lansweeper › 2Entra & Intune');
   // Change…: the sources as a list, moved up and down, what it means said as it changes
@@ -129,18 +153,25 @@ try {
   await p.uncheck('[data-dsuse=ls]');
   assert.match(await says(), /No source writes it: it is kept as typed\. Lansweeper is shown beside the field\./);
   await p.click('#dsSave'); await p.waitForSelector('.ds-matrix');
-  await stored(st => JSON.stringify((st.fieldOrder || {}).ip) === '[]' && st.policy.ip === false);
+  /* Lansweeper out is what its box off means anyway: the field is not marked as set here (Custom), only the box is off */
+  await stored(st => !(st.fieldOrder || {}).ip && st.policy.ip === false);
+  assert.doesNotMatch(await row('IP address').locator('th').textContent(), /Custom/);
   assert.equal(await chain('IP address'), 'Kept as typed shown only: Lansweeper');
-  await openSetTab(p, 'feed'); await p.waitForSelector('[data-pol=ip]');
-  assert.equal(await p.isChecked('[data-pol=ip]'), false);
-  await p.check('[data-pol=ip]');
+  await openSetTab(p, 'feed'); await p.waitForSelector('[data-dswrite=ip]');
+  assert.equal(await p.isChecked('[data-dswrite=ip]'), false);
+  await writes('ip');
   await openSetTab(p, 'sources'); await openAdv();
   assert.equal(await chain('IP address'), '1Lansweeper');
+  await stored(st => !(st.fieldOrder || {}).ip && st.policy.ip === true);
   // one field back to its default, from its dialog; then all of them
-  await row('IP address').locator('[data-dsedit]').click(); await p.click('#dsDefault');
-  await stored(st => !(st.fieldOrder || {}).ip);
-  await p.waitForSelector('.ds-matrix');
+  await stored(st => !(st.fieldOrder || {}).disk && st.policy.disk === true);   // Lansweeper on Disks by its box, not as Custom
   await row('Disks').locator('[data-dsedit]').click(); await p.uncheck('[data-dsuse=graph]'); await p.click('#dsSave');
+  await stored(st => JSON.stringify((st.fieldOrder || {}).disk) === '["ls"]');
+  await p.waitForSelector('.ds-matrix');
+  await row('Disks').locator('[data-dsedit]').click(); await p.click('#dsDefault');
+  await stored(st => !(st.fieldOrder || {}).disk && !st.policy.disk);
+  await p.waitForSelector('.ds-matrix');
+  await row('Disks').locator('[data-dsedit]').click(); await p.check('[data-dsuse=ls]'); await p.uncheck('[data-dsuse=graph]'); await p.click('#dsSave');
   await stored(st => JSON.stringify((st.fieldOrder || {}).disk) === '["ls"]');
   await p.click('#dsReset');
   await stored(st => !Object.keys(st.fieldOrder || {}).length);

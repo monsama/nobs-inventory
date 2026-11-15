@@ -9,7 +9,7 @@ import { newObjModal } from './05-new-object.js';
 import { importCsvModal } from './views-csv.js';
 import { clearConfirm } from './server-save.js';
 import { handOutToModal } from './27-handout.js';
-import { openObj } from './02-views.js';
+import { openObj, tabAllowed } from './02-views.js';
 import { render } from './07-render.js';
 import { showDevicesOf } from './settings-users.js';
 import { restoreView } from './views-saved.js';
@@ -31,7 +31,8 @@ const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes
 const row = (i, icon, main, sub) => html`<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${main}</span>${sub ? html`<span class="gs-sub">${sub}</span>` : ''}</li>`;
 
 /* The actions: [name, other words, for admins only, what it does]. The views of the tab bar are actions too. */
-const goTab = t => () => { st.tab = t; render(); };
+const TAB_OF = new Map();
+const goTab = t => { const go = () => { st.tab = t; render(); }; TAB_OF.set(go, t); return go; };
 const ACTIONS = [
   ['New device…', 'add create device object', true, () => newObjModal()],
   ['Import devices from a CSV file…', 'csv import upload excel spreadsheet', true, () => importCsvModal()],
@@ -50,7 +51,8 @@ const ACTIONS = [
 ];
 function actions(q){
   const admin = isAdmin();
-  const list = ACTIONS.filter(([l, w, a]) => (admin || !a) && has(q, l, w)).map(([l, , , go]) => ({ label: l, sub: '', go }));
+  /* A view this person may not open (a viewer limited to their own devices) is not offered. */
+  const list = ACTIONS.filter(([l, w, a, go]) => (admin || !a) && (!TAB_OF.has(go) || tabAllowed(TAB_OF.get(go))) && has(q, l, w)).map(([l, , , go]) => ({ label: l, sub: '', go }));
   /* Handing out to a person found by name. */
   if (admin && q.length > 1) for (const u of USERS.filter(x => x.active !== false && has(q, x.name)).slice(0, 2)) list.push({ label: `Hand out a device to ${u.name}…`, sub: u.dept || '', go: () => handOutToModal(u) });
   return list;

@@ -14,7 +14,7 @@ import { autoBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
 import { probeCert } from './proxy-cert.js';
 import { syncLdapUsers } from './ldap-sync.js';
-import { recordSync, runRecorded } from './sync-runs.js';
+import { recordSync, recordTest, runRecorded } from './sync-runs.js';
 import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 
@@ -85,17 +85,20 @@ export function registerSyncRoutes(app, ctx) {
     try {
       const lc = cfgLdap();
       if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
-      const people = await ldapListUsers(lc);
-      res.json({ people: people.length, admins: people.filter(p => p.admin).length });
+      const people = await ldapListUsers(lc), admins = people.filter(p => p.admin).length;
+      const test = recordTest(db, 'ldap', people.length ? { ok: true, text: `Connected: ${people.length} ${people.length === 1 ? 'user' : 'users'} can sign in, ${admins} of them ${admins === 1 ? 'admin' : 'admins'}` }
+        : { ok: false, text: 'Connected, but no user is in the sign-in group' });
+      res.json({ people: people.length, admins, test });
     } catch (e) {
-      if (e instanceof HttpError) return next(e);
+      if (e instanceof HttpError) { recordTest(db, 'ldap', { ok: false, text: e.message }); return next(e); }
       /* A certificate that is not trusted: what the server presented, so nobody has to look on the server. */
       const report = isCertError(e.message) ? await ldapCertReport(cfgLdap()).catch(() => null) : null;
       const hint = report ? report.text : ldapHint(e.message);
       /* Not reached: the same words whatever the reason (refused, no such host, timed out), so the test says nothing about
          what else listens on the network. */
-      if (isUnreachable(e.message)) return next(new HttpError(502, ldapHint('connect')));
-      next(new HttpError(502, (hint || 'The directory cannot be read.') + ' (' + String(e.message).slice(0, 200) + ')'));
+      const err = isUnreachable(e.message) ? new HttpError(502, ldapHint('connect')) : new HttpError(502, (hint || 'The directory cannot be read.') + ' (' + String(e.message).slice(0, 200) + ')');
+      recordTest(db, 'ldap', { ok: false, text: err.message });
+      next(err);
     }
   });
 
@@ -139,6 +142,17 @@ export function registerSyncRoutes(app, ctx) {
     } catch (e) { audit(db, null, 'Lansweeper sync failed: ' + e.message); next(e); }
   });
 
+  /* Preview sync: what a directory sync would do now, worked out without saving anything; not recorded as a run. */
+  app.post('/api/ldap/preview', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      const lc = cfgLdap();
+      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
+      res.json({ counts: await syncLdapUsers(db, lc, { dryRun: true }) });
+    } catch (e) {
+      if (e instanceof HttpError) return next(e);
+      next(new HttpError(502, ldapHint(e.message) || 'The directory cannot be read.'));
+    }
+  });
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       /* Switched off in Settings: not run, and not recorded as a run. Sign-in with AD accounts is not affected. */

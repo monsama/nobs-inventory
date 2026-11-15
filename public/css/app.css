@@ -1588,10 +1588,17 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .src-offnote{padding:4px 2px 12px}
 .src-offtext{margin:0;font-size:12.5px}
 .src-hist{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
-.ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
-.ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:var(--ctl);padding:0 12px}
+.ds-srcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:12px}
+.ds-srccard{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
+.ds-srccard.idle{border-style:dashed;background:var(--panel2)}
+.ds-srctop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ds-srctop .muted{margin-left:auto;font-size:12.5px}
+.ds-srcwhat{margin:0;flex:1;font-size:12.5px;color:var(--muted);line-height:1.45}
+.ds-srcbtn{align-self:flex-start}
+.ds-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;padding:8px 12px}
+.ds-presets button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 .ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
-@media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
+@media (max-width:760px){table.stack.ds-matrix td.ds-act,table.grid.ds-matrix.stack td.ds-write{width:auto;text-align:left}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
 .ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
 
@@ -1759,7 +1766,8 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .cn-foot{display:flex;gap:4px 14px;flex-wrap:wrap}
 /* Data sources: a source not set up is marked by its dashed border and badge, not by fading its text (contrast). */
 .ds-card.off{opacity:1;border-style:dashed;background:var(--panel2)}
-.ds-dim{opacity:1;color:var(--muted)}
+.ds-dim{opacity:1;color:var(--muted);border-style:dashed;background:transparent}
+.ds-dim b{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--muted)}
 /* Merged records: names break between words, the date stays on one line. */
 .nics.merged .nic-name{overflow-wrap:break-word;word-break:normal}
 .nics.merged .nic-meta{white-space:normal}
@@ -1824,7 +1832,7 @@ table.stack>tbody>tr>td>.chip,table.stack>tbody>tr>td>button.icon,table.stack>tb
 table.stack>tbody>tr>td>input:not([type=checkbox]),table.stack>tbody>tr>td>select{width:100%;min-width:0}
 table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .ov-hb{display:flex;align-items:center;gap:8px;padding-right:12px;border-bottom:1px solid var(--bd2)}.ov-done summary{cursor:pointer;padding:8px 12px;color:var(--muted);font-size:12px}.ov-hb .ov-row{flex:1;min-width:0;border-bottom:0}
-.bk-export{margin:0 12px 10px;padding:10px 12px;border:1px solid var(--bd2);border-radius:var(--r-s);display:flex;flex-direction:column;gap:8px}.bk-export .note{margin:0}.bk-exrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bk-export{margin:12px;padding:10px 12px;border:1px solid var(--bd2);border-radius:var(--r-s);display:flex;flex-direction:column;gap:8px}.bk-export .note{margin:0}.bk-exrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 /* Settings → Users: the search and filters, and the possible duplicates. */
 .ufilters{flex-wrap:wrap}.ufilters #uQ{flex:1 1 220px;min-width:0}
 .udupes{margin:0 12px 10px;border:1px solid var(--bd2);border-radius:var(--r-s)}
@@ -1950,6 +1958,7 @@ details.how[open]>summary{margin-bottom:4px}
 .nmore>summary .muted{color:var(--muted);margin-left:4px}
 .nmore[open]>summary{margin-bottom:8px}
 .ls-adv{margin:0 0 14px}
+.ls-adv>div:not(:empty)+div:not(:empty){margin-top:16px}
 .ls-adv>summary{cursor:pointer;padding:10px 4px;color:var(--linktext);font-size:13px}
 .umenu>.menu-btn{min-width:28px;height:24px;min-height:0;padding:0;border-radius:var(--r-m);font-size:16px;line-height:1}
 .umenu .menubox{min-width:190px}
@@ -2090,7 +2099,7 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .tp-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 12px;align-content:start}
 .tp-form label,.tp-ic{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
 .tp-form input:not([type=color]){width:100%;box-sizing:border-box;color:var(--fg);font-size:13px}
-.tp-form input[type=color]{width:64px;height:var(--ctl);padding:2px}
+.tp-form input[type=color]{width:100%;height:var(--ctl);padding:2px;box-sizing:border-box}
 .tp-ic .icondd{min-width:0;width:100%}.tp-ic .icondd-btn{width:100%;color:var(--fg);font-size:13px}
 .tp-lbl{font-size:12px;color:var(--muted)}
 .tp-prev{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -2113,8 +2122,8 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 @media (prefers-reduced-motion:reduce){.set-flash{animation:none}}
 @media (max-width:760px){.set-find{display:none}}
 /* A long note under a Settings section's title: its first line, and More */
-#setPane .note.clamp{position:relative;padding-right:64px!important}
-#setPane .note.clamp:not(.open){display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+#setPane .panelbox .note.clamp.clamp{position:relative;padding-right:72px!important}
+#setPane .note.clamp:not(.open){display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #setPane .note.clamp>.note-more{position:absolute;right:12px;top:8px;font-size:12.5px;height:auto;padding:0}
 /* Give a free IP address to a device: one line per device */
 .ho-item{display:flex;align-items:center;gap:8px;height:auto;min-height:30px;padding:4px 8px;border:0;background:none;font-weight:400;text-align:left;justify-content:flex-start;filter:none}
@@ -2123,3 +2132,52 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .ip-give{margin-left:8px;font-size:12.5px}
 /* A retired device: kept for the record, so nothing is added or linked to it on its page */
 .obj.is-retired :is(.addrel,.xadd,.xhide){display:none}
+/* "Writes it" on a source's own tab: a narrow centred box column. */
+table.grid.ds-matrix .ds-write{width:72px;text-align:center;white-space:nowrap}
+table.grid.ds-matrix td.ds-write input{margin:0}
+/* Entra & Intune setup: numbered steps with a marker that says done (tick), now (filled) or later (outlined), and how
+   far the setup is; the optional reads below with a plain dot. */
+.graph-steps{list-style:none;counter-reset:gs}
+.graph-steps>li{position:relative;counter-increment:gs}
+.graph-steps>li::before{content:counter(gs);position:absolute;left:-28px;top:6px;width:20px;height:20px;box-sizing:border-box;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;border:1.5px solid var(--bd);color:var(--muted);background:var(--bg)}
+.graph-steps>li.gs-now::before{background:var(--accentbtn);border-color:var(--accentbtn);color:var(--accentfg)}
+.graph-steps>li.gs-ok::before{content:'✓';background:var(--okdot);border-color:var(--okdot);color:#fff}
+.graph-steps.gs-opt>li::before{content:'';width:8px;height:8px;left:-22px;top:13px;border:0;background:var(--muted)}
+.gs-progress{display:flex;align-items:center;gap:12px;padding:10px 12px 2px;font-size:12.5px;font-weight:600}
+.gs-bar{flex:1;max-width:260px;height:6px;border-radius:3px;background:var(--panel2);border:1px solid var(--bd2);overflow:hidden}
+.gs-bar>i{display:block;height:100%;background:var(--okdot);border-radius:3px}
+.gs-opthdr .muted{font-weight:400;margin-left:6px;font-size:12px}
+/* A small heading inside a two-column form, over the fields that belong together. */
+.form>.form-sec{grid-column:1/-1;margin:10px 0 0;padding-top:10px;border-top:1px solid var(--bd2);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.form>.form-sec:first-child{margin-top:0;padding-top:0;border-top:0}
+.form>.form-sec .muted{text-transform:none;letter-spacing:0;font-weight:400;margin-left:6px}
+/* A field's sources: the chips in a row that wraps as a whole (also beside its label on a phone), what is only shown
+   below them. */
+.ds-chainin{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.ds-chainin>.ds-src,.ds-chainin>.ds-arrow{flex:none}
+.ds-chainin>.ds-also{flex-basis:100%}
+@media (min-width:761px){.ds-chainin{flex-wrap:nowrap}.ds-chainin:has(.ds-also){flex-wrap:wrap}}
+/* The last Test connection under the last sync: a tick or a mark, in the colour of how it went. */
+.src-st-test{display:flex;align-items:baseline;gap:6px;font-size:12.5px;margin-top:2px}
+.src-st-test.ok{color:var(--oktext)}
+.src-st-test.bad{color:var(--danger)}
+.src-st-ico{font-weight:700;width:12px;text-align:center;flex:none}
+/* A source's setup as a short track: the steps in a row, ticked when done, the one to do now filled; under the header of
+   its box, until all are done. */
+.setup-track{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:10px 12px;border-bottom:1px solid var(--bd2);background:var(--panel2)}
+.setup-track .st-head{font-size:12.5px;font-weight:600}
+.setup-track ol{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;padding:0;list-style:none;counter-reset:none}
+.setup-track li{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.setup-track li i{display:grid;place-items:center;width:18px;height:18px;box-sizing:border-box;border-radius:50%;border:1.5px solid var(--bd);font-style:normal;font-size:10.5px;font-weight:700;background:var(--bg)}
+.setup-track li.ok{color:var(--fg)}
+.setup-track li.ok i{background:var(--okdot);border-color:var(--okdot);color:#fff}
+.setup-track li.now{color:var(--fg);font-weight:600}
+.setup-track li.now i{background:var(--accentbtn);border-color:var(--accentbtn);color:var(--accentfg)}
+.setup-track li+li::before{content:'';width:14px;height:1px;background:var(--bd);margin-right:4px}
+@media (max-width:760px){.setup-track ol{flex-direction:column;gap:6px}.setup-track li+li::before{content:none}}
+/* What a failed sync's error means and what to do, under the error itself. */
+.src-fix{display:block;margin-top:2px;color:var(--fg);font-size:12.5px}
+/* Move to a new server: two short lists of steps, each under a small heading. */
+.mv-body{padding:4px 12px 12px}
+.mv-body h4{display:flex;align-items:center;gap:8px;margin:12px 0 6px;font-size:13px}
+.mv-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:12.5px;line-height:1.55}

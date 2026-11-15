@@ -1,7 +1,7 @@
 /* Entry sheets (admins) and reports as PDF or Excel files (everyone signed in). Split out of app.js. */
 import { audit } from './db.js';
 import { scopeOf, scopeState } from './scope.js';
-import { loadState } from './state.js';
+import { loadState, settingOf } from './state.js';
 import { sheetPdf } from './sheet-pdf.js';
 import { reportPdf, reportXlsx } from './report-files.js';
 import { buildReport, reportOptions } from '../public/js/reports.js';
@@ -52,18 +52,23 @@ export function registerSheetRoutes(app, ctx) {
       if (!Array.isArray(b.columns) || !b.columns.length || b.columns.length > 12) throw new HttpError(400, 'A list has 1 to 12 columns.');
       const maxRows = pdf ? 1000 : 20000;
       if (!Array.isArray(b.rows) || b.rows.length > maxRows) throw new HttpError(400, `A list ${pdf ? 'as a PDF ' : ''}has up to ${maxRows} rows${pdf ? ': take Excel for more' : ''}.`);
+      /* The text of a list is bounded as a whole as well (an IP list is far below), before any work is done on it. */
+      let chars = 0;
+      for (const r of b.rows) if (Array.isArray(r)) for (const v of r.slice(0, 12)) chars += typeof v === 'string' ? Math.min(v.length, 200) : 8;
+      if (chars > 3e6) throw new HttpError(413, 'The list is too large to export.');
+      /* One file at a time for each person and two at a time in all, PDF or Excel. */
+      if (making.has(who) || making.size >= 2) throw new HttpError(429, 'A file is being made already. Try again in a moment.');
       const columns = b.columns.map(c => ({ label: clean(c && c.label).slice(0, 60) || '-', w: Math.min(4, Math.max(0.3, Number(c && c.w) || 1)) }));
       const rows = b.rows.map(r => columns.map((_, i) => clean(Array.isArray(r) ? r[i] : '').slice(0, pdf ? 60 : 120)));
-      if (pdf && (making.has(who) || making.size >= 2)) throw new HttpError(429, 'A PDF is being made already. Try again in a moment.');
       const name = String(b.name || b.list).replace(/[^\w-]/g, '').slice(0, 40) || b.list;
       const r = { title, subtitle: clean(b.subtitle).slice(0, 300), columns, groups: [{ name: '', rows }] };
-      const s = loadState(db), base = `nobs-${name}-${new Date().toISOString().slice(0, 10)}`;
+      const base = `nobs-${name}-${new Date().toISOString().slice(0, 10)}`;
       res.set('Cache-Control', 'no-store');
-      if (!pdf) res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(`${base}.xlsx`).send(reportXlsx(r));
-      else {
-        making.add(who);
-        try { res.type('application/pdf').attachment(`${base}.pdf`).send(await reportPdf(r, s.company || {})); } finally { making.delete(who); }
-      }
+      making.add(who);
+      try {
+        if (!pdf) res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(`${base}.xlsx`).send(reportXlsx(r));
+        else res.type('application/pdf').attachment(`${base}.pdf`).send(await reportPdf(r, settingOf(db, 'company') || {}));
+      } finally { making.delete(who); }
       audit(db, req.user.id, `report made: ${title} (${pdf ? 'PDF' : 'Excel'}, ${rows.length} rows)`);
     } catch (e) { next(e); }
   });

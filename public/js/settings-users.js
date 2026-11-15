@@ -9,6 +9,9 @@ import { USERS, who, roleLabel, me, userId, openSettings, isAdmin } from './04-s
 import { $$, menuHtml, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, COSTS, SITES } from './01-core.js';
 import { html, rawHtml } from './html.js';
 import { comboHtml } from './17-fields.js';
+/* People a sync brings in, and the name of that sync. */
+const SRC_NAME = { ldap: 'LDAP', entra: 'Entra', lansweeper: 'Lansweeper' };
+const fromSync = u => u.source in SRC_NAME;
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
 /* Where a person comes from, and whether Entra knows them too: one chip, a coloured dot for each, the details in the tooltip.
@@ -208,7 +211,7 @@ export function renderSetUsers(){
       <td class="umenu-c">${rawHtml(menuHtml('⋯', html`
         ${SERVER.on && u.source !== 'ldap' ? (u.login ? html`<button data-pw="${i}" title="Set this user's password">Set password…</button>` : html`<button data-login="${i}" title="Give this user a login name">Give a login name…</button>`) : ''}
         ${SERVER.on ? html`<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet…</button>${devicesOfUser(u.name) ? html`<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${u.name} has, as a PDF to tick off when they are handed back">Hand-back list (PDF)</a>` : ''}` : ''}
-        <button class="danger-text" data-del="${i}" ${u.source === 'ldap' ? html`disabled title="Managed by LDAP"` : devicesOfUser(u.name) ? html`disabled title="Has devices. Move them first."` : html`title="Remove"`}>Remove</button>`, { cls: 'umenu', btn: String(html`aria-label="More for ${u.name}" title="Password, entry sheet, remove"`) }))}</td></tr>`);
+        ${devicesOfUser(u.name) ? html`<button class="danger-text" data-del="${i}" disabled title="Has devices: hand them to someone else or take them back first">Remove (has devices)</button>` : html`<button class="danger-text" data-del="${i}" title="${fromSync(u) ? `Remove; the next ${SRC_NAME[u.source]} sync adds them again while they are there` : 'Remove'}">Remove</button>`}`, { cls: 'umenu', btn: String(html`aria-label="More for ${u.name}" title="Password, entry sheet, remove"`) }))}</td></tr>`);
   $('#setUsers').innerHTML = html`<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
     ${foundViewers().length ? html`<div class="addrel"><span class="grow"></span>${foundViewers().length ? html`<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
     ${dupesHtml(devicesOfUser)}${kindTabs}${filterBar}
@@ -285,7 +288,13 @@ export function renderSetUsers(){
     const u = USERS[+b.dataset.del];
     if (me() && String(u.id) === String(me().id)){ toast("You can't remove yourself."); return; }
     if (u.role === 'admin' && u.active !== false && activeAdmins() <= 1){ toast('At least one active admin is needed.'); return; }
-    USERS.splice(+b.dataset.del, 1); queueServerSave(); toast(u.name + ' removed'); renderSetUsers();
+    const i = +b.dataset.del;
+    USERS.splice(i, 1); queueServerSave(); renderSetUsers();
+    /* A person a sync brought in comes back with the next sync while the directory still has them: said, with Undo. */
+    toastUndo(fromSync(u) ? `${u.name} removed. The next ${SRC_NAME[u.source]} sync adds them again while they are there; No access keeps them out instead.` : `${u.name} removed`, () => {
+      if (!USERS.some(x => String(x.id) === String(u.id))) USERS.splice(Math.min(i, USERS.length), 0, u);
+      queueServerSave(); if ($('#setUsers')) renderSetUsers();
+    }, { anyEpoch: true });
   });
   /* The password's length is said under the row while it is typed, not only after Add user. */
   const pwNote = (always = false) => {
@@ -403,12 +412,12 @@ export function passwordModal(u){
 const USERS_HELP = [
   ['Roles', [['Admin', 'Changes everything: devices, people and Settings.'],
     ['Viewer', 'Looks only: everything, some sites, or only their own devices.'],
-    ['No access', 'Cannot sign in. People found by LDAP, Entra or Lansweeper start here; give them Viewer to let them in.']]],
+    ['No access', 'Cannot sign in. Everyone found by a sync, or only named as a device\'s user (typed or from a CSV), starts here; give them Viewer to let them in.']]],
   ['Columns', [['Login', 'What they sign in with; "No sign-in" when they have none.'],
     ['Source', 'Where the person comes from (LDAP, Entra, Lansweeper, made here), and whether Microsoft Entra knows them too (Settings → Entra & Intune → People).'],
     ['Devices', 'How many devices name this person; click the number to see them.'],
     ['Active', 'Off for someone who left: their devices are listed to take back.']]],
-  ['Good to know', [['From LDAP', 'Name, department and groups come from the directory and are changed there. They cannot be removed here, only deactivated.']]],
+  ['Good to know', [['From LDAP', 'Name, department and groups come from the directory and are changed there. Removed here, a person comes back with the next sync while the directory has them: No access keeps them out instead.']]],
 ];
 export function usersHelpModal(){
   modal(html`<div class="mh">Roles and columns</div><div class="mb">${USERS_HELP.map(([title, rows]) => html`<div class="u-help"><div class="u-help-h">${title}</div><dl class="u-help-dl">${rows.map(([k, v]) => html`<dt>${k}</dt><dd>${v}</dd>`)}</dl></div>`)}</div>

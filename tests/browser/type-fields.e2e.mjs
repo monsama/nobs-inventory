@@ -89,7 +89,24 @@ try {
   assert.equal(await p.isChecked('[data-fhide="mac"]'), true, 'phones: MAC address ticked');
   await p.check('[data-fhide="ip"]');
   await until(p, async () => { const l = (await import('/js/01-core.js')).FIELD_LAYOUT.android; return l && !l.hidden.includes('ip') && l.hidden.includes('gateway'); });
+  // a type's name saved on Tab: the focus goes on to Short name, also after the form is drawn again
+  await p.fill('[data-tl="android"]', 'Phone'); await p.press('[data-tl="android"]', 'Tab');
+  await until(p, async () => (await import('/js/01-core.js')).TYPES.android.label === 'Phone');
+  assert.equal(await p.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-ts')), 'android', 'the focus was lost');
   await p.click('#setClose');
+
+  // a viewer can look at a type but change nothing, also after picking another type
+  const s0 = loadState(db); s0.users.push({ id: 'v1', name: 'Viewer', login: 'viewer', role: 'viewer', active: true });
+  const { saveState } = await import('../../server/state.js'); saveState(db, s0);
+  const { setPassword } = await import('../../server/auth.js'); setPassword(db, 'v1', 'viewerpass123');
+  const v = await (await browser.newContext({ viewport: { width: 1300, height: 900 } })).newPage();
+  v.on('pageerror', e => errors.push(e.message));
+  await v.goto(base + '/'); await v.waitForSelector('#lgUser');
+  await v.fill('#lgUser', 'viewer'); await v.fill('#lgPw', 'viewerpass123'); await v.click('#lgOk');
+  await v.waitForSelector('#setBtn'); await v.click('#setBtn'); await openSetTab(v, 'types'); await v.waitForSelector('[data-tsel]');
+  await v.click('[data-tsel="notebook"]'); await v.waitForSelector('[data-tsel="notebook"].on');
+  assert.equal(await v.isDisabled('[data-tl="notebook"]'), true, 'a viewer can rename a type');
+  assert.equal(await v.locator('#tpDetail [data-fhide]:not([disabled])').count(), 0, 'a viewer can hide fields');
 
   assert.deepEqual(errors, [], 'page errors');
   console.log('type fields: all checks passed');

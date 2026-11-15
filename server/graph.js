@@ -615,7 +615,8 @@ export function graphFieldReport(records, fallback = false, now = new Date()) {
 /* One Microsoft Graph sync: reads Graph (devices, and Entra's people, Defender and Autopilot when turned on), applies
    it, notes what changed for Settings → Data sources, takes the daily automatic backup and saves. Returns the counts; a
    part Graph refused is named in them (peopleError and the like) instead of failing the sync. */
-export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
+/* dryRun: everything is read and worked out on a copy, nothing is saved and no backup is taken (Preview sync). */
+export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch, { dryRun = false } = {}) {
   const { records, users, peopleError, machines, defenderError, autopilot, autopilotError, fallback, secureBootError } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
   s.graphFields = graphFieldReport(records, fallback, now);
@@ -640,6 +641,7 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   if (cfg.secureBoot === 'on' && !secureBootError) counts.secureBoot = records.filter(r => r.secureBoot).length;
   if (secureBootError) counts.secureBootError = secureBootError;
   noteChanges(s, 'graph', lens, now);
+  if (dryRun) return counts;
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);
   return counts;

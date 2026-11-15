@@ -24,7 +24,7 @@ import { newLines } from '../public/js/history-merge.js';
    checked, the changes a page sends (with revisions against lost updates), and the deltas a page asks for. */
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'testRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
@@ -109,7 +109,7 @@ const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE t
 /* Settings only an admin's page gets: who the weekly e-mail goes to, the backups and their copy, the restore test, the
    roles from groups. Nobody else's page uses them. */
 export const ADMIN_SETTINGS = ['digest', 'digestRun', 'viewMailRuns', 'smtp', 'backupExport', 'backupExportRun', 'restoreTest', 'autoBackups', 'backupKeep', 'groupRoles'];
-export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'graphFields', 'adUnmatched', 'syncRuns', 'lansweeper'];
+export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'graphFields', 'adUnmatched', 'syncRuns', 'testRuns', 'lansweeper'];
 /* Disconnect: removes the connection settings listed above, the Lansweeper push token, Graph's stored keys and every
    sealed app secret (the passwords saved in Settings), in one transaction. Only an admin's POST /api/connections/clear
    calls it. */
@@ -722,7 +722,12 @@ export function applyChanges(db, body, guard = () => {}) {
     if ((revs[key] ?? 0) !== c.base) { conflicts.push(key); return false; }
     return true;
   };
-  const okPuts = puts.filter(usable), okDels = dels.filter(usable);
+  const okPuts0 = puts.filter(usable), okDels0 = dels.filter(usable);
+  /* The history lines a page sends with a change of its device describe that change: when the change is refused as stale,
+     its lines are left out too (the page reloads and offers the change again, with them), so the history never tells of a
+     change that was not made. */
+  const staleDevice = new Set(conflicts.filter(k => k.startsWith('object|')).map(k => k.slice(7)));
+  const okPuts = okPuts0.filter(c => c.kind !== 'history' || !staleDevice.has(String(c.id))), okDels = okDels0.filter(c => c.kind !== 'history' || !staleDevice.has(String(c.id)));
 
   /* The history of the devices is checked entry by entry, never against the rest: only the records this save sends are
      loaded, so a save to a large inventory does not read every device's history. */

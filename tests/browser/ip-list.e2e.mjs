@@ -101,6 +101,7 @@ try {
   await p.click('#igList [data-ig="n"]');
   await storedBy(() => loadState(db), s => s.objs.find(o => o.id === 'n').ip === '10.1.1.2');
   assert.equal(loadState(db).objs.find(o => o.id === 'n').dhcp, 'static');
+  assert.deepEqual(loadState(db).objs.find(o => o.id === 'n').src, { ip: 'hand', dhcp: 'hand' }, 'not marked as set by hand: the next sync would overwrite it');
   assert.ok(!(await p.$$eval('table.grid.ips tr.ip-free td:first-child', l => l.map(x => x.textContent.trim()))).includes('10.1.1.2'), 'the address is still listed as free');
   // the assignment set here: saved on the device, with a history line, and the row says so
   await p.selectOption('[data-ipas="b"]', 'dhcp');
