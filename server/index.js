@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { openDb, audit } from './db.js';
 import { createApp } from './app.js';
-import { loadState, saveState } from './state.js';
+import { HISTORY_KEEP, loadState, saveState, settingOf, trimHistory } from './state.js';
 import { setPassword, hasPassword, passwordProblem } from './auth.js';
 import { feedChanged, mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
@@ -22,6 +22,7 @@ import { purgePasswords, sheetKeyOf } from './sheets.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { ldapConfigOf } from './ldap-config.js';
+import { startWatchdog } from './watchdog.js';
 /* Starting the server: the first admin account, the scheduler (syncs, backups, digest, mail of saved views, restore
    test) and the HTTP server itself. */
 
@@ -29,6 +30,8 @@ import { ldapConfigOf } from './ldap-config.js';
    NI_ADMIN_PASSWORD; without that a random one is printed once. An inventory that has an admin under another login
    (the first one deleted or renamed) gets no new account and no password: nothing is made that is not saved. */
 export function bootstrap(db, env, log = console.log) {
+  /* History kept longer than it is now (HISTORY_KEEP) is cut once, before anything reads it. */
+  { const cut = trimHistory(db); if (cut) log(`History: ${cut} device(s) had more than ${HISTORY_KEEP} lines; the oldest were removed.`); }
   const s = loadState(db);
   /* An upgrade that changes the saved data keeps what was there first, as a backup. */
   if (migrateState(s)) { try { takeBackup(db, 'before upgrading the data'); } catch (e) { log(`Warning: no backup before the upgrade (${e.message}).`); } saveState(db, s); }
@@ -57,7 +60,7 @@ export function runFeedFile(db, file, now = new Date()) {
   const s = loadState(db);
   if (s.feedOn === false || s.feedSync === false) return { skipped: true };
   const counts = mergeFeed(s, fs.readFileSync(file, 'utf8'), now);
-  if (feedChanged(counts)) { autoBackup(db, 'before the nightly feed file sync'); saveState(db, s); }
+  if (feedChanged(counts)) { autoBackup(db, 'before the nightly feed file sync', { daily: true }); saveState(db, s); }
   audit(db, null, 'feed sync: ' + JSON.stringify(counts));
   return counts;
 }
@@ -105,7 +108,8 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
         try { await viewMail(v.id, now); log('saved view sent by mail:', v.name); } catch (e) { log('saved view by mail failed:', v.name, e.message); }
       }
       if (sheetKey && mins.some(t => t.getHours() === 6 && t.getMinutes() === 0 && once('sheets', t))) { const n = purgePasswords(db, sheetKey, now); if (n) log('entry sheets: password removed from', n); }
-      const cur = loadState(db), plan = scheduleOf(cur);
+      /* Only the few settings the schedule needs: reading the whole inventory twice a minute held the server up. */
+      const cur = Object.fromEntries(['syncSchedule', 'useLansweeper', 'lsSource', 'useAd', 'useGraph'].map(k => [k, settingOf(db, k)])), plan = scheduleOf(cur);
       const due = job => mins.some(t => isDue(plan[job], t) && once(job, t));
       const lsOn = cur.useLansweeper !== false;
       if (due('lansweeper')) {
@@ -155,11 +159,12 @@ export function start(env = process.env) {
   /* The proxy whose forwarded client address is believed: the shared Caddy (its container name), unless NI_TRUSTED_PROXY
      names another (or is empty, behind no proxy). */
   const trustedProxy = env.NI_TRUSTED_PROXY !== undefined ? env.NI_TRUSTED_PROXY : env.NODE_ENV === 'production' ? 'nobs-proxy' : '';
-  const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey, trustedProxy, loginFailMs: 1000 });
+  const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey, trustedProxy, loginFailMs: 1000, healthExit: code => process.exit(code) });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
   const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig: () => app.locals.ldapConfig(), sheetKey, graphConfig: () => app.locals.graphConfig(), digest: now => app.locals.sendDigest(now), smtpOn: () => app.locals.smtpOn(), restoreTest: now => app.locals.restoreTest(now), viewMail: (id, now) => app.locals.sendViewMail(id, now) });
-  server.on('close', () => { if (timer) clearInterval(timer); db.close(); });
+  const stopWatchdog = startWatchdog(env);
+  server.on('close', () => { if (timer) clearInterval(timer); stopWatchdog(); db.close(); });
   return { server, db };
 }
 

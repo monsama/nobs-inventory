@@ -40,14 +40,14 @@ test('an admin gets every notice, red ones first, each leading somewhere', () =>
   const list = notices(S(), { admin: true, sources: ['lansweeper', 'ldap', 'graph'], today: TODAY });
   const by = Object.fromEntries(list.map(n => [n.id, n]));
   assert.deepEqual(list.map(n => n.sev), [...list.filter(n => n.sev === 'bad'), ...list.filter(n => n.sev === 'warn')].map(n => n.sev), 'red first');
-  assert.deepEqual(Object.keys(by).sort(), ['contract-k1', 'contract-k2', 'maint-due', 'maint-late', 'reported-e', 'restore-test', 'review', 'sync-graph', 'sync-ldap', 'warranty-ended', 'warranty-soon'].sort());
+  assert.deepEqual(Object.keys(by).sort(), ['contract-k1', 'contract-k2', 'maint-due', 'maint-late', 'reported-e', 'restore-test', 'review', 'sync-graph', 'sync-ldap', 'sync-lansweeper', 'warranty-ended', 'warranty-soon'].sort());
   assert.deepEqual([by['warranty-ended'].sev, by['warranty-ended'].go], ['bad', { device: 'a' }], 'one device: it opens');
   assert.deepEqual([by['maint-late'].sev, by['maint-late'].text], ['bad', 'UPS-1: Test battery']);
   assert.deepEqual([by['contract-k1'].sev, by['contract-k1'].go, by['contract-k2'].sev], ['warn', { tab: 'contracts' }, 'bad']);
   assert.match(by['contract-k1'].text, /Give notice by 30\.11\.2026/);
   assert.deepEqual([by['sync-ldap'].sev, by['sync-ldap'].go, by['sync-ldap'].text], ['bad', { settings: 'ldap' }, 'The directory refused the sign-in']);
   assert.equal(by['sync-graph'].sev, 'warn', 'every 4 hours by default: four days without a run is late');
-  assert.ok(!by['sync-lansweeper'], 'a push is never late');
+  assert.deepEqual([by['sync-lansweeper'].sev, by['sync-lansweeper'].text], ['warn', 'No push since 01.10.2026: check the scheduled task on the Lansweeper server'], 'a push a month old is late');
   assert.deepEqual([by['restore-test'].go, by.review.go, by['reported-e'].go], [{ settings: 'backups' }, { review: true }, { device: 'e' }]);
   /* Many devices: the Table, filtered. */
   const s = S(); s.objs.push({ id: 'z', name: 'NB-Z', status: 'active', warranty: '2026-01-01' });
@@ -83,5 +83,7 @@ test('a sync stands as failed, late or fine against its schedule', () => {
   assert.equal(syncState({ at: '2026-11-03T02:00:00Z', ok: true }, { every: 4 }, now), 'late');
   assert.equal(syncState({ at: '2026-11-03T04:00:00Z', ok: true }, { every: 4 }, now), 'ok');
   assert.equal(syncState({ at: '2026-10-01T00:00:00Z', ok: true }, { every: 0 }, now), 'ok', 'only by hand: never late');
-  assert.equal(syncState({ at: '2026-10-01T00:00:00Z', ok: true, how: 'push' }, { every: 24 }, now), 'ok');
+  assert.equal(syncState({ at: '2026-10-01T00:00:00Z', ok: true, how: 'push' }, { every: 24 }, now), 'late', 'no push for a month');
+  assert.equal(syncState({ at: '2026-11-02T03:00:00Z', ok: true, how: 'push' }, { every: 0 }, now), 'ok', 'a push yesterday');
+  assert.equal(syncState({ at: '2026-10-31T11:00:00Z', ok: true, how: 'push' }, { every: 0 }, now), 'late', 'no push for more than two days, whatever the schedule');
 });

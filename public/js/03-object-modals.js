@@ -23,6 +23,7 @@ import { joinCardsAvailable, openObj } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
 import { editText, fieldNote } from './restore.js';
 import { bindHistory, historyPanel, refreshHistory } from './28-restore.js';
+import { ensureHistory } from './server-load.js';
 import { timelinePanel, bindTimeline } from './29-timeline.js';
 import { html, rawHtml } from './html.js';
 import { anyOutlets, bindPatchPanel, patchPanel } from './24-patch.js';
@@ -246,6 +247,8 @@ function extras(o){
 /* Draws a device's page into the toolbar and the view: the Properties form (read only for someone who is not an admin),
    the panels beside it, the relations, the path to the network, timeline and history. Then wires every control on it. */
 export function renderObj(o){
+  /* Its history is read now, if the page has not got it whole yet; the page is drawn again when it is there. */
+  ensureHistory(o.id);
   /* A panel's patch cords are in its Ports table, not listed again here. */
   const rs = relsOf(o).filter(x => !(o.type === 'patch' && x.r.kind === 'patched'));
   /* Network links first, then the attached devices, each under its own heading when both are there. */

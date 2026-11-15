@@ -19,12 +19,42 @@ test('a push in many requests takes one backup, and backups taken by hand or bef
   const { BEFORE_CLEAR, autoBackup, takeBackup } = await import('../server/backup.js');
   const db = freshDb();
   const mine = takeBackup(db, 'by hand'), beforeClear = takeBackup(db, BEFORE_CLEAR);
-  for (let i = 0; i < 12; i++) autoBackup(db, 'before a Lansweeper push', { hourly: true });
+  for (let i = 0; i < 12; i++) autoBackup(db, 'before a Lansweeper push', { daily: true });
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM backups WHERE reason = 'before a Lansweeper push'").get().n, 1, 'one backup for the run');
   for (let i = 0; i < 15; i++) autoBackup(db, 'before an LDAP sync');
   assert.ok(db.prepare('SELECT 1 FROM backups WHERE id = ?').get(mine), 'the backup taken by hand is still there');
   assert.ok(db.prepare('SELECT 1 FROM backups WHERE id = ?').get(beforeClear), 'the backup taken before clearing is still there');
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM backups WHERE reason NOT IN ('by hand', ?)").get(BEFORE_CLEAR).n, 10, 'ten automatic ones kept');
+  /* the newest ten, and the day's first (the push's) on top */
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM backups WHERE reason NOT IN ('by hand', ?)").get(BEFORE_CLEAR).n, 11, 'ten automatic ones kept, and the first of the day');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM backups WHERE reason = 'before a Lansweeper push'").get().n, 1, 'the first of the day is kept');
+  db.close();
+});
+
+test('a daily sync backup is taken once a calendar day, also when the sync runs a little earlier the next day', async () => {
+  const { autoBackup } = await import('../server/backup.js');
+  const db = freshDb();
+  const day1 = new Date(2026, 10, 2, 6, 0, 30), day1later = new Date(2026, 10, 2, 18, 0, 0), day2 = new Date(2026, 10, 3, 6, 0, 10);
+  const { takeBackup } = await import('../server/backup.js');
+  db.prepare('UPDATE backups SET at = ? WHERE id = ?').run(day1.toISOString(), takeBackup(db, 'before an LDAP sync'));
+  assert.equal(autoBackup(db, 'before an LDAP sync', { daily: true }, day1later), null, 'a second one the same day');
+  assert.ok(autoBackup(db, 'before an LDAP sync', { daily: true }, day2), 'none the next day, 23 hours later');
+  db.close();
+});
+
+test('automatic backups: the newest are kept, and the first of each of the last 14 days', async () => {
+  const { pruneAuto } = await import('../server/backup.js');
+  const db = freshDb();
+  const now = new Date(2026, 10, 20, 12, 0).getTime(), ins = db.prepare('INSERT INTO backups (at, reason, objects, data, format, size) VALUES (?, ?, 0, ?, 2, 0)');
+  /* 20 days, four syncs a day, oldest first */
+  for (let d = 19; d >= 0; d--) for (const h of [2, 8, 14, 20]) { const t = new Date(now - d * 864e5); t.setHours(h, 0, 0, 0); if (t.getTime() <= now) ins.run(t.toISOString(), 'before a Lansweeper sync', '{}'); }
+  ins.run(new Date(now - 30 * 864e5).toISOString(), 'by hand', '{}');
+  pruneAuto(db, 5, now);
+  const left = db.prepare("SELECT at FROM backups WHERE reason != 'by hand' ORDER BY id").all().map(r => new Date(r.at));
+  const days = new Set(left.map(t => t.toDateString()));
+  assert.equal(days.size, 15, 'one a day for the last 14 days (and today)');
+  assert.ok(left.every(t => now - t.getTime() <= 14 * 864e5), 'nothing older than 14 days');
+  assert.equal(left.length, 5 + 14, 'the newest five (today and yesterday), and the first of each of the 14 days before today');
+  assert.ok(db.prepare("SELECT 1 FROM backups WHERE reason = 'by hand'").get(), 'one taken by hand stays');
   db.close();
 });
 

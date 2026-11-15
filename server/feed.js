@@ -513,7 +513,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       if (owns) markSource(found, k, 'ls');
       if (found[k] === incoming) continue;
       if (owns){
-        if (LOG_FIELDS[k] && found[k]) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LOG_FIELDS[k]} changed from ${found[k]} to ${incoming}` });
+        /* An address given by DHCP changes all the time: that is no news, and a line each time filled the history. */
+        const dynamic = k === 'ip' && (r.dhcp || found.dhcp) === 'dhcp';
+        if (LOG_FIELDS[k] && found[k] && !dynamic) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LOG_FIELDS[k]} changed from ${found[k]} to ${incoming}` });
         found[k] = incoming; changed = true;
       }
     }

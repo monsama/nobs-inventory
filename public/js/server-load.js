@@ -2,11 +2,12 @@
 import { applyDelta } from './delta.js';
 import { $, REVIEW, UNDO, CONTACTS, SYNC } from './01-core.js';
 import { setUsers } from './04-settings.js';
-import { COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
+import { HISTORY_KEEP, COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
 import { USERS, bindUser, isAdmin } from './04-settings.js';
 import { FIXED_TABS } from './02-views.js';
 import { forgetPhotos } from './23-photos.js';
 import { render } from './07-render.js';
+import { refreshHistory } from './28-restore.js';
 import { SERVER, setSave, offlineKept, documents, pendingChanges, flushSave, queueServerSave, sendChanges } from './server-save.js';
 import { loginModal } from './signin.js';
 /* After sign-in: changes kept offline on this device go back on top of the server's inventory and are saved. */
@@ -25,6 +26,36 @@ export function restoreOffline(){
   if (n){ toast(`${n} change${n === 1 ? '' : 's'} made without a connection ${n === 1 ? 'is' : 'are'} saved now`); render(); queueServerSave(); }
 }
 let LOAD_FIX = null;
+/* The inventory comes without the devices' history (api/state?history=0): it is most of a large inventory's bulk and
+   only a device's own page shows it. HIST_FULL: the devices whose history the page has whole (read when their page
+   opened, or sent since with what changed). For any other device HISTORY holds only the lines added here, which a
+   save sends and the server puts on top of the stored ones (state.js applyChanges), so none is lost. */
+export const HIST_FULL = new Set();
+const histLoading = new Map();
+const lineKey = e => (e && e.t || '') + '\u0000' + (e && e.msg);
+/* Reads device id's history once, when its page opens, and draws its history panels again with it. */
+export function ensureHistory(id){
+  if (!SERVER.on || !SERVER.base || HIST_FULL.has(id) || histLoading.has(id)) return;
+  const epoch = UNDO.epoch;
+  histLoading.set(id, fetch(`api/history/${encodeURIComponent(id)}`, {credentials: 'same-origin'})
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      /* A reload in between replaced the page's history: it read its own. */
+      if (!j || !Array.isArray(j.history) || epoch !== UNDO.epoch || HIST_FULL.has(id)) return;
+      const have = new Set(j.history.map(lineKey));
+      const mine = (HISTORY[id] || []).filter(e => !have.has(lineKey(e)));
+      if (j.history.length || mine.length) HISTORY[id] = [...mine, ...j.history].slice(0, HISTORY_KEEP);
+      /* What the server holds is the base: only the lines made here and not saved yet are sent. */
+      if (j.history.length) SERVER.base.set('history|' + id, JSON.stringify(j.history));
+      if (SERVER.copy) (SERVER.copy.history ||= {})[id] = j.history;
+      HIST_FULL.add(id);
+      /* Only its Timeline and All changes are drawn again: the rest of the page, and where the focus is, stay. */
+      const o = st.tab === id ? byId(id) : null;
+      if (o) refreshHistory(o);
+    })
+    .catch(() => { /* offline: what the page has is shown; tried again when the page is drawn next */ })
+    .finally(() => histLoading.delete(id)));
+}
 /* Makes what the page holds now the base the next save is compared with (SERVER.base). Records the load itself made
    (LOAD_FIX) are left out, so an admin's page saves them; a viewer's page takes them into the base instead. */
 function setBaseline(){
@@ -56,7 +87,7 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
     if (had.puts.length || had.dels.length) d = null;
   }
   if (!d){
-    const r = await fetch('api/state', {credentials: 'same-origin'});
+    const r = await fetch('api/state?history=0', {credentials: 'same-origin'});
     if (r.status === 401){ loginModal(); return false; }
     if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
     d = await r.json();
@@ -124,7 +155,7 @@ export async function checkForChanges(){
   if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return false; }
   let r;
   const delta = SERVER.copy && SERVER.cseq !== null, saves = SERVER.saves;
-  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return true; }
+  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state?history=0', {credentials: 'same-origin'}); } catch { setSave('offline'); return true; }
   if (!r.ok) return true;
   if (SERVER.save === 'offline') setSave('saved');
   const d = await r.json();
@@ -154,6 +185,7 @@ function applyState(d){
   REVIEW.splice(0, REVIEW.length, ...d.objs.filter(o => o.review));
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(HISTORY).forEach(k => delete HISTORY[k]); Object.assign(HISTORY, d.history);
+  HIST_FULL.clear(); for (const k of Object.keys(d.history || {})) HIST_FULL.add(k);
   setUsers(d.users); LOCS.splice(0, LOCS.length, ...d.locs);
   SITES.splice(0, SITES.length, ...(d.sites || []));
   VLANS.splice(0, VLANS.length, ...(d.vlans || []));

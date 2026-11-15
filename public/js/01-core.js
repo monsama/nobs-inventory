@@ -267,7 +267,8 @@ export const rels = [];
 export const HISTORY = {};
 /* The newest entries come first; the server keeps the same number (HISTORY_KEEP). */
 /* extra: what an edit of one field changed (restore.js fieldNote), so the history can set it back. */
-export const hist = (o, t, msg, extra = null) => { const h = (HISTORY[o.id] ??= []); h.unshift(extra ? {t, msg, ...extra} : {t, msg}); if (h.length > 500) h.length = 500; };
+export const HISTORY_KEEP = 200;
+export const hist = (o, t, msg, extra = null) => { const h = (HISTORY[o.id] ??= []); h.unshift(extra ? {t, msg, ...extra} : {t, msg}); if (h.length > HISTORY_KEEP) h.length = HISTORY_KEEP; };
 
 /* What Lansweeper may overwrite out of the box (Settings → Lansweeper, and the field order's default). */
 export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false};
