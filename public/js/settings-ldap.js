@@ -7,7 +7,8 @@ import { dateText } from './dates.js';
 import { st, $, toast } from './01-core.js';
 import { html, rawHtml } from './html.js';
 import { intakeRowHtml, bindIntakeRows } from './15-review.js';
-import { statusHeaderHtml } from './settings-status.js';
+import { RUN_KEY, setupTrackHtml, statusHeaderHtml, testOf } from './settings-status.js';
+import { runOf } from './16-sync.js';
 /* ---------- LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The
    service account's password is not in the inventory: it is saved here into the server's encrypted store (or set in
    the server's environment) and never sent back to the page. ---------- */
@@ -72,7 +73,8 @@ export function renderSetLdap(){
   const ro = edit ? '' : 'disabled';
   const field = (k, label, hint) => html`<label for="lk_${k}">${label}</label><input id="lk_${k}" data-lk="${k}" class="mono" value="${L[k] || ''}" placeholder="${hint}" ${ro}>`;
   const ready = !!L.url && edit;
-  $('#setLdap').innerHTML = html`${rawHtml(statusHeaderHtml('ad', { test: { id: 'ldapTest', ready }, sync: { id: 'ldapSync', ready }, msg: 'ldapMsg' }))}<div class="panelbox"><div class="hdr">Connection <span class="cnt">LDAP</span></div>
+  const adTest = testOf('ad'), adRun = runOf(RUN_KEY.ad);
+  $('#setLdap').innerHTML = html`${rawHtml(statusHeaderHtml('ad', { test: { id: 'ldapTest', ready }, sync: { id: 'ldapSync', ready }, msg: 'ldapMsg' }))}<div class="panelbox"><div class="hdr">Connection <span class="cnt">LDAP</span></div>${edit ? setupTrackHtml([['Server and service account', !!(L.url && L.serviceDn)], ['Test connection passed', !!(adTest && adTest.ok)], ['First sync', !!(adRun && adRun.ok)]]) : ''}
     <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account’s password is kept apart, encrypted on the server: it can be replaced or removed here, never shown, and it is not in backups.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       <div class="form-sec">Server</div>
@@ -137,10 +139,14 @@ export function renderSetLdap(){
   $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
   const bad = t => html`<span style="color:var(--danger)">${t}</span>`;
   if ($('#ldapTest')) $('#ldapTest').onclick = async () => {
-    const msg = $('#ldapMsg'); msg.textContent = 'Testing…';
+    $('#ldapMsg').textContent = 'Testing…';
     await flushSave();
     const r = await fetch('api/ldap/test', {method: 'POST', credentials: 'same-origin'});
     const j = await r.json().catch(() => ({}));
+    /* Kept on the server and shown in the header: the pane is drawn again with it, the line says it once more. */
+    st.testRuns = { ...(st.testRuns || {}), ldap: j.test || { at: new Date().toISOString(), ok: false, text: j.error || 'The directory cannot be reached.' } };
+    renderSetLdap();
+    const msg = $('#ldapMsg'); if (!msg) return;
     /* Connected, but nobody in the sign-in group: most often the group's name or DN is not the one in the directory. */
     msg.innerHTML = !r.ok ? bad(j.error || 'The directory cannot be reached.')
       : j.people ? html`<span style="color:var(--ok)">Connected. ${j.people} ${j.people === 1 ? 'user' : 'users'} can sign in, ${j.admins} of them ${j.admins === 1 ? 'admin' : 'admins'}.</span>`

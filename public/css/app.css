@@ -2157,3 +2157,21 @@ table.grid.ds-matrix td.ds-write input{margin:0}
 .ds-chainin>.ds-src,.ds-chainin>.ds-arrow{flex:none}
 .ds-chainin>.ds-also{flex-basis:100%}
 @media (min-width:761px){.ds-chainin{flex-wrap:nowrap}.ds-chainin:has(.ds-also){flex-wrap:wrap}}
+/* The last Test connection under the last sync: a tick or a mark, in the colour of how it went. */
+.src-st-test{display:flex;align-items:baseline;gap:6px;font-size:12.5px;margin-top:2px}
+.src-st-test.ok{color:var(--oktext)}
+.src-st-test.bad{color:var(--danger)}
+.src-st-ico{font-weight:700;width:12px;text-align:center;flex:none}
+/* A source's setup as a short track: the steps in a row, ticked when done, the one to do now filled; under the header of
+   its box, until all are done. */
+.setup-track{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:10px 12px;border-bottom:1px solid var(--bd2);background:var(--panel2)}
+.setup-track .st-head{font-size:12.5px;font-weight:600}
+.setup-track ol{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;padding:0;list-style:none;counter-reset:none}
+.setup-track li{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.setup-track li i{display:grid;place-items:center;width:18px;height:18px;box-sizing:border-box;border-radius:50%;border:1.5px solid var(--bd);font-style:normal;font-size:10.5px;font-weight:700;background:var(--bg)}
+.setup-track li.ok{color:var(--fg)}
+.setup-track li.ok i{background:var(--okdot);border-color:var(--okdot);color:#fff}
+.setup-track li.now{color:var(--fg);font-weight:600}
+.setup-track li.now i{background:var(--accentbtn);border-color:var(--accentbtn);color:var(--accentfg)}
+.setup-track li+li::before{content:'';width:14px;height:1px;background:var(--bd);margin-right:4px}
+@media (max-width:760px){.setup-track ol{flex-direction:column;gap:6px}.setup-track li+li::before{content:none}}

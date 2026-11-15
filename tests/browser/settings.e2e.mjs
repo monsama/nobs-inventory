@@ -36,9 +36,16 @@ try {
   await openSetTab(page, 'entra'); await page.waitForSelector('#setGraph .panelbox');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Entra & Intune does not show LDAP');
   await openSetTab(page, 'directory'); await page.waitForSelector('#setLdap #lk_url');
+  // the setup as a track of three steps; Test connection is kept and said in the header, also after the tab is drawn again
+  assert.match(await page.textContent('#setLdap .setup-track'), /Setup: 0 of 3 done\s*1\s*Server and service account \(next\)\s*2\s*Test connection passed\s*3\s*First sync/);
+  assert.equal(await page.locator('#setLdap .src-st-test').count(), 0, 'no test yet');
   // connection security: StartTLS moves the address to ldap:// and port 389, TLS back; a company CA is added and removed
   await page.fill('#lk_url', 'ldaps://dc01.example.test:636'); await page.press('#lk_url', 'Tab');
   await page.waitForFunction(() => document.querySelector('#lk_security') && document.querySelector('#lk_security').value === '');
+  await page.click('#ldapTest');
+  await page.waitForSelector('#setLdap .src-st-test.bad', { timeout: 25000 });
+  assert.match(await page.textContent('#setLdap .src-st-test'), /Last test .*: /);
+  await openSetTab(page, 'entra'); await openSetTab(page, 'directory'); await page.waitForSelector('#setLdap .src-st-test.bad');
   await page.selectOption('#lk_security', 'starttls');
   await page.waitForFunction(() => document.querySelector('#lk_url').value === 'ldap://dc01.example.test:389');
   assert.match(await page.textContent('#setLdap'), /Encrypted like ldaps:\/\/, on the usual port 389/);

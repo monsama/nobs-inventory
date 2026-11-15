@@ -46,6 +46,21 @@ function lastRunHtml(src){
   const warn = r.ok && r.counts && r.counts.ambiguous ? ` · ${r.counts.ambiguous} fit more than one device and were skipped` : '';
   return r.ok ? html`${head}: ${summary(RUN_KEY[src], r.counts)}${warn}` : html`<span class="src-err">${head} failed: ${r.error || ''}</span>`;
 }
+/* A source's setup as a short track of steps ([label, done]), each ticked when done, the first one not done marked as
+   the one to do now. Shown only until all are done: after that the header says how the source is doing. */
+export function setupTrackHtml(steps){
+  if (steps.every(([, ok]) => ok)) return '';
+  const now = steps.findIndex(([, ok]) => !ok), n = steps.filter(([, ok]) => ok).length;
+  return html`<div class="setup-track"><span class="st-head">Setup: ${n} of ${steps.length} done</span><ol>${steps.map(([label, ok], i) =>
+    html`<li class="${ok ? 'ok' : i === now ? 'now' : ''}"><i aria-hidden="true">${ok ? '✓' : i + 1}</i><span>${label}</span>${ok ? html`<span class="sr-only"> (done)</span>` : i === now ? html`<span class="sr-only"> (next)</span>` : ''}</li>`)}</ol></div>`;
+}
+/* The last Test connection in one line (AD and Entra; Lansweeper has none), kept on the server: when, and what it said. */
+export const testOf = src => (st.testRuns || {})[RUN_KEY[src]] || null;
+function lastTestHtml(src){
+  const t = testOf(src);
+  if (!t || src === 'ls') return '';
+  return html`<div class="src-st-test ${t.ok ? 'ok' : 'bad'}"><span class="src-st-ico" aria-hidden="true">${t.ok ? '✓' : '!'}</span>Last test ${when(t.at)}: ${t.text}</div>`;
+}
 /* The header. on: the switch ({ id, checked, label }) as Lansweeper draws it; AD and Entra get theirs here (id useAd,
    useGraph), and while off no Sync now and a line saying what off means; test and sync: the buttons ({ id, ready }),
    drawn for an admin; msg: the id of the line their answers go to; note: said where Sync now is not (Lansweeper by push). */
@@ -58,7 +73,7 @@ export function statusHeaderHtml(src, { on = null, test = null, sync = null, msg
   const btn = (b, label, cls = '') => b && edit ? `<button type="button" id="${b.id}"${cls ? ` class="${cls}"` : ''} ${b.ready ? '' : 'disabled'}>${label}</button>` : '';
   return `<div class="src-status" data-srcstatus="${src}">
     <div class="src-st-top"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${esc(SOURCE_LABEL[src])}</b><span class="src-st-state">${esc(s.text)}</span><span class="grow"></span>${sw}</div>
-    <div class="src-st-run">${lastRunHtml(src)}</div>${off && OFF_TEXT[src] ? `<p class="note src-offtext">${esc(OFF_TEXT[src])}</p>` : ''}
+    <div class="src-st-run">${lastRunHtml(src)}</div>${lastTestHtml(src)}${off && OFF_TEXT[src] ? `<p class="note src-offtext">${esc(OFF_TEXT[src])}</p>` : ''}
     <div class="src-st-act">${btn(test, 'Test connection')}${btn(sync, 'Sync now', 'primary')}${note ? `<span class="muted">${esc(note)}</span>` : ''}${msg ? `<span class="note" id="${msg}" role="status"></span>` : ''}<span class="grow"></span>
       <button type="button" class="link" data-srchist="${src}" ${runs ? '' : 'disabled title="No sync has changed a field yet"'}>History of changes${runs ? ` (${runs})` : ''}</button></div></div>`;
 }

@@ -5,7 +5,7 @@ import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
 import { dropGraphKey, graphCertPem, graphSettingsProblem, hasGraphKey, storeGraphKey } from './graph-keys.js';
 import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
-import { runRecorded } from './sync-runs.js';
+import { recordTest, runRecorded } from './sync-runs.js';
 import { HttpError } from './errors.js';
 
 /* Adds the Microsoft Graph routes, all for admins: the status, the settings (tenant, client id and how far each part
@@ -91,8 +91,11 @@ export function registerGraphRoutes(app, ctx) {
     try {
       const g = cfgGraph();
       if (!g) throw graphMissing();
-      res.json(await testGraph(g, graphFetch));
-    } catch (e) { next(e); }
+      const r = await testGraph(g, graphFetch);
+      const test = recordTest(db, 'graph', r.missing.length ? { ok: false, text: 'Signed in, but these permissions are missing or not consented: ' + r.missing.join(', ') }
+        : { ok: true, text: r.users ? 'Signed in and read the devices and the people' : 'Signed in and read both device lists' });
+      res.json({ ...r, test });
+    } catch (e) { recordTest(db, 'graph', { ok: false, text: e.message }); next(e); }
   });
   app.post('/api/graph/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {

@@ -24,7 +24,7 @@ import { newLines } from '../public/js/history-merge.js';
    checked, the changes a page sends (with revisions against lost updates), and the deltas a page asks for. */
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'testRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
@@ -109,7 +109,7 @@ const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE t
 /* Settings only an admin's page gets: who the weekly e-mail goes to, the backups and their copy, the restore test, the
    roles from groups. Nobody else's page uses them. */
 export const ADMIN_SETTINGS = ['digest', 'digestRun', 'viewMailRuns', 'smtp', 'backupExport', 'backupExportRun', 'restoreTest', 'autoBackups', 'backupKeep', 'groupRoles'];
-export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'graphFields', 'adUnmatched', 'syncRuns', 'lansweeper'];
+export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'graphFields', 'adUnmatched', 'syncRuns', 'testRuns', 'lansweeper'];
 /* Disconnect: removes the connection settings listed above, the Lansweeper push token, Graph's stored keys and every
    sealed app secret (the passwords saved in Settings), in one transaction. Only an admin's POST /api/connections/clear
    calls it. */

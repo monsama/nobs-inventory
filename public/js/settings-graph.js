@@ -8,7 +8,7 @@ const FIELD_NAMES = { category: 'Category', enrollType: 'How enrolled', enrollPr
 import { isAdmin, applyRole } from './04-settings.js';
 import { st, byId, $, dayText, toast, SYNC, objs } from './01-core.js';
 import { html, rawHtml } from './html.js';
-import { RUN_KEY, statusHeaderHtml } from './settings-status.js';
+import { RUN_KEY, statusHeaderHtml, testOf } from './settings-status.js';
 import { runOf } from './16-sync.js';
 /* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
 export function graphSummary(c){
@@ -67,7 +67,9 @@ export async function renderSetGraph(){
   /* A viewer is told neither the IDs, the certificates nor the sync runs: a connection that works counts as set up. */
   const working = !j && !!g.configured, run = runOf(RUN_KEY.graph);
   const synced = working || !!(g.configured && run && run.ok);
-  const stepsDone = [ids || fromServer || working, !!chosen || fromServer || working, synced, synced];
+  /* The permissions show as granted by a sync that read the devices, or by a test that found none missing. */
+  const tested = testOf('graph'), granted = synced || !!(g.configured && tested && tested.ok);
+  const stepsDone = [ids || fromServer || working, !!chosen || fromServer || working, granted, synced];
   const nowAt = stepsDone.indexOf(false), nDone = stepsDone.filter(Boolean).length;
   const stepCls = i => stepsDone[i] ? 'gs-ok' : i === nowAt ? 'gs-now' : '';
   const day = t => dayText(String(t || '').slice(0, 10));
@@ -103,7 +105,7 @@ export async function renderSetGraph(){
           <li>Entra lists it with a thumbprint: the same as in the list at the bottom of this box.</li>
         </ol></details>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphCert" ${edit && !fromServer ? '' : 'disabled'}>Create a certificate</button>${chosen && html`<a class="link" href="api/graph/cert/${chosen.thumbprint}/cer" download>Download the .cer</a>`}</div></li>
-      <li class="${stepCls(2)}"><div class="gs-head"><b>Allow it to read devices</b>${done(synced)}</div>
+      <li class="${stepCls(2)}"><div class="gs-head"><b>Allow it to read devices</b>${done(granted)}</div>
         <details class="how" ${g.configured ? '' : 'open'}><summary>Step by step in Entra</summary><ol class="gs-sub">
           <li>In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>Microsoft Graph</b> → <b>Application permissions</b> (not Delegated).</li>
           <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>. For People from Entra (optional, below) also <span class="mono">User.Read.All</span>.</li>
@@ -191,9 +193,15 @@ export async function renderSetGraph(){
   if ($('#graphTest')) $('#graphTest').onclick = async () => {
     say('Testing…');
     const x = await post('api/graph/test');
-    if (!x.ok) return say(x.j.error || 'The test failed.', true);
-    if (x.j.missing.length) return say('Signed in, but these permissions are missing or not consented: ' + x.j.missing.join(', ') + '.', true);
-    say(x.j.users ? 'Signed in and read the devices and the people. Ready to sync.' : 'Signed in and read both device lists. Ready to sync.');
+    /* The result is kept on the server (it shows in the header after a reload, and ticks the permissions step): the pane
+       is drawn again with it, and the line under the buttons says it once more. */
+    st.testRuns = { ...(st.testRuns || {}), graph: x.j.test || { at: new Date().toISOString(), ok: false, text: x.j.error || 'The test failed.' } };
+    await renderSetGraph();
+    const again = $('#graphMsg'); if (!again) return;
+    const put = (text, bad) => { again.innerHTML = bad ? html`<span style="color:var(--danger)">${text}</span>` : html`${text}`; };
+    if (!x.ok) return put(x.j.error || 'The test failed.', true);
+    if (x.j.missing.length) return put('Signed in, but these permissions are missing or not consented: ' + x.j.missing.join(', ') + '.', true);
+    put(x.j.users ? 'Signed in and read the devices and the people. Ready to sync.' : 'Signed in and read both device lists. Ready to sync.');
   };
   if ($('#graphSync')) $('#graphSync').onclick = async () => {
     const btn = $('#graphSync'); btn.disabled = true; say('Syncing…');
