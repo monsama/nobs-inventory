@@ -72,7 +72,7 @@ try {
   const types = await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (Object.keys(__mods[0].TYPES)); });
   assert.ok(types.includes('pc') && types.includes('switch'), 'the built-in types are gone after a reload: ' + types.join(','));
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); return (__mods[0].closeModal()); });
-  await p.click('#setBtn'); await openSetTab(p, 'types');
+  await p.click('#setBtn'); await openSetTab(p, 'types'); await p.click('[data-tsel=pc]');
   await p.click('.icondd-btn[aria-label$="icon for PC"]');
   if (!(await p.isVisible('.icondd-list:popover-open .icondd-up'))) throw new Error('the icon dropdown does not open');
   await p.click('.icondd-item[data-ic=pc][data-icon=server]');

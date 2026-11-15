@@ -7,7 +7,7 @@ import { modal, closeModal } from './19-modal.js';
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { isAdmin, renderSetPane, who } from './04-settings.js';
-import { $$, $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, MODELS, toast, daysSince } from './01-core.js';
+import { $$, $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, MODELS, toast, toastUndo, daysSince } from './01-core.js';
 import { html, rawHtml } from './html.js';
 import { statusHeaderHtml } from './settings-status.js';
 /* The status header, with the switch that turns Lansweeper on or off for this inventory, and where its data comes from.
@@ -26,7 +26,8 @@ export function renderLsToggle(){
         <option value="push" ${api ? '' : 'selected'}>Script push (recommended): the script on the Lansweeper server sends the data</option>
         <option value="api" ${api ? 'selected' : ''}>Lansweeper API: this server fetches the data</option></select>
         <p class="note" style="margin:6px 0 0">Only one of the two runs at a time, so they cannot overwrite each other. A manual CSV import is always available.</p></div>
-    </div></div>` : html`<p class="note src-offnote">Lansweeper is off: it is not used, and its settings, data and panels are hidden. Turn it on above to connect it.</p>`}`;
+    </div></div>` : html`<div class="panelbox src-offbox"><p class="note src-offnote">Lansweeper is off: it is not used, and its settings, data and panels are hidden.</p>${isAdmin() ? html`<div class="addrel" style="padding:0 12px 12px"><button type="button" id="lsTurnOn" class="primary">Turn on Lansweeper</button><span class="muted">Then choose how the data comes: the push script (recommended) or the API.</span></div>` : ''}</div>`}`;
+  const turnOn = $('#lsTurnOn'); if (turnOn) turnOn.onclick = () => { st.useLansweeper = true; queueServerSave(); renderSetPane(); render(); };
   const c = $('#useLs');
   if (c && isAdmin()) c.onchange = () => { st.useLansweeper = c.checked; queueServerSave(); renderSetPane(); render(); };
   const src = $('#lsSource');
@@ -163,7 +164,7 @@ export function renderTypeRules(){
   el.querySelectorAll('[data-trdn]').forEach(b => b.onclick = () => move(+b.dataset.trdn, 1));
   el.querySelectorAll('[data-trdel]').forEach(b => b.onclick = () => { const l = copy(); l.splice(+b.dataset.trdel, 1); put(l); });
   $('#trAdd').onclick = () => { put([{field: 'model', words: 'new words', to: 'other', on: true}, ...copy()]); const w = el.querySelector('[data-trw="0"]'); if (w){ w.focus(); w.select(); } };
-  const reset = $('#trReset'); if (reset) reset.onclick = () => { if (confirm('Go back to the rules shipped with the app? Your changes to the rules are lost.')) put(null); };
+  const reset = $('#trReset'); if (reset) reset.onclick = () => { const was = copy(); put(null); toastUndo('Back to the rules shipped with the app', () => put(was)); };
   $('#trApply').onclick = retypeModal;
 }
 /* Apply to existing devices: what would change, each with a box; only the ticked ones change. A type set by hand is

@@ -156,9 +156,14 @@ const comboOf = el => el && el.closest && el.closest('.combo');
 /* The device an address field belongs to, and the subnet its addresses come from: the one picked, or the one the address
    is in. */
 const ipOwner = input => byId(input.id.replace(/^f_/, '').replace(/_ip$/, ''));
+/* With no subnet picked and no address yet: the only subnet there is, else the one subnet meant for the device's type. */
 function ipSubnet(o){
   const sel = $('#f_' + o.id + '_subnet');
-  return (sel && SUBNETS.find(n => n.cidr === sel.value)) || subnetFor({...o, subnet: ''});
+  const found = (sel && SUBNETS.find(n => n.cidr === sel.value)) || subnetFor({...o, subnet: sel ? '' : o.subnet});
+  if (found) return found;
+  if (SUBNETS.length === 1) return SUBNETS[0];
+  const forType = SUBNETS.filter(n => (n.types || []).includes(o.type));
+  return forType.length === 1 ? forType[0] : null;
 }
 /* Who uses an address, besides this device: a device's own address or one of its other adapters. */
 const ipUser = (ip, o) => objs.find(x => x !== o && x.status !== 'retired' && (x.ip === ip || (x.nics || []).some(n => n.ip === ip)));
@@ -201,7 +206,7 @@ export function ipClash(o, ip){
 function ipChoices(input, all){
   const o = ipOwner(input); if (!o) return [];
   const sub = ipSubnet(o);
-  if (!sub) return [{off: true, label: 'Choose a subnet to see its free addresses'}];
+  if (!sub) return [{off: true, label: SUBNETS.length ? 'Pick the subnet (under Show all fields) to see its free addresses' : 'Add a subnet (Settings → Network → Subnets) to see free addresses'}];
   const used = new Set(objs.filter(x => x !== o && x.status !== 'retired').flatMap(x => [x.ip, ...(x.nics || []).map(n => n.ip)]).filter(Boolean).map(ipInt));
   [sub.gateway, ...(sub.dns || [])].forEach(a => used.add(ipInt(a)));
   const typed = all ? '' : input.value.trim();

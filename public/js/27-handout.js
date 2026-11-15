@@ -35,13 +35,15 @@ export function officeRoom(u){
   const mapped = Object.entries(map).find(([k]) => lowText(k) === office);
   return LOCS.find(l => lowText(l) === office) || (mapped && LOCS.includes(mapped[1]) ? mapped[1] : '');
 }
+/* "Where it is now", with the room: the device's, or the one all of them are in. */
+const hereText = list => { const rooms = [...new Set(list.map(o => o.loc || ''))]; return rooms.length === 1 ? `Leave it where it is (${rooms[0] || 'no location'})` : 'Leave each where it is'; };
 /* Where the devices go: where they are (the default), or a room; the one marked "office" is the person's. */
-const locField = (id = 'hoLoc', office = '') => html`<label for="${id}" class="ho-l">Where</label><select id="${id}"><option value="">Where it is now</option>${LOCS.map(l => html`<option value="${l}">${l}${l === office ? ' (their office)' : ''}</option>`)}</select>`;
+const locField = (id = 'hoLoc', office = '', now = 'Where it is now') => html`<label for="${id}" class="ho-l">Where</label><select id="${id}"><option value="" data-now="${now}">${now}</option>${LOCS.map(l => html`<option value="${l}">${l}${l === office ? ' (their office)' : ''}</option>`)}</select>`;
 const locPicked = (id = 'hoLoc') => ($('#' + id) && $('#' + id).value) || '';
 /* A person picked: their office room is proposed, unless a room was chosen already. */
 const proposeOffice = u => {
   const sel = $('#hoLoc'), room = officeRoom(u); if (!sel) return;
-  for (const o of sel.options) o.textContent = o.value + (o.value && o.value === room ? ' (their office)' : '') || 'Where it is now';
+  for (const o of sel.options) o.textContent = o.value ? o.value + (o.value === room ? ' (their office)' : '') : (o.dataset.now || 'Where it is now');
   if (room && (!sel.value || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
   else if (!room && sel.dataset.auto){ sel.value = ''; delete sel.dataset.auto; }
 };
@@ -114,7 +116,7 @@ export function handOutModal(ids){
   modal(html`<div class="mh">Hand out ${list.length === 1 ? list[0].name : `${list.length} devices`}</div><div class="mb">
     <label for="hoQ" class="ho-l">To whom</label><input id="hoQ" autocomplete="off" placeholder="Name, login or department">
     <div id="hoList" class="ho-list" role="listbox" aria-label="People"></div>
-    ${locField()}
+    ${locField('hoLoc', '', hereText(list))}
     ${SERVER.on && isAdmin() ? html`<label class="pchk ho-sheet"><input type="checkbox" id="hoSheet"> Then make the entry sheet</label>` : ''}
     <p class="note" id="hoSays">The device is in use with the person from now on.</p></div>
     <div class="mf"><button id="hoNo">Cancel</button><button id="hoOk" class="primary" disabled>Hand out</button></div>`, 'sm');

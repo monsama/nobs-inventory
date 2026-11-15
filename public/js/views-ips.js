@@ -2,7 +2,8 @@
    adapters), in address order, with the device, whether it is static or dynamic, its subnet, and what is wrong with it:
    two devices on one address, a static address inside a DHCP range, the gateway taken by a device. The filters on the
    left and the search apply as in Cards and the Table. With one subnet picked, its free addresses can be shown too. */
-import { $, STATUS, SUBNETS, TYPES, filtered, hist, menuHtml, now, objs, setByHand, st, tico, toast } from './01-core.js';
+import { $, STATUS, SUBNETS, TYPES, filtered, hist, menuHtml, now, objs, setByHand, st, tico, toast, toastUndo } from './01-core.js';
+import { closeModal, modal } from './19-modal.js';
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin, me } from './04-settings.js';
 import { subnetFor, subnetName } from './17-fields.js';
@@ -113,7 +114,7 @@ export function renderIps(){
   };
   const head = html`<thead><tr><th class="ip-addr">Address</th><th>Device</th><th class="ip-opt">Type</th><th class="ip-as-col">Assignment</th><th class="ip-opt">Subnet</th><th class="ip-opt">MAC address</th><th class="ip-opt">Location</th><th>Notes</th></tr></thead>`;
   const body = lines.length ? html`${lines.map(({ r, free }) => free
-    ? html`<tr class="ip-free ${free.what === 'Free' ? '' : 'kept'}"><td class="mono">${free.ip}</td><td colspan="7" class="muted">${free.what}${free.use && free.what === 'Free' ? html` <span class="chip">${free.use}</span>` : ''}</td></tr>`
+    ? html`<tr class="ip-free ${free.what === 'Free' ? '' : 'kept'}"><td class="mono">${free.ip}</td><td colspan="7" class="muted">${free.what}${free.use && free.what === 'Free' ? html` <span class="muted">· in the ${free.use} range</span>` : ''}${edit && free.what === 'Free' ? html` <button type="button" class="link ip-give" data-ipgive="${free.ip}">Give to a device…</button>` : ''}</td></tr>`
     : html`<tr class="${r.notes.some(x => x.warn) ? 'ip-warn' : ''}">
       <td class="mono">${r.ip}</td>
       <td><span class="ip-dev">${rawHtml(tico(r.o.type, 'tico sm'))}<a class="link mono" data-open="${r.o.id}">${r.o.name}</a>${r.main ? '' : html` <span class="muted">${r.nic}</span>`}${r.o.status !== 'active' && STATUS[r.o.status] ? html` <span class="chip ${STATUS[r.o.status].cls}">${STATUS[r.o.status].label}</span>` : ''}</span></td>
@@ -128,6 +129,7 @@ export function renderIps(){
   const u = me(), scoped = !!u && !edit && (u.own || (Array.isArray(u.sites) && u.sites.length));
   $('#view').innerHTML = html`<div class="ip-page">${scoped && lines.some(l => l.free) ? html`<p class="note ip-scope">Only the devices of your sites are listed: a free address here can still be used at another site.</p>` : ''}<div class="gridwrap" style="height:auto"><table class="grid ips" data-tb="own">${head}<tbody>${body}</tbody></table></div></div>`;
 
+  $('#view').querySelectorAll('[data-ipgive]').forEach(b => b.onclick = () => giveIpModal(/** @type {HTMLElement} */ (b).dataset.ipgive));
   const set = (k, v) => { st[k] = v; renderIps(); };
   $('#ipSub').onchange = e => set('ipSub', /** @type {HTMLSelectElement} */ (e.target).value);
   $('#ipAssign').onchange = e => set('ipAssign', /** @type {HTMLSelectElement} */ (e.target).value);
@@ -188,4 +190,31 @@ function printIps(head, rows, kinds, what){
     ${rows.map((r, n) => html`<tr class="${kinds[n]}">${r.map((v, i) => html`<td class="${i === 0 || i === 6 ? 'mono' : ''}">${v}</td>`)}</tr>`)}</tbody></table></body></html>`));
   w.document.close();
   setTimeout(() => { try { w.focus(); w.print(); } catch { /* the window was closed */ } }, 400);
+}
+
+/* A free address given to a device: picked by name, code or serial; it becomes the device's address, set as static,
+   with a line in its history and Undo. Devices without an address come first. */
+function giveIpModal(ip){
+  const pool = () => objs.filter(o => o.status !== 'retired' && !o.review && o.type !== 'rack' && o.type !== 'patch');
+  modal(html`<div class="mh">Give ${ip} to a device</div><div class="mb">
+    <label for="igQ" class="ho-l">Device</label><input id="igQ" autocomplete="off" placeholder="Name, code or serial number">
+    <div id="igList" class="ho-list ho-devs" role="listbox" aria-label="Devices"></div></div>
+    <div class="mf"><button id="igNo">Cancel</button></div>`, 'sm');
+  const draw = () => {
+    const q = /** @type {HTMLInputElement} */ ($('#igQ')).value.trim().toLowerCase();
+    const hits = pool().filter(o => !q || [o.name, o.code, o.serial].some(v => v && String(v).toLowerCase().includes(q)))
+      .sort((a, b) => +!!a.ip - +!!b.ip || a.name.localeCompare(b.name)).slice(0, 12);
+    $('#igList').innerHTML = hits.length ? html`${hits.map(o => html`<button type="button" class="ho-item" role="option" data-ig="${o.id}">${rawHtml(tico(o.type, 'tico sm'))}<span class="mono">${o.name}</span><span class="muted">${o.ip ? 'now ' + o.ip : 'no address yet'}${o.loc ? ' · ' + o.loc : ''}</span></button>`)}` : html`<p class="muted" style="margin:6px 2px">No device matches.</p>`;
+    $('#igList').querySelectorAll('[data-ig]').forEach(b => b.onclick = () => give(objs.find(o => o.id === /** @type {HTMLElement} */ (b).dataset.ig)));
+  };
+  const give = o => {
+    if (!o) return;
+    const was = { ip: o.ip, dhcp: o.dhcp };
+    setByHand(o, 'ip'); o.ip = ip; o.dhcp = 'static';
+    hist(o, now(), `IP address ${was.ip ? `changed from ${was.ip} ` : ''}set to ${ip} (free address, from the IP list)`);
+    closeModal(); queueServerSave(); render();
+    toastUndo(`${ip} given to ${o.name}`, () => { if (was.ip) o.ip = was.ip; else delete o.ip; if (was.dhcp) o.dhcp = was.dhcp; else delete o.dhcp; hist(o, now(), `IP address ${ip} given back`); queueServerSave(); render(); });
+  };
+  $('#igNo').onclick = closeModal;
+  $('#igQ').oninput = draw; draw(); $('#igQ').focus();
 }

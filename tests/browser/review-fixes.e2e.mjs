@@ -46,7 +46,8 @@ try {
   for (const id of ['#plZoomIn', '#plSel']) if (await v.locator(id).count()) assert.equal(await v.isDisabled(id), false, 'a viewer can use ' + id);
   for (const id of ['#plNew', '#plDel']) if (await v.locator(id).count()) assert.equal(await v.isDisabled(id), true, 'a viewer cannot use ' + id);
   await v.click('#setBtn'); await openSetTab(v, 'types'); await v.waitForTimeout(200);
-  assert.equal(await v.isDisabled('#tfType'), false, 'a viewer can look at another type\'s fields');
+  assert.equal(await v.isDisabled('[data-tsel=notebook]'), false, 'a viewer can look at another type\'s fields');
+  await v.click('[data-tsel=notebook]'); await v.waitForSelector('.tp-title h3:text("Notebook")');
   await openSetTab(v, 'locations'); await v.waitForTimeout(200);
   assert.equal(await v.isDisabled('#nsName'), true, 'a viewer cannot add a site');
   await v.keyboard.press('Escape');

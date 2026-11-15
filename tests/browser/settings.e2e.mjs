@@ -119,7 +119,7 @@ try {
   await page.click('[data-sedit="0"]'); await page.fill('.sn-edit [data-sn]', 'Not this'); await page.click('.sn-edit [data-scancel]');
   assert.equal((await saved()).name, 'Office Bern', 'Cancel keeps the subnet as it was');
   // Settings sections open and close by their title and stay as they were left, also when the section draws itself again
-  await openSetTab(page, 'types'); await page.waitForSelector('#setModels .hdr.sechdr');
+  await openSetTab(page, 'types'); await page.click('[data-tsel=__models]'); await page.waitForSelector('#setModels .hdr.sechdr');
   await page.click('#setModels .hdr');
   assert.equal(await page.locator('#setModels').evaluate(e => e.classList.contains('collapsed')), true);
   assert.equal(await page.isVisible('#setModels .lrows'), false, 'a closed section hides its content');
@@ -128,12 +128,18 @@ try {
   await page.click('#setModels .hdr');
   assert.equal(await page.isVisible('#setModels .lrows'), true);
   // Per type: the type is chosen in the title, and the fields say how many objects of it have a value
-  await page.selectOption('#tfType', 'pc');
-  assert.match(await page.textContent('.tf-box'), /The fields a PC page shows.*Add field.*On the PC card/s);
-  assert.equal(await page.locator('.tf-box .sechdr').count(), 1);
-  assert.equal(await page.locator('.tf-box').evaluate(e => e.classList.contains('collapsed')), false, 'choosing the type does not close the section');
+  await page.click(`[data-tsel=${'pc'}]`); await page.waitForSelector(`[data-tsel=${'pc'}].on`);
+  assert.match(await page.textContent('#tpDetail'), /PC.*Look and card.*The four lines on every PC card.*Fields.*Add field/s);
+  assert.equal(await page.locator('#tpDetail .sechdr').count(), 2, 'two sections: look and card, fields');
+  await page.click('[data-tsel=notebook]'); await page.waitForSelector('[data-tsel=notebook].on');
+  assert.equal(await page.locator('#tpDetail .panelbox.collapsed').count(), 0, 'choosing the type does not close a section');
+  // the list finds a type by its name, Enter picks it
+  await page.fill('#tpFind', 'swi'); await page.waitForSelector('.tp-list [data-tsel=switch]');
+  assert.equal(await page.locator('.tp-list:not(.tp-more) [data-tsel]').count(), 1, 'only the type found is listed');
+  await page.press('#tpFind', 'Enter'); await page.waitForSelector('[data-tsel=switch].on');
+  await page.fill('#tpFind', ''); await page.waitForSelector('[data-tsel=pc]');
   // each type lists the fields its own page has: a rack and a patch panel have no network fields, a PC has them and can get ports
-  const fieldsOf = async t => { await page.selectOption('#tfType', t); await page.waitForTimeout(100); return page.locator('#tfBuiltin [data-flab]').evaluateAll(is => is.map(i => i.dataset.flab)); };
+  const fieldsOf = async t => { await page.click(`[data-tsel=${t}]`); await page.waitForSelector(`[data-tsel=${t}].on`); await page.waitForTimeout(100); return page.locator('#tfBuiltin [data-flab]').evaluateAll(is => is.map(i => i.dataset.flab)); };
   const rackF = await fieldsOf('rack'), patchF = await fieldsOf('patch'), pcF = await fieldsOf('pc');
   assert.ok(!rackF.includes('ip') && !rackF.includes('ports') && rackF.includes('units'), 'rack: ' + rackF.join(','));
   assert.ok(!patchF.includes('ip') && patchF.includes('ports'), 'patch panel: ' + patchF.join(','));

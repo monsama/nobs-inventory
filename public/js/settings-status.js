@@ -41,7 +41,7 @@ export function sourceState(src){
 /* The last run in one line: when, how (a push), and what it brought or why it failed. */
 function lastRunHtml(src){
   const r = runOf(RUN_KEY[src]);
-  if (!r) return html`<span class="muted">${sourceOn(src) ? 'No sync yet' : 'Set up below, then sync'}</span>`;
+  if (!r) return html`<span class="muted">${sourceOn(src) ? 'No sync yet' : switchedOn(src) ? 'Set up below, then sync' : 'Turned off'}</span>`;
   const head = `Last sync ${when(r.at)}${r.how === 'push' ? ' (push)' : ''}`;
   const warn = r.ok && r.counts && r.counts.ambiguous ? ` · ${r.counts.ambiguous} fit more than one device and were skipped` : '';
   return r.ok ? html`${head}: ${summary(RUN_KEY[src], r.counts)}${warn}` : html`<span class="src-err">${head} failed: ${r.error || ''}</span>`;

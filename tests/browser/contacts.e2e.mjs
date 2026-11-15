@@ -80,10 +80,9 @@ try {
   await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'contacts'); await page.waitForSelector('.cn-card');
   await page.click('.cn-card:has-text("Service desk") [data-cnedit]');
   await page.click('#cnDel');
-  // asked in the app's own dialog first, which names the devices that lose it
-  await page.waitForSelector('#cfOk');
-  assert.match(await page.textContent('#mdl'), /Delete the contact Service desk\?[\s\S]*loses? this responsible/);
-  await page.click('#cfOk');
+  // gone at once, with Undo in the message
+  await page.waitForSelector('#toast .t-undo');
+  assert.match(await page.textContent('#toast'), /Contact Service desk deleted/);
   await stored(st => st.contacts.length === 2);
   const st = loadState(db);
   assert.equal(st.contacts.length, 2);
