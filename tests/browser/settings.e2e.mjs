@@ -39,6 +39,7 @@ try {
   // the setup as a track of three steps; Test connection is kept and said in the header, also after the tab is drawn again
   assert.match(await page.textContent('#setLdap .setup-track'), /Setup: 0 of 3 done\s*1\s*Server and service account \(next\)\s*2\s*Test connection passed\s*3\s*First sync/);
   assert.equal(await page.locator('#setLdap .src-st-test').count(), 0, 'no test yet');
+  assert.equal(await page.locator('#setLdap [data-srcpreview="ad"]').count(), 1, 'Preview sync is offered before the first sync');
   // connection security: StartTLS moves the address to ldap:// and port 389, TLS back; a company CA is added and removed
   await page.fill('#lk_url', 'ldaps://dc01.example.test:636'); await page.press('#lk_url', 'Tab');
   await page.waitForFunction(() => document.querySelector('#lk_security') && document.querySelector('#lk_security').value === '');

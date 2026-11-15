@@ -2175,3 +2175,9 @@ table.grid.ds-matrix td.ds-write input{margin:0}
 .setup-track li.now i{background:var(--accentbtn);border-color:var(--accentbtn);color:var(--accentfg)}
 .setup-track li+li::before{content:'';width:14px;height:1px;background:var(--bd);margin-right:4px}
 @media (max-width:760px){.setup-track ol{flex-direction:column;gap:6px}.setup-track li+li::before{content:none}}
+/* What a failed sync's error means and what to do, under the error itself. */
+.src-fix{display:block;margin-top:2px;color:var(--fg);font-size:12.5px}
+/* Move to a new server: two short lists of steps, each under a small heading. */
+.mv-body{padding:4px 12px 12px}
+.mv-body h4{display:flex;align-items:center;gap:8px;margin:12px 0 6px;font-size:13px}
+.mv-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:12.5px;line-height:1.55}

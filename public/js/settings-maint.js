@@ -386,7 +386,7 @@ export function renderSetMaint(){
      reset, beside restoring), and E-mail (the mail server and the weekly e-mail). The API tokens are under Users. */
   const part = ['backups', 'mail'].includes(st.setTab) ? st.setTab : 'system';
   if (part === 'backups'){
-    $('#setMaint').innerHTML = edit ? html`${rawHtml(backupPanel(edit))}${edit ? html`<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
+    $('#setMaint').innerHTML = edit ? html`${rawHtml(backupPanel(edit))}${MOVE_GUIDE}${edit ? html`<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
     <div class="note" style="padding:12px">Deletes every device with its relations and history, for everyone, and takes them out of the contracts. Floor plans, contracts and settings stay; people, rooms, sites, models, racks and the objects excluded from sync stay unless you tick them. A backup is taken first.</div>
     <div class="addrel" style="padding:10px 12px"><button id="setReset" class="danger-text">Clear inventory…</button></div></div>` : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
@@ -402,6 +402,26 @@ export function renderSetMaint(){
   $('#setMaint').querySelectorAll('[data-hlgo]').forEach(b => b.onclick = () => { const [area, name] = b.dataset.hlgo.split('|'); const c = HEALTH && HEALTH.checks.find(x => x.area === area && x.name === name); healthGo(c || { area, name }); });
   const ha = $('#hlAgain'); if (ha) ha.onclick = () => { HEALTH = undefined; renderSetMaint(); loadHealth(); };
 }
+/* Moving to a new server, or rebuilding one: the whole server with its secrets (backup.sh and restore.sh), or only the
+   inventory (a backup from this page), after which the passwords and keys are set again. Folded until opened. */
+const MOVE_GUIDE = html`<details class="panelbox fold mv-guide"><summary class="hdr">Move to a new server <span class="cnt">or rebuild this one</span></summary>
+  <div class="mv-body">
+    <h4>The whole server, with its passwords and keys <span class="chip ok">Recommended</span></h4>
+    <ol class="mv-steps">
+      <li>On this server, set <span class="mono">BACKUP_PASSPHRASE_FILE</span> in <span class="mono">.env</span> (a file you keep elsewhere too) and run <span class="mono">sudo ./scripts/backup.sh</span>. The archive is encrypted and holds the secrets.</li>
+      <li>Copy the archive (<span class="mono">backup/nobs-inventory-….tar.gz.enc</span>) and the passphrase file to the new server, apart from each other.</li>
+      <li>On the new server, install Docker and get the same version of the app (the release, or <span class="mono">git clone</span> and check out its tag).</li>
+      <li>Run <span class="mono">sudo RESTORE_SECRETS=yes ./scripts/restore.sh backup/&lt;file&gt;.tar.gz.enc</span> and type RESTORE.</li>
+      <li>Start it with <span class="mono">docker compose up -d</span>, sign in, and look at System → Health. Use Test connection on each data source.</li>
+      <li>Point the name of the server (DNS) at the new one, and the Lansweeper push script if it names the server by its address.</li>
+    </ol>
+    <h4>Only the inventory, from a backup on this page</h4>
+    <ol class="mv-steps">
+      <li>Install the app on the new server and sign in with the first admin account.</li>
+      <li>Settings → System → Backups → Restore from file… with a downloaded backup (a <span class="mono">.nobsbak</span> copy needs its password).</li>
+      <li>Set again what a backup never holds: the LDAP service password, a new Microsoft Graph certificate (upload it to the app in Entra), a new Lansweeper push token (run the script with <span class="mono">-Setup</span>), API tokens, the mail server's password and the copy outside the server.</li>
+    </ol>
+  </div></details>`;
 /* The Factory reset dialog: enabled only once FACTORY RESET is typed, optionally deleting the backups too. The server
    clears everything but the person's own account; the page then loads anew. */
 export function factoryResetModal(){

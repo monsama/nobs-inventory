@@ -9,6 +9,7 @@ import { scheduleOf } from './schedule.js';
 import { SOURCE_LABEL } from './sync-map.js';
 import { runOf, summary, when } from './16-sync.js';
 import { html } from './html.js';
+import { syncFix } from './sync-errors.js';
 
 /* A source by its field key (ls, ad, graph), its sync key (syncRuns, the schedule) and its Settings tab. */
 export const RUN_KEY = { ls: 'lansweeper', ad: 'ldap', graph: 'graph' };
@@ -44,7 +45,8 @@ function lastRunHtml(src){
   if (!r) return html`<span class="muted">${sourceOn(src) ? 'No sync yet' : switchedOn(src) ? 'Set up below, then sync' : 'Turned off'}</span>`;
   const head = `Last sync ${when(r.at)}${r.how === 'push' ? ' (push)' : ''}`;
   const warn = r.ok && r.counts && r.counts.ambiguous ? ` · ${r.counts.ambiguous} fit more than one device and were skipped` : '';
-  return r.ok ? html`${head}: ${summary(RUN_KEY[src], r.counts)}${warn}` : html`<span class="src-err">${head} failed: ${r.error || ''}</span>`;
+  const fix = r.ok ? '' : syncFix(RUN_KEY[src], r.error);
+  return r.ok ? html`${head}: ${summary(RUN_KEY[src], r.counts)}${warn}` : html`<span class="src-err">${head} failed: ${r.error || ''}</span>${fix ? html`<span class="src-fix">${fix}</span>` : ''}`;
 }
 /* A source's setup as a short track of steps ([label, done]), each ticked when done, the first one not done marked as
    the one to do now. Shown only until all are done: after that the header says how the source is doing. */
@@ -74,7 +76,7 @@ export function statusHeaderHtml(src, { on = null, test = null, sync = null, msg
   return `<div class="src-status" data-srcstatus="${src}">
     <div class="src-st-top"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${esc(SOURCE_LABEL[src])}</b><span class="src-st-state">${esc(s.text)}</span><span class="grow"></span>${sw}</div>
     <div class="src-st-run">${lastRunHtml(src)}</div>${lastTestHtml(src)}${off && OFF_TEXT[src] ? `<p class="note src-offtext">${esc(OFF_TEXT[src])}</p>` : ''}
-    <div class="src-st-act">${btn(test, 'Test connection')}${btn(sync, 'Sync now', 'primary')}${note ? `<span class="muted">${esc(note)}</span>` : ''}${msg ? `<span class="note" id="${msg}" role="status"></span>` : ''}<span class="grow"></span>
+    <div class="src-st-act">${btn(test, 'Test connection')}${sync && edit && !(runOf(RUN_KEY[src]) || {}).ok && PREVIEW_URL[src] ? `<button type="button" data-srcpreview="${src}" ${sync.ready ? '' : 'disabled'} title="What a first sync would add and change, worked out without saving anything">Preview sync</button>` : ''}${btn(sync, 'Sync now', 'primary')}${note ? `<span class="muted">${esc(note)}</span>` : ''}${msg ? `<span class="note" id="${msg}" role="status"></span>` : ''}<span class="grow"></span>
       <button type="button" class="link" data-srchist="${src}" ${runs ? '' : 'disabled title="No sync has changed a field yet"'}>History of changes${runs ? ` (${runs})` : ''}</button></div></div>`;
 }
 
@@ -105,6 +107,26 @@ function historyModal(src){
     st.scope = null; st.tab = 'table'; leaveSettings(); closeModal(); render();
   });
 }
+/* Preview sync, before the first sync of AD and Entra & Intune: the server reads everything and works out what a sync
+   would do, saving nothing; the answer goes to the line under the buttons. (Lansweeper's push script has -DryRun.) */
+const PREVIEW_URL = { ad: 'api/ldap/preview', graph: 'api/graph/preview' };
+const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+export function previewText(src, c){
+  if (!c) return '';
+  const parts = src === 'ad'
+    ? [`${n(c.people || 0, 'person', 'people')} in the sign-in group`, c.created && `${c.created} new`, c.updated && `${c.updated} updated`, c.deactivated && `${c.deactivated} switched off`, c.computers && `${n(c.computers, 'device', 'devices')} matched by computer account`, c.review && `${c.review} new in To review`, c.added && `${c.added} added`]
+    : [c.matched !== undefined && `${n(c.matched, 'device', 'devices')} matched`, c.filled && `${n(c.filled, 'field', 'fields')} filled in`, c.added && `${c.added} added`, c.review && `${c.review} new in To review`, c.people && typeof c.people === 'object' && c.people.inEntra !== undefined && `${n(c.people.inEntra, 'person', 'people')} found in Entra`];
+  return `A sync now would bring: ${parts.filter(Boolean).join(' · ') || 'nothing new'}. Nothing was saved.`;
+}
+document.addEventListener('click', async e => {
+  const b = /** @type {HTMLElement & { disabled: boolean } | null} */ (/** @type {unknown} */ (evEl(e).closest('[data-srcpreview]'))); if (!b || b.disabled || !isAdmin()) return;
+  const src = b.dataset.srcpreview, msg = b.closest('.src-status')?.querySelector('[role=status]');
+  b.disabled = true; if (msg) msg.textContent = 'Working it out…';
+  const r = await fetch(PREVIEW_URL[src], { method: 'POST', credentials: 'same-origin' }).catch(() => null);
+  const j = r ? await r.json().catch(() => ({})) : {};
+  b.disabled = false;
+  if (msg) msg.innerHTML = String(r && r.ok ? html`<span>${previewText(src, j.counts)}</span>` : html`<span style="color:var(--danger)">${j.error || 'The preview did not run.'}</span>`);
+});
 /* Bound once: the headers are drawn again with their pages. The AD and Entra switches keep useAd and useGraph. */
 document.addEventListener('change', e => {
   const c = evEl(e).closest('#useAd, #useGraph'); if (!c || !isAdmin()) return;

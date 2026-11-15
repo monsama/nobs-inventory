@@ -8,6 +8,7 @@ import { dateText } from './dates.js';
 import { MAINT_SOON_DAYS, dueTasks, todayDay } from './maintenance.js';
 import { scheduleOf, syncState } from './schedule.js';
 import { patchGaps } from './cabling.js';
+import { syncFix } from './sync-errors.js';
 
 /* Warranty: a date as YYYY-MM-DD. Soon is within 90 days; the sidebar filters on both. */
 export const WARRANTY_SOON_DAYS = 90;
@@ -82,7 +83,7 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
     const plan = scheduleOf(s), runs = s.syncRuns || {};
     for (const src of sources) {
       const r = runs[src], state = syncState(r, plan[src], today.getTime());
-      if (state === 'failed') out.push({ id: `sync-${src}`, sev: 'bad', title: `${SYNC_NAMES[src]} sync failed`, text: String(r.error || 'The last run failed.').slice(0, 160), fp: `failed|${r.at}`, go: { settings: src } });
+      if (state === 'failed') out.push({ id: `sync-${src}`, sev: 'bad', title: `${SYNC_NAMES[src]} sync failed`, text: (syncFix(src, r.error) || String(r.error || 'The last run failed.')).slice(0, 220), fp: `failed|${r.at}`, go: { settings: src } });
       else if (state === 'late') out.push({ id: `sync-${src}`, sev: 'warn', title: `${SYNC_NAMES[src]} sync is late`, text: r.how === 'push' ? `No push since ${dateText(String(r.at).slice(0, 10))}: check the scheduled task on the Lansweeper server` : `It last ran on ${dateText(String(r.at).slice(0, 10))}, less often than planned`, fp: `late|${r.at}`, go: { settings: src } });
     }
     const rt = s.restoreTest, copy = s.backupExportRun;

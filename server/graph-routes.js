@@ -97,6 +97,14 @@ export function registerGraphRoutes(app, ctx) {
       res.json({ ...r, test });
     } catch (e) { recordTest(db, 'graph', { ok: false, text: e.message }); next(e); }
   });
+  /* Preview sync: what a sync would do now, worked out without saving anything; not recorded as a run. */
+  app.post('/api/graph/preview', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      const g = cfgGraph();
+      if (!g) throw graphMissing();
+      res.json({ counts: await syncGraph(db, g, new Date(), graphFetch, { dryRun: true }) });
+    } catch (e) { next(e); }
+  });
   app.post('/api/graph/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       /* Switched off in Settings: not run, and not recorded as a run. Sign-in with Microsoft is not affected. */

@@ -94,7 +94,7 @@ export function buildDigest(s, { link = '', backups = null, copy = null, health 
   if (reported.length) sections.push([`${reported.length} problem${reported.length === 1 ? '' : 's'} reported by users, not done yet`, list(reported, o => `${o.name}: ${o.reported.text} (${o.reported.by}, ${dateText(String(o.reported.at).slice(0, 10))})`)]);
   if (review) sections.push([`${review} device${review === 1 ? '' : 's'} waiting in To review`, ['Found by a sync, not in the inventory yet: accept or ignore them.']]);
   const bad = health.filter(c => c.state === 'bad');
-  if (bad.length) sections.push(['Health', bad.map(c => `${c.area} · ${c.name}: ${c.value}`)]);
+  if (bad.length) sections.push(['Health', bad.map(c => `${c.area} · ${c.name}: ${c.value}${c.note ? '. ' + c.note : ''}`)]);
   const backupLine = backups ? [`Last backup: ${backups}`] : [];
   if (copy) backupLine.push(`Copy outside the server: ${copy}`);
   const count = sections.length;

@@ -142,6 +142,17 @@ export function registerSyncRoutes(app, ctx) {
     } catch (e) { audit(db, null, 'Lansweeper sync failed: ' + e.message); next(e); }
   });
 
+  /* Preview sync: what a directory sync would do now, worked out without saving anything; not recorded as a run. */
+  app.post('/api/ldap/preview', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      const lc = cfgLdap();
+      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
+      res.json({ counts: await syncLdapUsers(db, lc, { dryRun: true }) });
+    } catch (e) {
+      if (e instanceof HttpError) return next(e);
+      next(new HttpError(502, ldapHint(e.message) || 'The directory cannot be read.'));
+    }
+  });
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       /* Switched off in Settings: not run, and not recorded as a run. Sign-in with AD accounts is not affected. */

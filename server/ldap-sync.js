@@ -21,7 +21,8 @@ function keepLogins(u, p) {
 }
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
    admin group, and users who are gone from it are deactivated, never deleted, so their devices keep their owner. */
-export async function syncLdapUsers(db, config) {
+/* dryRun: read and worked out, nothing saved, no backup, no sign-in changed (Preview sync). */
+export async function syncLdapUsers(db, config, { dryRun = false } = {}) {
   const people = await ldapListUsers(config);   /* the members of the sign-in group, with admin set for the admin group */
   /* The computers' groups: a directory that will not list computers does not stop the user sync. Everything is read from
      the directory before the inventory is loaded, so a save made on the page meanwhile is not overwritten. */
@@ -111,6 +112,7 @@ export async function syncLdapUsers(db, config) {
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
   if (linked.length) counts.linked = linked.length;
   const listChanged = counts.listChanged; delete counts.listChanged;
+  if (dryRun) return counts;
   if (counts.created || counts.updated || counts.linked || counts.merged || counts.deactivated || counts.computers || listChanged) { autoBackup(db, 'before an LDAP sync', { daily: true }); saveState(db, s); }
   for (const id of linked) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(id);
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));

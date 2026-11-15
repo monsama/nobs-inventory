@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import { PUSH_STOPPED_DAYS, scheduleOf, syncState } from '../public/js/schedule.js';
 import { dateText, dateTimeText } from '../public/js/dates.js';
+import { syncFix } from '../public/js/sync-errors.js';
 import { backupStorage } from './backup-store.js';
 import { HISTORY_MAX_BYTES, MAX_BYTES, storedSizes } from './state.js';
 
@@ -90,7 +91,7 @@ export function healthReport(db, s, { version = '', on = {}, graphCert = null, p
     const stopped = push && state === 'late' && now - Date.parse(r.at) > PUSH_STOPPED_DAYS * DAY;
     add('Syncs', names[src], stopped || state === 'failed' ? 'bad' : state === 'none' || state === 'late' ? 'warn' : 'ok',
       !r ? 'Not run yet' : `${r.ok ? 'Last run' : 'Last run failed'} ${ago(r.at, now)}${push ? ' (push)' : ''}${every ? ` · runs ${every === 24 ? 'daily' : `every ${every} h`}` : ' · only by hand'}`,
-      !r ? 'Run it once with Sync now.' : !r.ok ? String(r.error || '').slice(0, 200) : state === 'late' ? (push ? 'No push from Lansweeper for more than two days: check the scheduled task on the Lansweeper server (Lansweeper-Push.ps1), its log and its token.' : 'It has not run as often as planned: is the server kept running?') : '');
+      !r ? 'Run it once with Sync now.' : !r.ok ? [syncFix(src, r.error), String(r.error || '').slice(0, 200)].filter(Boolean).join(' Error: ') : state === 'late' ? (push ? 'No push from Lansweeper for more than two days: check the scheduled task on the Lansweeper server (Lansweeper-Push.ps1), its log and its token (Settings → Data sources → Lansweeper).' : 'It has not run as often as planned: is the server kept running?') : '');
   }
 
   /* Certificates that expire: the one the server signs in to Graph with, and the directory's CA. */

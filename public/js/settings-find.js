@@ -25,6 +25,7 @@ const SECTIONS = [
   ['Viewers from groups', 'access', 'Viewers from groups', 'group rules roles from groups'],
   ['Clear inventory', 'backups', 'Clear inventory', 'delete all devices start again'],
   ['Factory reset', 'backups', 'Factory reset', 'start over wipe everything'],
+  ['Move to a new server', 'backups', 'Move to a new server', 'migrate restore rebuild new server move'],
   ['Weekly e-mail', 'mail', 'Weekly e-mail', 'digest smtp mail server'],
   ['Health', 'maintenance', 'Health', 'status checks disk certificate inventory size'],
   ['Device fields and their sources', 'sources', 'Device fields', 'which source fills which field policy'],
@@ -52,6 +53,8 @@ export function openSetting(k, title = ''){
     /* A section that shows only once it applies (Store rooms with a site, Lansweeper push with Lansweeper on): said. */
     if (!h){ toast(`${title} is not on this page yet: it shows once it applies.`); return; }
     const box = /** @type {HTMLElement} */ (h.closest('.panelbox') || h);
+    /* A folded section (details) is opened. */
+    if (h.tagName === 'SUMMARY' && h.parentElement instanceof HTMLDetailsElement) h.parentElement.open = true;
     if (box.classList.contains('collapsed')) /** @type {HTMLElement} */ (h).click();
     box.scrollIntoView({ block: 'start', behavior: 'smooth' });
     box.classList.add('set-flash'); setTimeout(() => box.classList.remove('set-flash'), 1600);
