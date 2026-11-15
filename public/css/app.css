@@ -663,6 +663,11 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 /* IP addresses: one row per address, framed like the Software list; problems in the warning colour, free addresses
    of a subnet in the muted one. */
 .ip-scope{margin:12px 12px 0}
+/* Printers of a computer (from Lansweeper) and the computers using a printer. */
+table.grid.prn-table td{vertical-align:middle;white-space:normal}
+.prn-sub{font-size:11.5px}
+.prn-dev{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;overflow:hidden;white-space:nowrap}
+.chip.prn-usb{background:var(--sub);color:var(--fg)}.chip.prn-share,.chip.prn-ip,.chip.prn-net{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--linktext)}
 .ip-page>.gridwrap{margin:12px;border:1px solid var(--bd);border-radius:var(--r-m);overflow:auto}
 table.grid.ips{width:100%;min-width:760px;table-layout:fixed}
 table.grid.ips td{padding:4px 8px;max-width:none;vertical-align:middle}
