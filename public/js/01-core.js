@@ -865,6 +865,16 @@ if (typeof document !== 'undefined'){
   /* Scrolling closes it, except the scroll that brought the mark into view just before (it arrives after the click). */
   document.addEventListener('scroll', e => { if (Date.now() - srcPopAt > 400 && !(evEl(e).closest && evEl(e).closest('#fsrcPop'))) closeSrcPop(); }, true);
 }
+/* Tab brings a control fully into view, ring and all: the browser stops at a control half in a box that scrolls sideways
+   (the tab bars on a phone, a wide table). Only for the keyboard; nothing moves when it shows already. Once more after
+   the next frame: rows of a long table are drawn as they come into view (content-visibility) and can be taller than
+   their estimate, which pushes the control out again. */
+if (typeof document !== 'undefined') document.addEventListener('focusin', e => {
+  const t = evEl(e);
+  if (!t || !t.matches || !t.matches(':focus-visible') || t.closest('#fsrcPop')) return;
+  const show = () => { if (document.activeElement === t) t.scrollIntoView({ block: 'nearest', inline: 'nearest' }); };
+  show(); requestAnimationFrame(() => requestAnimationFrame(show));
+});
 
 /* A field set by hand anywhere but its own field (a bulk move, a rack, a plan, a refused save applied again) is noted as
    the page's, so a sync that filled it does not put its value back. */
