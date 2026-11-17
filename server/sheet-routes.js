@@ -56,6 +56,9 @@ export function registerSheetRoutes(app, ctx) {
       if (!Array.isArray(b.columns) || !b.columns.length || b.columns.length > L.cols) throw new HttpError(400, `A list has 1 to ${L.cols} columns.`);
       const maxRows = pdf ? 1000 : 20000;
       if (!Array.isArray(b.rows) || b.rows.length > maxRows) throw new HttpError(400, `A list ${pdf ? 'as a PDF ' : ''}has up to ${maxRows} rows${pdf ? ': take Excel for more' : ''}.`);
+      /* The workbook is written in one go: at most 400 000 cells (10 000 devices with 40 columns), so one file does not
+         hold up the server for the others. */
+      if (b.rows.length * b.columns.length > 400000) throw new HttpError(400, `That is ${b.rows.length} rows of ${b.columns.length} columns: show fewer columns or filter the list, up to 400 000 cells.`);
       /* The text of a list is bounded as a whole as well (an IP list is far below), before any work is done on it. */
       let chars = 0;
       for (const r of b.rows) if (Array.isArray(r)) for (const v of r.slice(0, L.cols)) chars += typeof v === 'string' ? Math.min(v.length, L.cell) : 8;

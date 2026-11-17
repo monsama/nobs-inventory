@@ -68,8 +68,8 @@ export function printerMatch(p, pc, objs, rels){
     return n ? out(n, 'name', { stale: n.ip && n.ip !== p.ip ? { port: p.ip, now: n.ip } : null }) : out(null, '');
   }
   if (p.kind === 'share') {
-    const short = String(p.host || '').split('.')[0];
-    const via = objs.find(o => o.type !== 'printer' && o.status !== 'retired' && (low(o.name) === low(p.host) || low(o.name).split('.')[0] === short)) || null;
+    const host = String(p.host || '').trim(), short = host.split('.')[0];
+    const via = host ? objs.find(o => o.type !== 'printer' && o.status !== 'retired' && o.name && (low(o.name) === low(host) || low(o.name).split('.')[0] === low(short))) || null : null;
     const d = byName(p.share, p.name);
     return out(d, 'share', { via });
   }
@@ -95,7 +95,7 @@ export function printerRows(objs, rels){
   const rows = new Map(), computers = objs.filter(o => o.status !== 'retired' && Array.isArray(o.lsPrinters) && o.lsPrinters.length);
   for (const pc of computers) for (const p of pc.lsPrinters) {
     const m = printerMatch(p, pc, objs, rels);
-    const key = m.d ? 'd:' + m.d.id : p.kind === 'ip' ? 'ip:' + p.ip : p.kind === 'share' ? 's:' + String(p.host).toLowerCase() + '\\' + printerKey(p.share) : p.kind === 'usb' ? 'u:' + pc.id + ':' + printerKey(p.name) : 'n:' + (p.host || printerKey(p.name));
+    const key = m.d ? 'd:' + m.d.id : p.kind === 'ip' ? 'ip:' + p.ip : p.kind === 'share' ? 's:' + String(p.host || '').toLowerCase() + '\\' + printerKey(p.share) : p.kind === 'usb' ? 'u:' + pc.id + ':' + printerKey(p.name) : 'n:' + (p.host || printerKey(p.name));
     if (!rows.has(key)) rows.set(key, { key, d: m.d, p, via: m.via, users: [], kinds: new Set(), stale: [] });
     const r = rows.get(key);
     /* A computer that reaches it two ways (by WSD and through the print server) counts once. */

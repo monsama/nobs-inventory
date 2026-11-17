@@ -2,7 +2,8 @@
    says how it is reached, how many computers use it (opening them in the Table), the printer device it stands for or
    Add as device, the print server a shared one goes through, and computers whose port points to an address the printer
    no longer has. Printers of the inventory no computer uses are listed too. */
-import { $, objs, rels, st, tico } from './01-core.js';
+import { $, objs, rels, st, tico, toastUndo } from './01-core.js';
+import { deleteObject } from './03-object-modals.js';
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { resetFilters } from './02-views.js';
@@ -51,6 +52,7 @@ export function renderPrinters(){
   }));
   $('#view').querySelectorAll('[data-prnadd]').forEach(b => b.addEventListener('click', () => {
     const r = rows[+(/** @type {HTMLElement} */ (b).dataset.prnadd)]; if (!r || r.d) return;
-    addPrinterDevice(r.p, r.users[0].pc); queueServerSave(); render();
+    const pc = r.users[0].pc, d = addPrinterDevice(r.p, pc); queueServerSave(); render();
+    toastUndo(r.p.kind === 'usb' ? `${d.name} added, attached to ${pc.name}` : `${d.name} added`, () => { deleteObject(d.id); queueServerSave(); });
   }));
 }

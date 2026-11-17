@@ -43,3 +43,14 @@ test('the device list comes back as an Excel workbook with all its columns; no P
     assert.equal((await post('xlsx', { ...body, list: '__proto__' })).status, 404, 'only known lists');
   } finally { await srv.close(); }
 });
+
+test('a device list over 400 000 cells is refused with what to do', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const columns = Array.from({ length: 41 }, (_, i) => ({ label: 'C' + i }));
+    const r = await fetch(srv.base + '/api/reports/list?format=xlsx', { method: 'POST', headers: { cookie: a.cookie, 'content-type': 'application/json', origin: srv.base }, body: JSON.stringify({ list: 'devices', name: 'big', columns, rows: Array(10000).fill(['x']) }) });
+    assert.equal(r.status, 400);
+    assert.match((await r.json()).error, /fewer columns/);
+  } finally { await srv.close(); }
+});

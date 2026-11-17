@@ -49,13 +49,17 @@ export function modal(body, cls=''){
   /* Escape in a Settings field that was typed in puts back what it held, and keeps Settings open: its fields are saved
      as they are left, so closing would save the typing. A second Escape closes. (Dialogs with a Save button, such as New
      device, keep their typing and ask before it is dropped.) */
+  /* What each field held when it got the focus: a field saved and left keeps its new value as the one to go back to. */
+  const atFocus = new WeakMap();
+  d.addEventListener('focusin', e => { const f = e.target; if (f instanceof HTMLInputElement || f instanceof HTMLTextAreaElement) atFocus.set(f, f.value); });
   d.addEventListener('keydown', e => {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     const f = /** @type {HTMLInputElement | HTMLTextAreaElement} */ (e.target);
     const typed = f instanceof HTMLTextAreaElement || (f instanceof HTMLInputElement && /^(text|search|email|url|tel|number|password|)$/.test(f.type));
-    if (!typed || !f.closest('#setPane') || f.readOnly || f.disabled || f.value === f.defaultValue) return;
+    const was = atFocus.has(f) ? atFocus.get(f) : f.defaultValue;
+    if (!typed || !f.closest('#setPane') || f.readOnly || f.disabled || f.value === was) return;
     e.preventDefault(); e.stopPropagation();
-    f.value = f.defaultValue;
+    f.value = was;
     f.dispatchEvent(new Event('input', { bubbles: true }));
   });   /* after the field's own handlers: an Escape that closes an open list (a combo field) is not this */
   /* The browser may close it without asking (repeated Escape): it is closed properly then, or opened again if locked. */
