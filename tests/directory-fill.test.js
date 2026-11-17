@@ -160,23 +160,24 @@ test('computer accounts the inventory does not have are listed, and added on req
   assert.equal(s.adUnmatched.length, 0);
 });
 
-test('found devices wait in To review by default; a source set to add directly adds them, except ones not seen for long', () => {
+test('found devices go straight in by default, except ones not seen for long; a source set to wait makes them all wait in To check', () => {
   const comp = (name, logon) => ({ id: name.toLowerCase(), name, os: 'Windows 11 Enterprise', domain: 'corp.ch', ...(logon ? { logon } : {}) });
-  const s = { ...state([]), seq: 100, codeN: 0, adUnmatched: [comp('PC-NEW', '2026-10-20'), comp('PC-OLD', '2025-01-01'), comp('PC-NEVER')] };
+  const s = { ...state([]), seq: 100, codeN: 0, intake: { ad: 'review' }, adUnmatched: [comp('PC-NEW', '2026-10-20'), comp('PC-OLD', '2025-01-01'), comp('PC-NEVER')] };
   assert.deepEqual(intakeFromAd(s, NOW), { direct: 0, review: 3 });
   assert.deepEqual(s.objs.map(o => [o.name, o.review && o.review.src]), [['PC-NEW', 'ad'], ['PC-OLD', 'ad'], ['PC-NEVER', 'ad']]);
-  assert.match(s.history[s.objs[0].id][0].msg, /waiting in To review/);
+  assert.match(s.history[s.objs[0].id][0].msg, /waiting in To check/);
   assert.deepEqual(s.adUnmatched, [], 'the list is used up');
 
-  const t = { ...state([]), seq: 100, codeN: 0, intake: { ad: 'direct' }, adUnmatched: [comp('PC-NEW', '2026-10-20'), comp('PC-OLD', '2025-01-01')] };
+  const t = { ...state([]), seq: 100, codeN: 0, adUnmatched: [comp('PC-NEW', '2026-10-20'), comp('PC-OLD', '2025-01-01')] };
   assert.deepEqual(intakeFromAd(t, NOW), { direct: 1, review: 1 });
   assert.equal(t.objs.find(o => o.name === 'PC-NEW').review, undefined, 'straight in');
+  assert.ok(Date.parse(t.objs.find(o => o.name === 'PC-NEW').added), 'with the date it was added');
   assert.equal(t.objs.find(o => o.name === 'PC-OLD').review.src, 'ad', 'no logon for long: still waits');
 
-  const g = { ...state([]), seq: 100, codeN: 0, graphUnmatched: [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }, { id: 'm2', name: 'OLD-TAB', platform: 'Android', lastSync: '2025-02-01T08:00:00Z' }] };
+  const g = { ...state([]), seq: 100, codeN: 0, intake: { graph: 'review' }, graphUnmatched: [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }, { id: 'm2', name: 'OLD-TAB', platform: 'Android', lastSync: '2025-02-01T08:00:00Z' }] };
   assert.deepEqual(intakeFromGraph(g, NOW), { direct: 0, review: 2 });
   assert.deepEqual(g.objs.map(o => [o.name, o.type, o.review.src]), [['iPhone Ana', 'ios', 'graph'], ['OLD-TAB', 'android', 'graph']]);
-  const h = { ...state([]), seq: 100, codeN: 0, intake: { graph: 'direct' }, graphUnmatched: g.objs.length ? [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }, { id: 'm2', name: 'OLD-TAB', platform: 'Android', lastSync: '2025-02-01T08:00:00Z' }] : [] };
+  const h = { ...state([]), seq: 100, codeN: 0, graphUnmatched: g.objs.length ? [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }, { id: 'm2', name: 'OLD-TAB', platform: 'Android', lastSync: '2025-02-01T08:00:00Z' }] : [] };
   assert.deepEqual(intakeFromGraph(h, NOW), { direct: 1, review: 1 });
   // a device that waits (or was ignored) is in the inventory's list, so no sync offers it again
   g.graphUnmatched = [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }];
@@ -218,8 +219,9 @@ test('a person gets title, phones, office, manager and e-mail from the directory
   assert.equal(s.users[1].profile, undefined, 'what Entra no longer says goes');
 });
 
-test('Autopilot: a known serial gets its group tag; an unknown one waits in To review until Intune names it', () => {
+test('Autopilot: a known serial gets its group tag; an unknown one waits in To check until Intune names it', () => {
   const s = state([{ id: 'a', name: 'NB-1', serial: 'SER1', status: 'active', type: 'notebook' }]);
+  s.intake = { graph: 'review' };   /* set to wait: an unknown serial waits until Intune names it */
   s.seq = 100; s.codeN = 0;
   const r = applyAutopilot(s, [
     { serialNumber: 'SER1', groupTag: 'Sales', purchaseOrderIdentifier: 'PO-7', enrollmentState: 'enrolled', model: 'HP', lastContactedDateTime: '2026-10-20T08:00:00Z' },
@@ -300,7 +302,7 @@ test('an AD location text fills the location of a device when it names a room he
   assert.throws(() => checkState({ objs: [], rels: [], users: [], locs: [], types: {}, history: {}, adLocMap: { x: 5 } }), /Location texts map to rooms/);
 });
 
-test('a second record named by the DNS name: the AD account stays with the device of its own name, and Lansweeper puts the record in To review', () => {
+test('a second record named by the DNS name: the AD account stays with the device of its own name, and Lansweeper puts the record in To check', () => {
   const s = state([
     { id: 'n', name: 'NB-35', serial: 'MP2V76BR', status: 'active', type: 'notebook' },
     { id: 'd', name: 'nb-35.corp.example', status: 'active', type: 'other', mac: '64:c9:01:e3:9c:d1' },
@@ -314,7 +316,7 @@ test('a second record named by the DNS name: the AD account stays with the devic
   assert.equal(d.adGroups, undefined); assert.equal(d.os, undefined); assert.equal(d.purpose, undefined);
   assert.equal(x.inAd, true, 'with no device named NB-99, the DNS name still finds its account');
 
-  // Lansweeper: a new record named nb-35.corp.example with no serial waits in To review, even when new devices go straight in
+  // Lansweeper: a new record named nb-35.corp.example with no serial waits in To check, even when new devices go straight in
   const t = { ...state([{ id: 'n', name: 'NB-35', serial: 'MP2V76BR', status: 'active', type: 'notebook' }]), intake: { lansweeper: 'direct' }, feedOn: true, codeN: 1, seq: 100 };
   mergeRecords(t, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', model: 'INVENTEC Corporation', ref: '18257' },
     { name: 'nb-77.corp.example', serial: '', ip: '10.1.2.105', ref: '18258' },
@@ -327,7 +329,7 @@ test('a second record named by the DNS name: the AD account stays with the devic
   // after Clear inventory both are new: the DNS-named record comes first in the push and is still known as the second one
   const u = { ...state([]), intake: { lansweeper: 'direct' }, feedOn: true, codeN: 1, seq: 100 };
   mergeRecords(u, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.104', ref: '18257' }, { name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200' }], NOW);
-  assert.equal(u.objs.find(o => o.name === 'nb-35.corp.example').review.src, 'lansweeper', 'in To review, whatever the order of the push');
+  assert.equal(u.objs.find(o => o.name === 'nb-35.corp.example').review.src, 'lansweeper', 'in To check, whatever the order of the push');
   assert.equal(u.objs.find(o => o.name === 'NB-35').review, undefined, 'the device itself goes in as Settings says');
 
   // with "Merge second records" on, the record is no device: it is NB-35's docking station, an attachment kept by its MAC

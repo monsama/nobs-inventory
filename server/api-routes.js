@@ -37,7 +37,7 @@ export function registerApiRoutes(app, { db, requireUser, requireAdmin, throttle
     if (!t) { throttle.recordFailure(keys); return res.status(401).set('WWW-Authenticate', 'Bearer').json({ error: 'A valid API token is needed (Authorization: Bearer nobs_…).' }); }
     req.apiToken = t; res.set('Cache-Control', 'no-store'); next();
   };
-  /* GET /api/v1/devices[?format=csv][&status=active][&type=notebook][&q=text]: the inventory's devices, not those in To review. */
+  /* GET /api/v1/devices[?format=csv][&status=active][&type=notebook][&q=text]: the inventory's devices, not those in To check. */
   app.get('/api/v1/devices', apiAuth, (req, res) => {
     const s = loadState(db, { history: false }), q = String(req.query.q || '').trim().toLowerCase();
     let list = s.objs.filter(o => !o.review);

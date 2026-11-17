@@ -109,7 +109,7 @@ export function renderSetLdap(){
     </details>
     <div class="ds-subhdr">Sync</div>
     ${rawHtml(intakeRowHtml('ad'))}
-    <p class="note" style="padding:0 12px 4px">Computer accounts that match no device here are added as new devices; disabled accounts never do, and ones with no logon for 90 days always wait in To review.</p>
+    <p class="note" style="padding:0 12px 4px">Computer accounts that match no device here are added as new devices; disabled accounts never do, and ones with no logon for 90 days always wait in To check.</p>
     <p class="note" style="padding:0 12px 4px">Only the fields listed under Fields from this source are read from a computer account, never its LAPS password or BitLocker keys.</p>
     <div style="padding:8px 12px 12px">${scheduleRowHtml('ldap', edit)}</div></div>`;
   bindScheduleRows($('#setLdap'));
@@ -163,7 +163,7 @@ export function renderSetLdap(){
     const c = j.counts;
     msg.textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated.`
       + (c.computerError ? ` Computer accounts could not be read: ${c.computerError}` : c.computers != null ? ` ${c.computers} ${c.computers === 1 ? 'device' : 'devices'} updated from their computer accounts.` : '')
-      + (c.review ? ` ${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in To review.` : '') + (c.added ? ` ${c.added} new ${c.added === 1 ? 'device' : 'devices'} added.` : '');
+      + (c.review ? ` ${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in To check.` : '') + (c.added ? ` ${c.added} new ${c.added === 1 ? 'device' : 'devices'} added.` : '');
     await reloadFromServer(); renderSetLdap(); $('#ldapMsg').textContent = msg.textContent;
   };
 }

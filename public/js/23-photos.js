@@ -24,7 +24,7 @@ const fullUrl = p => `api/images/${encodeURIComponent(p.id)}`;
 /* How many photos a device has, once read (null before). */
 export const photoCount = id => { const c = CACHE.get(id); return c && !c.failed ? c.images.length : null; };
 /* The Photos panel of device o's page: previews of its photos once read (Loading… before), and for an admin the
-   Add photos row with the count and limit. Nothing without a server or for a record still in To review. */
+   Add photos row with the count and limit. Nothing without a server or for a record still in To check. */
 export function photosPanel(o){
   if (!SERVER.on || o.review) return '';
   const c = CACHE.get(o.id), list = c ? c.images : null, edit = isAdmin();

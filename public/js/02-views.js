@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
+import { NEW_DAYS, addedRecently, SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -11,7 +11,7 @@ import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { USERS, isAdmin, ownOnly, seenSites } from './04-settings.js';
 import { sheetModal } from './08-sheets.js';
 import { handOutToModal, takeBackModal } from './27-handout.js';
-import { reviewStale } from './15-review.js';
+import { reviewDo, reviewStale, waitReason } from './15-review.js';
 import { QUALITY_FIX, qfix } from './views-table.js';
 import { renderSavedViews } from './views-saved.js';
 import { html, rawHtml } from './html.js';
@@ -25,14 +25,14 @@ const GRAPH_TIPS = {
   secureboot: 'Windows devices whose health attestation in Intune says Secure Boot is off (read when Settings → Entra & Intune turns it on)',
   ambiguous: 'Graph has a device whose serial number or name fits more than one device here, so it was put on none: give them distinct names or serial numbers',
 };
-/* The views that show a list of devices, the inventory's or (st.scope) To review's. */
+/* The views that show a list of devices, the inventory's or (st.scope) To check's. */
 const LIST_TABS = ['cards', 'table', 'map'];
 const MORE_KEY = 'ni-more-filters';
 const moreOpen = () => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } };
-/* Draws the sidebar: To review, types, sites and rooms, More filters, the active one-off filters, status and the saved
+/* Draws the sidebar: To check, types, sites and rooms, More filters, the active one-off filters, status and the saved
    views, each with how many of the listed devices it holds. A click on an item is handled below. */
 export function renderSide(){
-  /* To review on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
+  /* To check on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
      on its own, and the ignored ones. The group is there while any wait or are ignored, or while it is picked. */
   const waitingR = REVIEW.filter(o => !o.review.ignored), ignoredR = REVIEW.filter(o => o.review.ignored);
   const srcs = Object.entries(REVIEW_SRC).map(([k, l]) => [k, l, waitingR.filter(o => o.review.src === k).length]).filter(([, , n]) => n);
@@ -45,15 +45,17 @@ export function renderSide(){
     st.scope === 'review' && waitingR.some(o => o.inAd || o.graph) ? html`<button class="item sub ${st.rvKnown ? 'sel' : ''}" data-rvknown title="Only the ones Active Directory or Entra knows too: most likely real devices"><span class="lbl">In AD or Entra</span><span class="cnt">${waitingR.filter(o => o.inAd || o.graph).length}</span></button>` : ''}${
     st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => html`<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${l}</span><span class="cnt">${n}</span></button>`) : ''}${
     ignoredR.length ? html`<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : ''}`;
-  /* The sidebar counts what the list shows: in To review only while Cards, Table or the map show it. */
+  /* The sidebar counts what the list shows: in To check only while Cards, Table or the map show it. */
   const pool = LIST_TABS.includes(st.tab) ? scopePool() : objs, cnt = f => pool.filter(f).length;
   /* With an object type selected, the locations count only objects of that type. */
   const ofType = f => o => (!st.type || o.type === st.type) && f(o);
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
      picked stays. "All devices" is marked only when nothing at all narrows the list. */
   const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
-  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span><span class="cnt">${byType[k] || 0}</span></button>`;
-  const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
+  /* Beside the inventory's count, how many more of the type wait in To check (+12), so none is missed. */
+  const waitBy = st.scope ? {} : waitingR.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
+  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span>${waitBy[k] ? html`<span class="cnt-wait" title="${waitBy[k]} more ${waitBy[k] === 1 ? 'waits' : 'wait'} in To check">+${waitBy[k]}</span>` : ''}<span class="cnt">${byType[k] || 0}</span></button>`;
+  const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || waitBy[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
   $('#typeList').innerHTML = html`<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All devices</span><span class="cnt">${pool.length}</span></button>${
     shown.map(typeBtn)}${
     folded ? html`<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
@@ -112,7 +114,8 @@ export function renderSide(){
     mf.ontoggle = () => { try { if (mf.open) localStorage.setItem(MORE_KEY, '1'); else if (!mf.querySelector('.item.sel')) localStorage.removeItem(MORE_KEY); } catch { /* not kept */ } };
   }
   /* Retired devices left out, as the Overview counts: shown while it filters, with a way out. */
-  $('#statList').innerHTML = html`${st.live ? html`<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : ''}${Object.entries(STATUS).map(([k,v]) => html`<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='retired'?'gone':'off'}"></span><span class="lbl">${v.label}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`)}`;
+  $('#statList').innerHTML = html`${st.live ? html`<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : ''}${Object.entries(STATUS).map(([k,v]) => html`<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='retired'?'gone':'off'}"></span><span class="lbl">${v.label}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`)}${
+    !st.scope && (st.newWeek || cnt(addedRecently)) ? html`<button class="item ${st.newWeek ? 'sel' : ''}" data-newweek title="Came into the inventory in the last ${NEW_DAYS} days: from a sync, taken from To check, or added by hand"><span class="dot new"></span><span class="lbl">Added this week</span><span class="cnt">${cnt(addedRecently)}</span></button>` : ''}`;
   /* The saved views (views-saved.js). */
   renderSavedViews();
 }
@@ -130,6 +133,7 @@ $('#side').addEventListener('click', e => {
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('seen' in b.dataset) st.seen = st.seen === b.dataset.seen ? null : b.dataset.seen;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
+  if ('newweek' in b.dataset) st.newWeek = !st.newWeek;
   if ('twins' in b.dataset) st.twins = !st.twins;
   if ('scope' in b.dataset || 'rvknown' in b.dataset || 'rvold' in b.dataset){
     const was = { scope: st.scope, rvSrc: st.rvSrc, rvKnown: st.rvKnown, rvOld: st.rvOld };
@@ -138,7 +142,7 @@ $('#side').addEventListener('click', e => {
     /* The one shown, clicked again: a choice under Waiting goes back to Waiting, Waiting or Ignored to the inventory. */
     const next = !same ? to : to.rvSrc || to.rvKnown || to.rvOld ? { scope: 'review', rvSrc: '', rvKnown: false, rvOld: false } : { scope: null, rvSrc: '', rvKnown: false, rvOld: false };
     Object.assign(st, next); st.bulk = new Set();
-    /* Records in To review have nobody assigned: a person's filter would leave the list empty. */
+    /* Records in To check have nobody assigned: a person's filter would leave the list empty. */
     st.person = null; st.live = false;
     if (st.scope && !LIST_TABS.includes(st.tab)) st.tab = 'cards';
   }
@@ -152,7 +156,7 @@ $('#side').addEventListener('click', e => {
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.seen = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.seen = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
@@ -186,11 +190,12 @@ export function renderFilterBar(){
     st.quality && QUALITY[st.quality] && ['quality', 'Data quality', QUALITY[st.quality][0]],
     st.ids && ['ids', 'List', st.ids.label],
     st.handField && ['handField', 'Set by hand', SYNC_FIELD_LABEL[st.handField] || st.handField],
+    st.newWeek && ['newWeek', 'Added', `in the last ${NEW_DAYS} days`],
     st.q.trim() && ['q', 'Filter', '“' + st.q.trim() + '”'],
   ].filter(Boolean);
   const pool = list && st.scope ? scopePool().length : 0;
   const scope = !list || !st.scope ? '' : html`<span class="fb-scope">${st.scope === 'ignored' ? `${pool} ignored ${pool === 1 ? 'device' : 'devices'}: kept out of the inventory and every sync`
-    : html`${pool} ${pool === 1 ? 'device' : 'devices'} waiting for review${st.rvSrc ? html` (found by ${REVIEW_SRC[st.rvSrc] || st.rvSrc})` : ''}: not in the inventory yet`}</span><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button>`;
+    : html`${pool} ${pool === 1 ? 'device' : 'devices'} waiting in To check${st.rvSrc ? html` (found by ${REVIEW_SRC[st.rvSrc] || st.rvSrc})` : ''}: not in the inventory yet`}</span><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button>`;
   /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
   const who = !list || !person ? '' : html`<div class="fb-person"><b>${person.name}</b>${person.active === false ? html` <span class="chip warn">left</span>` : ''}<span class="muted">${[person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · ')}</span>
@@ -199,10 +204,21 @@ export function renderFilterBar(){
   const hf = list && st.handField && isAdmin() ? html`<div class="fb-person fb-qfix"><b>Set by hand: ${SYNC_FIELD_LABEL[st.handField] || st.handField}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
   const qf = st.tab === 'table' && qfix() && QUALITY_FIX[st.quality] && QUALITY[st.quality];
   const qbar = !qf ? '' : html`<div class="fb-person fb-qfix"><b>${QUALITY[st.quality][0]}</b><span class="muted">${QUALITY_FIX[st.quality][2]}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && isAdmin() ? html`<button type="button" data-qfix="1" id="qfixSel">Select all ${qfix().n}</button>` : ''}</div>`;
-  bar.hidden = !chips.length && !scope && !who && !qbar && !hf;
-  bar.innerHTML = html`${who}${qbar}${hf}${scope}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
+  /* Devices the syncs found that wait in To check: said over the inventory's lists, so none is missed. */
+  const waitingAll = REVIEW.filter(o => o.review && !o.review.ignored);
+  const typeSum = l => Object.entries(l.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
+  const waitBar = !list || st.scope || !waitingAll.length || leftFilters() || st.q.trim() || person ? '' : html`<div class="fb-person fb-wait"><span class="dot warn" aria-hidden="true"></span><b>${waitingAll.length} found by the syncs ${waitingAll.length === 1 ? 'waits' : 'wait'} in To check</b><span class="muted">${typeSum(waitingAll).slice(0, 5).map(([t, n]) => `${n} ${TYPES[t] ? TYPES[t].label : t}`).join(' · ')}${typeSum(waitingAll).length > 5 ? ' · …' : ''}</span><span class="grow"></span><button type="button" data-gowait="1">Show them</button></div>`;
+  /* In To check: the ones with nothing unclear, added at once by their type; the others are decided one by one. */
+  const clear = list && st.scope === 'review' && isAdmin() ? scopePool().filter(o => waitReason(o).clear) : [];
+  const groups = typeSum(clear);
+  const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait"><b>Add at once</b><span class="muted">${clear.length} with nothing unclear${clear.length < scopePool().length ? `; ${scopePool().length - clear.length} to decide one by one` : ''}</span><span class="grow"></span>${groups.slice(0, 6).map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
+  bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar;
+  bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${addBar}${scope}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
 $('#fbar').addEventListener('click', e => {
+  if (e.target.closest('[data-gowait]')){ resetFilters(); st.scope = 'review'; st.rvSrc = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set(); if (!LIST_TABS.includes(st.tab)) st.tab = 'cards'; view(); return; }
+  const at = e.target.closest('[data-addtype]');
+  if (at && isAdmin()){ const t = at.dataset.addtype; reviewDo('accept', scopePool().filter(o => waitReason(o).clear && (t === '*' || o.type === t))); return; }
   if (e.target.closest('[data-qfix]')){ if (qfix()) qfix().select(); return; }
   if (e.target.closest('[data-handback]') && st.handField){
     const k = st.handField, list = filtered(), snap = snapshot(list);
@@ -224,7 +240,7 @@ $('#fbar').addEventListener('click', e => {
   if (k === 'all') resetFilters();
   else if (k === 'q') st.q = '';
   else if (k === 'scope'){ st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); }
-  else if (k === 'scanOld' || k === 'twins' || k === 'live' || k === 'rvKnown' || k === 'rvOld') st[k] = false;
+  else if (k === 'scanOld' || k === 'twins' || k === 'live' || k === 'rvKnown' || k === 'rvOld' || k === 'newWeek') st[k] = false;
   else st[k] = null;
   view();
 });
@@ -251,16 +267,16 @@ document.addEventListener('click', async e => {
   try { if (await reloadFromServer()) toast('Up to date'); } finally { const n = $('#reloadBtn'); if (n){ n.disabled = false; n.classList.remove('spinning'); } }
 });
 
-/* An empty inventory says where the devices a sync found are: waiting in To review (after a clear, every device is new). */
+/* An empty inventory says where the devices a sync found are: waiting in To check (after a clear, every device is new). */
 export function emptyHtml(){
   const n = REVIEW.filter(o => !o.review.ignored).length;
-  return String(n ? html`<div class="empty">No devices in the inventory yet, but <b>${n}</b> found by the syncs ${n === 1 ? 'waits' : 'wait'} in To review. <button type="button" class="primary" data-tab-go="review">Open To review</button></div>`
+  return String(n ? html`<div class="empty">No devices in the inventory yet, but <b>${n}</b> found by the syncs ${n === 1 ? 'waits' : 'wait'} in To check. <button type="button" class="primary" data-tab-go="review">Open To check</button></div>`
     : html`<div class="empty">The inventory is empty.${isAdmin() ? html` <button type="button" class="primary" data-empty-new>New device</button>` : ''}</div>`);
 }
 document.addEventListener('click', e => { const b = evEl(e).closest && evEl(e).closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', ips:'IP addresses', prn:'Printers', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Inventory check'};
+export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To check', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', ips:'IP addresses', prn:'Printers', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Inventory check'};
 /* The views someone gets: My devices only for a viewer who sees only their own devices, and for them only it and the
    lists (Cards, Table); the others show nothing they can use. */
 const OWN_TABS = ['mine', 'cards', 'table'];
@@ -281,10 +297,10 @@ export function viewSwitch(){
 /* A view that draws its toolbar again on its own (ticking rows, typing in its search) would drop the switch: it is put
    back whenever the toolbar changes. */
 { const tb = document.getElementById('toolbar'); if (tb) new MutationObserver(() => { if (!tb.querySelector('.vswitch')) viewSwitch(); }).observe(tb, { childList: true }); }
-/* Draws the tab bar (the views, Devices and Contracts as one tab each, Reload or Sync and To review at the right) and the
+/* Draws the tab bar (the views, Devices and Contracts as one tab each, Reload or Sync and To check at the right) and the
    row of open devices under it. Wires drag to reorder, Enter, middle-click to close and the right-click menu. */
 export function renderTabs(){
-  /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
+  /* To check shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
   /* Inventory check shows while one runs, or while it is the tab open (from the Overview). Relationships only while it is open:
      it is opened from a device (More → Relationships), centred on it. */
@@ -305,8 +321,8 @@ export function renderTabs(){
     const on = members.includes(st.tab) || (id === 'review' && st.scope && LIST_TABS.includes(st.tab));
     return `<button class="tab ${on ? 'active' : ''}" draggable="true" data-tab="${open}"${on ? ' aria-current="page"' : ''}>${g ? TAB_GROUPS[g][0] : FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
   };
-  /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
-  /* Sync (admins) and To review sit on their own at the right end of the bar: actions and an inbox, not views. */
+  /* To check sits on its own at the right end of the bar: an inbox, not one of the views. */
+  /* Sync (admins) and To check sit on their own at the right end of the bar: actions and an inbox, not views. */
   /* Reload: what others (or a Lansweeper push) changed on the server, now, instead of at the next check. */
   const reload = SERVER.on && !syncButtonHtml() ? `<button type="button" id="reloadBtn" class="tab sync-btn" title="Reload: show what changed on the server since this page loaded"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg><span class="tlbl">Reload</span></button>` : '';
   const sync = syncButtonHtml(), right = sync || reload || views.includes('review');

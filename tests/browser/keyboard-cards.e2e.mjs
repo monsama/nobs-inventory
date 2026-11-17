@@ -1,6 +1,6 @@
-/* Cards, To review and the device page from the keyboard, and the filter drawer on a phone:
+/* Cards, To check and the device page from the keyboard, and the filter drawer on a phone:
    - a card's name opens the device (Enter), its corner tick selects it (Enter or Space) and says so (aria-pressed);
-   - Accept on a card in To review is a button that Enter presses;
+   - Accept on a card in To check is a button that Enter presses;
    - the device page's source tabs: Tab reaches only the chosen one, the arrow keys move between them;
    - on a phone the filter drawer closes on Escape and on a tap beside it. */
 import { chromium } from 'playwright';
@@ -64,7 +64,7 @@ try {
     assert.equal(await p.getAttribute(`[data-srctab="${next}"]`, 'tabindex'), '0', 'the chosen tab is not the Tab stop');
   }
 
-  // 3. To review: Accept is a button, and Enter on it accepts
+  // 3. To check: Accept is a button, and Enter on it accepts
   await p.click('#tabsbar [data-tab=review]'); await p.waitForSelector('#cards .card[data-open="r8"] [data-rvc="accept"]');
   assert.equal(await p.locator('#cards [data-rvc][role=button]').count(), 0, 'a review action is still a span');
   await p.focus('#cards .card[data-open="r8"] button[data-rvc="accept"]'); await p.keyboard.press('Enter');

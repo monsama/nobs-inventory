@@ -164,6 +164,10 @@ The panel page lists its ports with outlet, cord and device; a dot shows the sta
 
 A device page has **Links**: its web interface, a share with its files, a remote console or documentation it hosts. Each link has a label and an address and opens in a new tab; Copy puts the address on the clipboard (useful for a share, which browsers often will not open). A device with an IP address offers its web interface (https:// or http:// with that address) in one click. Allowed are web pages (https, http), remote access (ssh, rdp, vnc, telnet), file transfer (ftp, sftp, smb) and Windows shares written as `\\server\share`; anything that could run in the page is refused, by the page and the server. The table has a Links column (under Columns), and Links can be a card line. Adding and removing a link is written in the device's history.
 
+## New devices
+
+A device Lansweeper, Active Directory or Entra and Intune finds is added to the inventory straight away, with the date it came. It shows **New** for a week and under **Added this week** on the left. Only the ones that need a decision wait in **To check**: a possible duplicate (the same serial number or name as a device you have, or a docking station's second record), an address without a name or serial number, or one no source has seen for 90 days. Each says why it waits. The inventory says how many wait, and of which types (also beside each type on the left); in To check, **Add at once** takes in the clear ones of a type, with Undo. A source can be set to make every new device wait (Settings, its page, New devices).
+
 ## Device types from Lansweeper
 
 A device from Lansweeper gets its type in this order:
@@ -246,7 +250,7 @@ The app uploads and never deletes in the cloud: set a lifecycle rule there for h
 
 ### Weekly e-mail (optional)
 
-Once a week the admins can get a short list of what needs doing: warranties ending, contract notices due, people who left with devices out, devices waiting in To review, the last backup and what Health marks bad. Set the mail server in Settings → System → E-mail → Mail server (server, security, sign-in, password, sender; the password is kept sealed on the server, never shown again, and dropped when the server or port changes), or in `.env` (`NI_SMTP_HOST`, `NI_SMTP_PORT`, and if needed `NI_SMTP_USER`, `NI_SMTP_PASSWORD`, `NI_SMTP_FROM`, `NI_PUBLIC_URL`), which then wins. Then in Settings → System → E-mail give the addresses, the day and hour, and use Preview and Send now once.
+Once a week the admins can get a short list of what needs doing: warranties ending, contract notices due, people who left with devices out, devices waiting in To check, the last backup and what Health marks bad. Set the mail server in Settings → System → E-mail → Mail server (server, security, sign-in, password, sender; the password is kept sealed on the server, never shown again, and dropped when the server or port changes), or in `.env` (`NI_SMTP_HOST`, `NI_SMTP_PORT`, and if needed `NI_SMTP_USER`, `NI_SMTP_PASSWORD`, `NI_SMTP_FROM`, `NI_PUBLIC_URL`), which then wins. Then in Settings → System → E-mail give the addresses, the day and hour, and use Preview and Send now once.
 
 ## Development
 

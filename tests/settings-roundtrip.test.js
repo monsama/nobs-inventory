@@ -115,7 +115,7 @@ test('a restore puts every setting back as it was, also those that were not ther
   db.close(); fresh.close();
 });
 
-test('To review: the review mark on a device and where each source sends its new devices are checked and kept', async () => {
+test('To check: the review mark on a device and where each source sends its new devices are checked and kept', async () => {
   const { checkState } = await import('../server/state.js');
   const db = freshDb();
   const s = loadState(db);

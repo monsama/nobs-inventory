@@ -222,7 +222,7 @@ function bindMapToolbar(){
    zoom, hover and click to open; a box an admin moves is saved. */
 export function renderMap(){
   /* Showing one object's relations: that object and the objects linked to it directly, and nothing else. */
-  /* Only a device in the inventory: a record in To review is not drawn, so it would leave an empty map. */
+  /* Only a device in the inventory: a record in To check is not drawn, so it would leave an empty map. */
   const focus = st.mapFocus && objs.find(o => o.id === st.mapFocus) || null;
   if (st.mapFocus && !focus) st.mapFocus = null;
   const around = focus ? new Set([focus.id, ...rels.filter(r => r.from === focus.id || r.to === focus.id).flatMap(r => [r.from, r.to])]) : null;

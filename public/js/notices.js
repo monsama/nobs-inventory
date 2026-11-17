@@ -1,5 +1,5 @@
 /* What needs attention now: warranties that end soon or ended on devices in use, maintenance due, contract notices,
-   problems users reported, devices waiting in To review, devices on a patch panel port that leads nowhere, and for admins a sync that failed or is late and a restore
+   problems users reported, devices waiting in To check, devices on a patch panel port that leads nowhere, and for admins a sync that failed or is late and a restore
    test or backup copy that failed. The bell in the top bar lists them (notices); the weekly e-mail is made from the same
    lists (attention). Each notice has an id and a fingerprint of what it says, so one hidden comes back once it changes.
    No DOM: the server and the tests import it. */
@@ -18,9 +18,9 @@ export const warrantyState = (o, today = new Date()) => {
   return days < 0 ? 'ended' : days <= WARRANTY_SOON_DAYS ? 'soon' : 'ok';
 };
 
-/* The lists, from the inventory as saved (s.objs may hold the devices waiting in To review too): warranties ended and
+/* The lists, from the inventory as saved (s.objs may hold the devices waiting in To check too): warranties ended and
    ending on devices in use, contracts whose notice is due or passed, maintenance due within maintWithin days (overdue
-   first), open reported problems (oldest first) and the devices waiting in To review. */
+   first), open reported problems (oldest first) and the devices waiting in To check. */
 export function attention(s, today = new Date(), { maintWithin = MAINT_SOON_DAYS } = {}) {
   const all = s.objs || [];
   const live = all.filter(o => !o.review && o.status !== 'retired'), inUse = live.filter(o => o.status === 'active');
@@ -73,7 +73,7 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
     fp: `${st.state}|${st.noticeBy || st.end}`, go: { tab: 'contracts' } });
   for (const o of a.reported) out.push({ id: `reported-${o.id}`, sev: 'warn', title: `Problem reported: ${o.name}`, text: `${o.reported.text}${o.reported.by ? ` (${o.reported.by})` : ''}`,
     fp: String(o.reported.at), go: { device: o.id } });
-  if (a.review.length) out.push({ id: 'review', sev: 'warn', title: 'Waiting in To review', text: `${plural(a.review.length, 'device', 'devices')} found by a sync: accept or ignore ${a.review.length === 1 ? 'it' : 'them'}`,
+  if (a.review.length) out.push({ id: 'review', sev: 'warn', title: 'Waiting in To check', text: `${plural(a.review.length, 'device', 'devices')} found by a sync: accept or ignore ${a.review.length === 1 ? 'it' : 'them'}`,
     fp: fingerprint(a.review.map(o => o.id)), go: { review: true } });
   /* Devices on a panel port with no patch cord and no trunk on the panel: the patch list has a gap (s.rels, when given). */
   const gaps = Array.isArray(s.rels) ? patchGaps(objs.filter(o => !o.review), s.rels) : [];

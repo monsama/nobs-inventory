@@ -24,7 +24,7 @@ saveState(db, { ...loadState(db), locs: ['HQ'], sites: ['HQ'],
       autopilot: { groupTag: 'Sales', order: 'PO-7', state: 'enrolled', seen: '27.10.2026 06:00' } },
     { id: 'v1', code: 'INV-0005', type: 'notebook', name: 'NB-7', status: 'active', loc: 'HQ', ovr: {}, feed: null, os: 'Windows 11 Pro', src: { os: 'ad' },
       vals: { os: { graph: ['Windows 11 Enterprise', '2026-10-28T07:42:00Z'], ad: ['Windows 11 Pro', '2026-10-24'] } } },
-    /* Found by the directory sync, waiting in To review: one seen today, one not for 200 days */
+    /* Found by the directory sync, waiting in To check: one seen today, one not for 200 days */
     { id: 'n20', code: 'INV-0003', type: 'notebook', name: 'NB-20', status: 'active', loc: '', ovr: {}, feed: null, inAd: true, os: 'Windows 11 Enterprise (10.0.22631)', domain: 'corp.ch',
       src: { os: 'ad', domain: 'ad' }, ad: { logon: new Date().toISOString().slice(0, 10), created: '2024-01-02' }, review: { src: 'ad', at: '27.10.2026 06:00' } },
     { id: 'pold', code: 'INV-0004', type: 'pc', name: 'PC-OLD', status: 'active', loc: '', ovr: {}, feed: null, inAd: true, os: 'Windows 10 Pro', ad: { logon: old }, review: { src: 'ad', at: '27.10.2026 06:00' } },
@@ -114,9 +114,9 @@ try {
   assert.equal(await p.isChecked('#lk_fillAd'), true);
   await p.uncheck('#lk_fillAd');
   await stored(st => st.fillAd === false);
-  assert.equal(await p.inputValue('#intake_ad'), 'review', 'new devices from AD wait in To review by default');
-  await p.selectOption('#intake_ad', 'direct');
-  await stored(st => st.intake && st.intake.ad === 'direct');
+  assert.equal(await p.inputValue('#intake_ad'), 'direct', 'new devices from AD go straight in by default');
+  await p.selectOption('#intake_ad', 'review');
+  await stored(st => st.intake && st.intake.ad === 'review');
   await openSetTab(p, 'entra');
   await p.waitForSelector('#gFill');
   assert.equal(await p.isChecked('#gFill'), true);
@@ -125,7 +125,7 @@ try {
 
   await p.click('.wc-close');
 
-  // To review: the two AD devices, in no count; the stale one grey and left out of Accept all
+  // To check: the two AD devices, in no count; the stale one grey and left out of Accept all
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.length), 3, 'waiting devices are not in the inventory');
   await p.click('#tabsbar [data-tab=review]');
   const pold = '#view .card[data-open="pold"]';

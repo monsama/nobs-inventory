@@ -1,4 +1,4 @@
-/* Browser test of the person view, the To review card actions, getting started and Settings' first tab: a person who
+/* Browser test of the person view, the To check card actions, getting started and Settings' first tab: a person who
    left shows their devices with their own bar and Take all back; Accept on a card takes a record in (a notebook nobody
    has goes into stock); a new inventory shows its first steps; Settings opens on Locations. */
 import { chromium } from 'playwright';
@@ -59,7 +59,7 @@ try {
   await until(() => { const s = loadState(db); return ['d1', 'd2'].every(id => { const o = s.objs.find(x => x.id === id); return o.status === 'stock' && !o.uid; }); });
   assert.equal(loadState(db).objs.find(o => o.id === 'a1').uid, 'u-anna', 'other people keep theirs');
 
-  // To review: Accept on the card; a notebook nobody has goes into stock
+  // To check: Accept on the card; a notebook nobody has goes into stock
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.person = null; c.st.live = false; c.st.scope = 'review'; c.st.tab = 'cards'; (await import('/js/07-render.js')).view(); });
   await p.waitForSelector('[data-rvc="accept"][data-rvid="r1"]');
   await p.click('[data-rvc="accept"][data-rvid="r1"]');

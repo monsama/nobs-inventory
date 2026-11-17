@@ -27,7 +27,7 @@ const ownerOf = (o, k) => {
 /* The Edit fields dialog for the devices with these ids: rows of a field to set or clear, a preview that follows each
    change, and Apply with one Undo. */
 export function bulkEditModal(ids){
-  /* Devices of the inventory only: a record waiting in To review is accepted first. */
+  /* Devices of the inventory only: a record waiting in To check is accepted first. */
   const list = ids.map(byId).filter(o => o && !o.review);
   if (!list.length) return;
   const fields = bulkFields(list, fieldsOf);

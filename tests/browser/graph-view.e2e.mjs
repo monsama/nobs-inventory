@@ -21,7 +21,7 @@ const pc = (id, name, graph) => ({ id, code: 'INV-' + id, type: 'pc', name, stat
 saveState(db, { ...s0, locs: ['HQ'], sites: ['HQ'],
   graph: { tenant: '1b2c3d4e-5f60-4a1b-9c2d-3e4f5a6b7c8d', clientId: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d' },
   objs: [
-    /* Found by the Graph sync, waiting in To review */
+    /* Found by the Graph sync, waiting in To check */
     { id: 'm9o', code: 'INV-0901', type: 'ios', name: 'iPhone Ana', serial: 'F2LX', model: 'Apple iPhone 15', os: 'iOS 18.1', user: 'Ana Muster', status: 'active', loc: '', ovr: {}, feed: null,
       graph: { id: 'm9', join: 'Registered', managed: 'mdm', compliance: 'compliant', lastSync: recent, lastCheckIn: recent, seen: '26.10.2026 06:00', added: true }, review: { src: 'graph', at: '26.10.2026 06:00' } },
     { ...pc('a', 'PC-OK'), os: 'Windows 11 Pro', graph: { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', encrypted: 'yes', secureBoot: 'off', secureBootAt: '2026-10-30', ownerName: 'Ana Muster', owner: 'ana@contoso.ch', os: 'Windows 10.0.22631', lastCheckIn: recent, seen: '26.10.2026 06:00' } },
@@ -136,14 +136,14 @@ try {
   await p.click('#setBtn'); await openSetTab(p, 'entra');
   await p.waitForSelector('#gaList');
   assert.match(await p.textContent('#gaList'), /Kiosk.*name.*INV-k1 KIOSK.*INV-k2 kiosk/s);
-  assert.equal(await p.inputValue('#intake_graph'), 'review', 'new devices from Graph wait in To review by default');
+  assert.equal(await p.inputValue('#intake_graph'), 'direct', 'new devices from Graph go straight in by default');
   await p.click('.wc-close');
-  // To review: the device Graph found waits there, in no list or count; Cards shows it, picked and accepted
+  // To check: the device Graph found waits there, in no list or count; Cards shows it, picked and accepted
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'iPhone Ana')), false, 'not in the inventory yet');
   await p.click('#tabsbar [data-tab=review]');
   await p.waitForSelector('#view .card[data-open="m9o"]');
-  assert.match(await p.textContent('#tabsbar [data-tab=review]'), /To review\s*1/);
-  assert.match(await p.textContent('#fbar'), /1 device waiting for review/);
+  assert.match(await p.textContent('#tabsbar [data-tab=review]'), /To check\s*1/);
+  assert.match(await p.textContent('#fbar'), /1 device waiting in To check/);
   assert.match(await p.textContent('#view .card[data-open="m9o"]'), /iPhone Ana.*Entra & Intune/s);
   if (process.env.NI_SHOTS) await p.locator('#view').screenshot({ path: path.join(process.env.NI_SHOTS, 'to-review.png') });
   await p.click('#view .card[data-open="m9o"] .cardtick'); await p.click('#rvAccept');

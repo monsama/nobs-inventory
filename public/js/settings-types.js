@@ -64,7 +64,7 @@ function keepFocusNow(fn){
   fn();
   if (sel) /** @type {HTMLElement | null} */ (document.querySelector('#tpDetail ' + sel))?.focus();
 }
-/* Records waiting in To review hold their type too: a type they have cannot be deleted. */
+/* Records waiting in To check hold their type too: a type they have cannot be deleted. */
 const reviewOf = k => REVIEW.filter(o => o.type === k);
 function renderTypeDetail(){
   const box = $('#tpDetail');
@@ -75,7 +75,7 @@ function renderTypeDetail(){
   const n = devicesOf(type).length, waiting = reviewOf(type).length, edit = isAdmin();
   const rule = (Array.isArray(st.typeRules) ? st.typeRules : []).findIndex(r => r && r.to === type);
   const named = Object.keys(st.typeMap || {}).find(x => st.typeMap[x] === type);
-  const lock = BUILTIN.includes(type) ? 'A built-in type stays.' : n ? `${n} ${n === 1 ? 'device has' : 'devices have'} this type: give them another first.` : waiting ? `${waiting} ${waiting === 1 ? 'record' : 'records'} in To review ${waiting === 1 ? 'has' : 'have'} this type: decide on them first.` : rule >= 0 ? `Type rule ${rule + 1} leads to it (Data sources → Lansweeper).` : named ? `The Lansweeper type name “${named}” leads to it (Data sources → Lansweeper).` : '';
+  const lock = BUILTIN.includes(type) ? 'A built-in type stays.' : n ? `${n} ${n === 1 ? 'device has' : 'devices have'} this type: give them another first.` : waiting ? `${waiting} ${waiting === 1 ? 'record' : 'records'} in To check ${waiting === 1 ? 'has' : 'have'} this type: decide on them first.` : rule >= 0 ? `Type rule ${rule + 1} leads to it (Data sources → Lansweeper).` : named ? `The Lansweeper type name “${named}” leads to it (Data sources → Lansweeper).` : '';
   box.innerHTML = html`<div class="tp-head"><span class="tp-tile" style="--tc:${tcol(type)}">${rawHtml(tico(type, 'tico'))}</span><div class="tp-title"><h3>${t.label}</h3><span class="muted">${n ? `${n} ${n === 1 ? 'device' : 'devices'}` : 'No devices yet'} · ${BUILTIN.includes(type) ? 'built in' : 'your own'}</span></div>${n ? html`<button type="button" id="tpShow" data-view>Show the ${n === 1 ? 'device' : `${n} devices`}</button>` : ''}</div>
     <div class="panelbox"><div class="hdr">Look and card</div>
       <div class="tp-look"><div class="tp-form">

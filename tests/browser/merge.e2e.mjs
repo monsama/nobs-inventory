@@ -1,6 +1,6 @@
 /* Browser test of merging a second record into its device: a dock's DNS-named record merges from its page (its address
    becomes an adapter of the device, its monitor goes along, Undo puts it back); accepting a device the inventory has
-   asks first and offers Merge; To review shows which other sources know a device and filters by AD or Entra. */
+   asks first and offers Merge; To check shows which other sources know a device and filters by AD or Entra. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
@@ -84,7 +84,7 @@ try {
   await p.click('#rvResolve'); await p.click('#dupOk');
   await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && d.review.merged === 'n35' && d.excluded && (st.objs.find(o => o.id === 'n35').accessories || []).length === 1 && st.rels.find(r => r.id === 'a1').to === 'n35'; });
   await p.click('#fbar [data-fx=twins]');
-  // the device lists what was merged into it, and Unmerge takes it out again: back in To review, the adapter gone
+  // the device lists what was merged into it, and Unmerge takes it out again: back in To check, the adapter gone
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n35'));
   await p.waitForSelector('.nics.merged');
   assert.match(await p.textContent('.nics.merged'), /nb-35\.corp\.example[\s\S]*10\.1\.2\.104/);
@@ -120,7 +120,7 @@ try {
   await p.check('[name=dupWay][value=obsolete]'); await p.click('#dupOk');
   await stored(st => { const d = st.objs.find(o => o.id === 'd99'); return d && d.status === 'retired' && d.excluded === true; });
 
-  // To review: the other sources that know a device, and the filter by AD or Entra
+  // To check: the other sources that know a device, and the filter by AD or Entra
   await p.click('#tabsbar [data-tab=review]');
   await p.waitForSelector('#cards .card[data-open="r7"]');
   assert.match(await p.textContent('#cards .card[data-open="r7"]'), /also in AD/);
