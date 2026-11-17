@@ -11,7 +11,7 @@ import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { USERS, isAdmin, ownOnly, seenSites } from './04-settings.js';
 import { sheetModal } from './08-sheets.js';
 import { handOutToModal, takeBackModal } from './27-handout.js';
-import { reviewDo, reviewStale, waitReason } from './15-review.js';
+import { reviewDo, waitReason } from './15-review.js';
 import { QUALITY_FIX, qfix } from './views-table.js';
 import { renderSavedViews } from './views-saved.js';
 import { html, rawHtml } from './html.js';
@@ -32,19 +32,10 @@ const moreOpen = () => { try { return localStorage.getItem(MORE_KEY) === '1'; } 
 /* Draws the sidebar: To check, types, sites and rooms, More filters, the active one-off filters, status and the saved
    views, each with how many of the listed devices it holds. A click on an item is handled below. */
 export function renderSide(){
-  /* To check on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
-     on its own, and the ignored ones. The group is there while any wait or are ignored, or while it is picked. */
-  const waitingR = REVIEW.filter(o => !o.review.ignored), ignoredR = REVIEW.filter(o => o.review.ignored);
-  const srcs = Object.entries(REVIEW_SRC).map(([k, l]) => [k, l, waitingR.filter(o => o.review.src === k).length]).filter(([, , n]) => n);
-  $('#scopeHdr').hidden = $('#scopeList').hidden = !(waitingR.length || ignoredR.length || st.scope);
-  /* Under Waiting one choice at a time (Old, In AD or Entra, a source); a second click on it, or on Waiting or Ignored
-     when shown, goes back a step. */
-  const sub = !!(st.rvSrc || st.rvKnown || st.rvOld);
-  $('#scopeList').innerHTML = html`<button class="item ${st.scope === 'review' && !sub ? 'sel' : ''}" data-scope="review" title="Devices a sync found, not in the inventory yet: accept or ignore them in Cards or Table"><span class="dot warn"></span><span class="lbl">Waiting</span><span class="cnt">${waitingR.length}</span></button>${
-    st.scope === 'review' && waitingR.some(reviewStale) ? html`<button class="item sub ${st.rvOld ? 'sel' : ''}" data-rvold title="Not seen by any source for ${REVIEW_STALE_DAYS} days or more: likely gone"><span class="lbl">Old</span><span class="cnt">${waitingR.filter(reviewStale).length}</span></button>` : ''}${
-    st.scope === 'review' && waitingR.some(o => o.inAd || o.graph) ? html`<button class="item sub ${st.rvKnown ? 'sel' : ''}" data-rvknown title="Only the ones Active Directory or Entra knows too: most likely real devices"><span class="lbl">In AD or Entra</span><span class="cnt">${waitingR.filter(o => o.inAd || o.graph).length}</span></button>` : ''}${
-    st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => html`<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${l}</span><span class="cnt">${n}</span></button>`) : ''}${
-    ignoredR.length ? html`<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : ''}`;
+  /* The devices waiting in To check, for the +3 beside each type. */
+  const waitingR = REVIEW.filter(o => !o.review.ignored);
+  /* The left bar is the inventory's: To check is a list of its own, with its filters over it (renderFilterBar). */
+  $('#scopeHdr').hidden = $('#scopeList').hidden = true; $('#scopeList').innerHTML = '';
   /* The sidebar counts what the list shows: in To check only while Cards, Table or the map show it. */
   const pool = LIST_TABS.includes(st.tab) ? scopePool() : objs, cnt = f => pool.filter(f).length;
   /* With an object type selected, the locations count only objects of that type. */
@@ -54,7 +45,7 @@ export function renderSide(){
   const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
   /* Beside the inventory's count, how many more of the type wait in To check (+12), so none is missed. */
   const waitBy = st.scope ? {} : waitingR.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
-  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span>${waitBy[k] ? html`<span class="cnt-wait" title="${waitBy[k]} more ${waitBy[k] === 1 ? 'waits' : 'wait'} in To check">+${waitBy[k]}</span>` : ''}<span class="cnt">${byType[k] || 0}</span></button>`;
+  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span>${waitBy[k] ? html`<span class="cnt-wait" data-waittype="${k}" title="${waitBy[k]} more ${waitBy[k] === 1 ? 'waits' : 'wait'} in To check: click to see ${waitBy[k] === 1 ? 'it' : 'them'}">+${waitBy[k]}</span>` : ''}<span class="cnt">${byType[k] || 0}</span></button>`;
   const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || waitBy[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
   $('#typeList').innerHTML = html`<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All devices</span><span class="cnt">${pool.length}</span></button>${
     shown.map(typeBtn)}${
@@ -124,6 +115,9 @@ $('#side').addEventListener('click', e => {
   if (e.target.closest('#viewList')) return;
   const more = e.target.closest('[data-alltypes]');
   if (more){ st.sideAllTypes = more.dataset.alltypes === '1'; renderSide(); return; }
+  /* +3 beside a type: the ones of that type waiting in To check. */
+  const wt = e.target.closest('[data-waittype]');
+  if (wt){ enterCheck(wt.dataset.waittype); view(); return; }
   const b = e.target.closest('.item'); if (!b) return;
   /* A type clicked again goes back to all types. */
   if ('type' in b.dataset) st.type = b.dataset.type && st.type !== b.dataset.type ? b.dataset.type : null;
@@ -155,6 +149,13 @@ $('#side').addEventListener('click', e => {
   view();
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
+/* To check, from its tab, the line over the inventory or a type's +3: a list of its own, so the inventory's filters go;
+   type: only the ones of that type. */
+export function enterCheck(type = null){
+  resetFilters();
+  Object.assign(st, { scope: 'review', rvSrc: '', rvWhy: '', rvKnown: false, rvOld: false, bulk: new Set(), person: null, live: false, type });
+  if (!LIST_TABS.includes(st.tab)) st.tab = 'cards';
+}
 export function resetFilters(){
   st.type = st.loc = st.status = st.warranty = st.seen = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
@@ -194,8 +195,17 @@ export function renderFilterBar(){
     st.q.trim() && ['q', 'Filter', '“' + st.q.trim() + '”'],
   ].filter(Boolean);
   const pool = list && st.scope ? scopePool().length : 0;
-  const scope = !list || !st.scope ? '' : html`<span class="fb-scope">${st.scope === 'ignored' ? `${pool} ignored ${pool === 1 ? 'device' : 'devices'}: kept out of the inventory and every sync`
-    : html`${pool} ${pool === 1 ? 'device' : 'devices'} waiting in To check${st.rvSrc ? html` (found by ${REVIEW_SRC[st.rvSrc] || st.rvSrc})` : ''}: not in the inventory yet`}</span><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button>`;
+  /* To check, a list of its own: what it is, and its filters (why they wait, which source found them, the ignored ones),
+     in place of the inventory's left bar. */
+  const waitAll = REVIEW.filter(o => o.review && !o.review.ignored), ignAll = REVIEW.filter(o => o.review && o.review.ignored);
+  const bySrc = waitAll.filter(o => !st.rvSrc || o.review.src === st.rvSrc);
+  const whyN = k => k ? bySrc.filter(o => waitReason(o).kind === k).length : bySrc.length;
+  const WHY = [['', 'All'], ['clear', 'Nothing unclear'], ['dup', 'Possible duplicate'], ['ip', 'Address only'], ['old', `Not seen for ${REVIEW_STALE_DAYS} days`]];
+  const srcs = Object.entries(REVIEW_SRC).map(([k, l]) => [k, l, waitAll.filter(o => o.review.src === k).length]).filter(([, , c]) => c);
+  const seg = (label, items) => html`<span class="vswitch fb-seg" role="group" aria-label="${label}">${items}</span>`;
+  const scope = !list || !st.scope ? '' : st.scope === 'ignored'
+    ? html`<div class="fb-person fb-check"><span class="fb-scope"><b>Ignored</b> ${pool} ignored ${pool === 1 ? 'device' : 'devices'}: kept out of the inventory and every sync</span><span class="grow"></span><button type="button" data-ckign>Back to waiting (${waitAll.length})</button><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button></div>`
+    : html`<div class="fb-person fb-check fb-ckrow"><b class="fb-scope" title="${pool} ${pool === 1 ? 'device' : 'devices'} waiting in To check: not in the inventory yet">To check</b>${seg('Why they wait', WHY.filter(([k]) => !k || whyN(k) || st.rvWhy === k).map(([k, l]) => html`<button type="button" class="${st.rvWhy === k ? 'on' : ''}" aria-pressed="${st.rvWhy === k}" data-ckwhy="${k}">${l} <span class="cnt">${whyN(k)}</span></button>`))}${srcs.length > 1 ? seg('Found by', [['', 'All sources', waitAll.length], ...srcs].map(([k, l, c]) => html`<button type="button" class="${st.rvSrc === k ? 'on' : ''}" aria-pressed="${st.rvSrc === k}" data-cksrc="${k}">${l} <span class="cnt">${c}</span></button>`)) : ''}<span class="grow"></span>${ignAll.length ? html`<button type="button" data-ckign title="Kept out of the inventory and of every sync">Ignored (${ignAll.length})</button>` : ''}<button type="button" class="fb-clear" data-fx="scope">Back to inventory</button></div>`;
   /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
   const who = !list || !person ? '' : html`<div class="fb-person"><b>${person.name}</b>${person.active === false ? html` <span class="chip warn">left</span>` : ''}<span class="muted">${[person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · ')}</span>
@@ -209,16 +219,24 @@ export function renderFilterBar(){
   const typeSum = l => Object.entries(l.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
   const waitBar = !list || st.scope || !waitingAll.length || leftFilters() || st.q.trim() || person ? '' : html`<div class="fb-person fb-wait"><span class="dot warn" aria-hidden="true"></span><b>${waitingAll.length} found by the syncs ${waitingAll.length === 1 ? 'waits' : 'wait'} in To check</b><span class="muted">${typeSum(waitingAll).slice(0, 5).map(([t, n]) => `${n} ${TYPES[t] ? TYPES[t].label : t}`).join(' · ')}${typeSum(waitingAll).length > 5 ? ' · …' : ''}</span><span class="grow"></span><button type="button" data-gowait="1">Show them</button></div>`;
   /* In To check: the ones with nothing unclear, added at once by their type; the others are decided one by one. */
-  const clear = list && st.scope === 'review' && isAdmin() ? scopePool().filter(o => waitReason(o).clear) : [];
+  const clear = list && st.scope === 'review' && isAdmin() ? filtered().filter(o => waitReason(o).clear) : [];
   const groups = typeSum(clear);
-  const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait"><b>Add at once</b><span class="muted">${clear.length} with nothing unclear${clear.length < scopePool().length ? `; ${scopePool().length - clear.length} to decide one by one` : ''}</span><span class="grow"></span>${groups.slice(0, 6).map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
+  const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait"><b>Add at once</b><span class="muted">${clear.length} shown with nothing unclear</span><span class="grow"></span>${groups.slice(0, 6).map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
   bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar;
-  bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${addBar}${scope}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
+  bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${scope}${addBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
 $('#fbar').addEventListener('click', e => {
-  if (e.target.closest('[data-gowait]')){ resetFilters(); st.scope = 'review'; st.rvSrc = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set(); if (!LIST_TABS.includes(st.tab)) st.tab = 'cards'; view(); return; }
+  if (e.target.closest('[data-gowait]')){ enterCheck(); view(); return; }
+  /* To check's own filters: why they wait, which source found them, the ignored ones. */
+  const ck = e.target.closest('[data-ckwhy], [data-cksrc], [data-ckign]');
+  if (ck){
+    if ('ckwhy' in ck.dataset) st.rvWhy = ck.dataset.ckwhy;
+    if ('cksrc' in ck.dataset) st.rvSrc = ck.dataset.cksrc;
+    if ('ckign' in ck.dataset){ st.scope = st.scope === 'ignored' ? 'review' : 'ignored'; st.rvWhy = st.rvSrc = ''; }
+    st.bulk = new Set(); view(); return;
+  }
   const at = e.target.closest('[data-addtype]');
-  if (at && isAdmin()){ const t = at.dataset.addtype; reviewDo('accept', scopePool().filter(o => waitReason(o).clear && (t === '*' || o.type === t))); return; }
+  if (at && isAdmin()){ const t = at.dataset.addtype; reviewDo('accept', filtered().filter(o => waitReason(o).clear && (t === '*' || o.type === t))); return; }
   if (e.target.closest('[data-qfix]')){ if (qfix()) qfix().select(); return; }
   if (e.target.closest('[data-handback]') && st.handField){
     const k = st.handField, list = filtered(), snap = snapshot(list);

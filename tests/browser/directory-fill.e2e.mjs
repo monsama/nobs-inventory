@@ -135,11 +135,11 @@ try {
   assert.match(await p.textContent(pold), /Old/);
   assert.match(await p.textContent('#rvAcceptAll'), /Accept 1 recently seen/);
   assert.deepEqual(await p.$$eval('#view .card[data-open]', cs => cs.map(c => c.dataset.open)), ['n20', 'pold'], 'the recently seen one first');
-  // the old ones on their own in the sidebar, and Accept all takes them only when ticked
-  await p.click('#scopeList [data-rvold]');
+  // the old ones on their own (To check's filter row), and Accept all takes them only when ticked
+  await p.click('#fbar [data-ckwhy="old"]');
   await p.waitForSelector('#view .card[data-open="n20"]', { state: 'detached' });
   assert.equal(await p.locator('#view .card[data-open]').count(), 1);
-  await p.click('#fbar [data-fx=rvOld]');
+  await p.click('#fbar [data-ckwhy=""]');
   await p.waitForSelector('#view .card[data-open="n20"]');
   await p.click('#rvAcceptAll'); await p.waitForSelector('#cfOld');
   assert.equal((await p.textContent('#cfOk')).trim(), 'Accept 1');
@@ -152,7 +152,7 @@ try {
   await p.waitForSelector(pold);
   await p.click(pold + ' .cardtick'); await p.click('#rvIgnore');
   await stored(st => { const o = st.objs.find(x => x.id === 'pold'); return o.review.ignored && o.excluded === true; });
-  await p.click('#scopeList [data-scope=ignored]');
+  await p.click('#fbar [data-ckign]');
   await p.waitForSelector('#rvRestoreAll');
   assert.match(await p.textContent('#fbar'), /1 ignored device/);
   assert.equal((await p.textContent('#rvRestoreAll')).trim(), 'Unignore all 1');
@@ -166,7 +166,7 @@ try {
   await p.click('[data-rvpage=restore]');
   await stored(st => { const o = st.objs.find(x => x.id === 'pold'); return o.review && !o.review.ignored && !o.excluded; });
   await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
-  await p.click('#scopeList [data-scope=review]');
+  await p.click('#tabsbar [data-tab=review]');
   await p.click(pold + ' .cardtick'); await p.click('#rvIgnore');
   await stored(st => st.objs.find(x => x.id === 'pold').review.ignored);
   // accept all: only the one seen recently, after the app's own question

@@ -11,7 +11,7 @@ import { renderOverview } from './10-overview.js';
 import { renderMine, renderStocktake } from './22-stocktake.js';
 import { renderIps } from './views-ips.js';
 import { renderPrinters } from './views-printers.js';
-import { FIXED_TABS, closeObjTab, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
+import { FIXED_TABS, closeObjTab, enterCheck, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
@@ -42,10 +42,12 @@ function renderNow({ save = true } = {}){
   /* To check is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */
   if (!tabAllowed(st.tab)) st.tab = ownOnly() ? 'mine' : 'cards';
-  if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); st.person = null; st.live = false; } st.tab = 'cards'; }
-  /* The sidebar filters lists: the views that are no list of devices (Overview, Contracts, …) are shown without it. */
-  document.body.classList.toggle('noside', NO_SIDE.includes(st.tab));
-  if (NO_SIDE.includes(st.tab)) document.body.classList.remove('side-open');
+  if (st.tab === 'review'){ enterCheck(); st.tab = 'cards'; }
+  /* The sidebar filters the inventory: the views that are no list of devices (Overview, Contracts, …) and To check, a
+     list of its own with its filters over it, are shown without it. */
+  const noSide = NO_SIDE.includes(st.tab) || !!st.scope;
+  document.body.classList.toggle('noside', noSide);
+  if (noSide) document.body.classList.remove('side-open');
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();

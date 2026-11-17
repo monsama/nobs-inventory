@@ -291,7 +291,7 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
-export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','prn','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
+export const st = {scope:null, rvWhy:'', newWeek:false, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','prn','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFocus:null, mapPos:{},
   policy:/** @type {Record<string, boolean>} */ ({ ...DEFAULT_POLICY }),
   ldap:/** @type {Record<string, any>} */ ({url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}), lansweeper:{}};
@@ -786,10 +786,13 @@ const outletWords = o => {
 export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
+/* Why a device waits (15-review.js waitReason), set there: To check is filtered by it. */
+let whyOf = null;
+export const setWhyOf = f => { whyOf = f; };
 /* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To check,
    one source of them (st.rvSrc), or the ones ignored there. */
 export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.review && o.review.ignored)
-  : st.scope === 'review' ? REVIEW.filter(o => o.review && !o.review.ignored && (!st.rvSrc || o.review.src === st.rvSrc) && (!st.rvKnown || o.inAd || !!o.graph) && (!st.rvOld || reviewStale(o))) : objs;
+  : st.scope === 'review' ? REVIEW.filter(o => o.review && !o.review.ignored && (!st.rvSrc || o.review.src === st.rvSrc) && (!st.rvKnown || o.inAd || !!o.graph) && (!st.rvOld || reviewStale(o)) && (!st.rvWhy || !whyOf || whyOf(o).kind === st.rvWhy)) : objs;
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
    search for something that is there never ends in "nothing matches". */
 export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? scopePool().filter(o => matchesQ(o, q)) : []; };

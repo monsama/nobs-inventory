@@ -72,7 +72,7 @@ try {
 
   // To check: the corner picks one, Shift+click the range; Accept takes those three in, Undo puts them back
   await p.click('#tabsbar [data-tab=review]'); await p.waitForSelector('#fbar .fb-scope');
-  assert.match(await p.textContent('#fbar'), /6 devices waiting in To check/);
+  assert.match(await p.textContent('#toolbar'), /6 of 6 waiting/);
   const rv = p.locator('#cards .card');
   assert.equal(await rv.count(), 6);
   await rv.nth(0).locator('.cardtick').click();

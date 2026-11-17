@@ -43,15 +43,28 @@ try {
   assert.equal((await p.textContent('#typeList [data-type="pc"] .cnt-wait')).trim(), '+3');
   assert.equal((await p.textContent('#typeList [data-type="pc"] .cnt')).trim(), '1', 'the count is the inventory\'s');
 
+  // +3 beside PC: To check for the PCs only, the left bar hidden (it is the inventory's); To check's own filters instead
+  await p.click('#typeList [data-type="pc"] .cnt-wait');
+  await until(p, () => document.querySelectorAll('#cards .card').length === 3);
+  assert.equal(await p.locator('#side').isVisible(), false, 'no left bar in To check');
+  assert.match(await p.textContent('#fbar'), /Type: PC/);
+
   // To check: each card says why it waits; the clear ones are offered by type
-  await p.click('[data-gowait]');
-  await p.waitForSelector('#cards .card');
+  await p.click('#tabsbar [data-tab=review]');
+  await until(p, () => document.querySelectorAll('#cards .card').length === 7);
   const why = async id => (await p.textContent(`#cards .card[data-open="${id}"] .rv-why`)).trim();
   assert.match(await why('w6'), /Only an IP address/);
-  assert.match(await why('w7'), /Same serial number as OLD-NB-1/);
-  assert.match(await why('w1'), /Found before new devices went straight in/);
+  assert.match(await why('w7'), /Possible duplicate: same serial number as OLD-NB-1/);
+  assert.match(await why('w1'), /Nothing unclear: it waits from before new devices were added automatically/);
+  // filtered by why they wait
+  const seg = async k => (await p.textContent(`#fbar [data-ckwhy="${k}"]`)).replace(/\s+/g, ' ').trim();
+  assert.equal(await seg(''), 'All 7'); assert.equal(await seg('clear'), 'Nothing unclear 5'); assert.equal(await seg('dup'), 'Possible duplicate 1'); assert.equal(await seg('ip'), 'Address only 1');
+  await p.click('#fbar [data-ckwhy="dup"]');
+  await until(p, () => document.querySelectorAll('#cards .card').length === 1);
+  await p.click('#fbar [data-ckwhy=""]');
+  await until(p, () => document.querySelectorAll('#cards .card').length === 7);
   const add = await p.textContent('#fbar .fb-wait');
-  assert.match(add, /5 with nothing unclear; 2 to decide one by one/);
+  assert.match(add, /5 shown with nothing unclear/);
   assert.equal(await p.locator('[data-addtype="pc"]').textContent(), 'PC (3)');
   assert.equal(await p.locator('[data-addtype="notebook"]').textContent(), 'Notebook (2)');
 
