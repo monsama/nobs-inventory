@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, COMPLIANCE, isAttached, markHtml, handHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
+import { REVIEW, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, COMPLIANCE, isAttached, markHtml, handHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
 import { SERVER, view } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -105,7 +105,9 @@ export function cardHtml(o, idx, join = showJoin()){
     <dl class="kv">${lines.map(([k,v]) => html`<dt>${k || rawHtml('&nbsp;')}</dt><dd${v ? '' : html` class="none"`}>${v ? rawHtml(v) : k ? '-' : rawHtml('&nbsp;')}</dd>`)}</dl>
     ${join ? rawHtml(joinBadges(o)) : ''}
     ${o.review ? reviewChips(o, stale) : twinOf(o) ? html`<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? html`<div class="rv-chips">${twinsChip(o)}</div>` : ''}
-    ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts"><button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>${mergeTarget(o) ? html`<button type="button" class="rv-act" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</button>` : ''}<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button></span>` : ''}
+    ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts">${mergeTarget(o)
+      ? html`<button type="button" class="rv-act yes" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</button><button type="button" class="rv-act" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory as a device of its own">Accept</button>`
+      : html`<button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>`}<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button></span>` : ''}
     <div class="cf"><span class="code">${o.code}</span>${rawHtml(cardSeen(o))}${rawHtml(handHtml(o))}${join && GRAPH_TYPES.includes(o.type) ? '' : rawHtml(graphProblem(o))}<span class="grow"></span>${relSummary(rs)}</div>
   </article>`);
 }
@@ -139,8 +141,10 @@ export function renderCardsBody(){
   if (!list.length){
     $('#view').innerHTML = pool.length
       ? hiddenHits() || (st.q.trim() ? html`<div class="empty">Nothing matches “${st.q.trim()}”. <button class="primary" id="newFromSearch">Create “${st.q.trim()}” as a new device</button></div>` : html`<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
+      : st.scope === 'review' && REVIEW.some(o => !o.review.ignored) ? html`<div class="empty">None of the devices waiting match these filters. <button type="button" class="primary" data-ck-all>Show all waiting</button></div>`
       : st.scope ? html`<div class="empty">${st.scope === 'ignored' ? 'No ignored devices.' : 'Nothing to check. New devices go straight into the inventory; the ones that need a decision (a possible duplicate, an address without a name, one not seen for long) wait here.'} <button type="button" data-fx-go="scope">Back to inventory</button></div>`
       : (SERVER.on && !st.meId ? html`<div class="empty">Sign in to see the inventory.</div>` : emptyHtml());
+    const ca = $('[data-ck-all]'); if (ca) ca.onclick = () => { st.rvWhy = st.rvSrc = ''; st.type = null; view(); };
     const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); view(); };
     const c2 = $('#clr2'); if (c2) c2.onclick = () => $('#clearF').click();
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});

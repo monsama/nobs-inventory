@@ -9,6 +9,7 @@ import { isAdmin, me } from './04-settings.js';
 import { flushSave, reloadFromServer, render, queueServerSave } from './07-render.js';
 import { movePhotos } from './23-photos.js';
 import { graphSeen } from './intune.js';
+import { isPlaceholderSerial } from './serials.js';
 
 export { reviewStale } from './01-core.js';
 const who = () => (me() && (me().name || me().login)) || 'an admin';
@@ -41,12 +42,28 @@ function restore(list){
    named by a DNS name, a docking station's) the one named by the first part. Only devices in the inventory count. */
 const lc = v => String(v || '').toLowerCase();
 const byIdOf = id => byId(id);
+/* The inventory's devices (and the open waiting records) by serial number and by name, built once per task: the To check
+   view asks for each card several times, and filtering 5000 devices each time made it slow. A placeholder serial number
+   ("To be filled by O.E.M.") is no serial number. */
+let idx = null;
+const realSerial = v => v && !isPlaceholderSerial(v) ? lc(v) : '';
+function indexes(){
+  const key = objs.length + ':' + REVIEW.length;
+  if (idx && idx.key === key) return idx;
+  const add = (m, k, x) => { if (k){ const a = m.get(k); if (a) a.push(x); else m.set(k, [x]); } };
+  const inv = { serial: new Map(), name: new Map() }, wait = { serial: new Map(), name: new Map() };
+  for (const x of objs) if (x.status !== 'retired'){ add(inv.serial, realSerial(x.serial), x); add(inv.name, lc(x.name), x); }
+  for (const x of REVIEW) if (!x.review.ignored && !x.review.merged){ add(wait.serial, realSerial(x.serial), x); add(wait.name, lc(x.name), x); }
+  idx = { key, inv, wait, why: new WeakMap() };
+  queueMicrotask(() => { idx = null; });
+  return idx;
+}
+const other = (list, o) => (list || []).find(x => x !== o) || null;
 export function mergeTarget(o){
   if (!o) return null;
-  const live = objs.filter(x => x !== o && x.status !== 'retired');
-  const tw = twinOf(o);
-  return (o.serial && live.find(x => x.serial && lc(x.serial) === lc(o.serial))) || live.find(x => lc(x.name) === lc(o.name))
-    || (tw && live.includes(tw) ? tw : null);
+  const { inv } = indexes(), tw = twinOf(o);
+  return (realSerial(o.serial) && other(inv.serial.get(realSerial(o.serial)), o)) || other(inv.name.get(lc(o.name)), o)
+    || (tw && tw.status !== 'retired' && objs.includes(tw) ? tw : null);
 }
 /* Why a device waits in To check, in a few words, the reason that matters most first. clear: nothing about it needs a
    decision (it only waits because of a setting, or because it came before new devices went straight in), so it can be
@@ -54,10 +71,23 @@ export function mergeTarget(o){
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 export function waitReason(o){
   if (!o || !o.review || o.review.ignored) return { text: '', clear: false, kind: '' };
+  const { why } = indexes();
+  let r = why.get(o);
+  if (!r){ r = reasonOf(o); why.set(o, r); }
+  return r;
+}
+/* The same rules as the server's (server/settle.js), which adds the clear ones at the next sync. */
+function reasonOf(o){
+  if (o.excluded || o.detached) return { text: 'Left out of the syncs: add or ignore it by hand', clear: false, kind: '' };
   const t = mergeTarget(o);
+  /* A docking station's DNS-named record: its name is not the device's, only the first part of it. */
+  if (t && t === twinOf(o) && lc(t.name) !== lc(o.name) && !(o.serial && lc(o.serial) === lc(t.serial))) return { text: `Possible duplicate: probably a second record of ${t.name}`, clear: false, kind: 'dup' };
   if (t) return { text: o.serial && lc(o.serial) === lc(t.serial) ? `Possible duplicate: same serial number as ${t.name}` : `Possible duplicate: same name as ${t.name}`, clear: false, kind: 'dup' };
   const tw = twinOf(o);
   if (tw) return { text: `Possible duplicate: probably a second record of ${tw.name}`, clear: false, kind: 'dup' };
+  /* Two waiting records of one device: adding both would make it twice. */
+  const { wait } = indexes(), w = (realSerial(o.serial) && other(wait.serial.get(realSerial(o.serial)), o)) || other(wait.name.get(lc(o.name)), o);
+  if (w) return { text: `Possible duplicate: ${w.name} waits here too, with the same ${realSerial(o.serial) && lc(w.serial) === realSerial(o.serial) ? 'serial number' : 'name'}`, clear: false, kind: 'dup' };
   if (IPV4.test(o.name || '') && !o.serial) return { text: 'Only an IP address: no name or serial number', clear: false, kind: 'ip' };
   /* Seen long ago: likely gone. Never scanned at all (Lansweeper lists it, no scan yet) is no reason to wait. */
   const seen = lastSeenOf(o);

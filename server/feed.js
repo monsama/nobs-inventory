@@ -452,6 +452,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
         waiting ??= s.objs.filter(o => o.review && !o.review.ignored).length;
         if (waiting >= REVIEW_MAX) { counts.reviewFull = (counts.reviewFull || 0) + 1; continue; }
         waiting++;
+      } else {
+        /* Straight into the inventory, no more than REVIEW_MAX in one push either: a wrong or stolen token cannot fill it. */
+        if ((counts.created - (counts.review || 0)) >= REVIEW_MAX) { counts.newFull = (counts.newFull || 0) + 1; continue; }
       }
       const type = typeFor(s, r.assetType, r.model, r.role, r.name, r.chassis);
       /* The next free code and id: one taken by hand (or restored from an older backup) is passed over. */

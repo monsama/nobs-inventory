@@ -37,10 +37,12 @@ export function bootstrap(db, env, log = console.log) {
   const s = loadState(db);
   /* An upgrade that changes the saved data keeps what was there first, as a backup. */
   /* Devices waiting in To check with nothing unclear go into the inventory (server/settle.js): the ones that waited from
-     before new devices went straight in, once, at the upgrade. */
+     before new devices went straight in, and any whose question went away since the last sync. */
   const migrated = migrateState(s), settled = settleWaiting(s, stamp(new Date()));
   if (settled) log(`To check: ${settled} waiting device(s) with nothing unclear were added to the inventory.`);
-  if (migrated || settled) { try { takeBackup(db, 'before upgrading the data'); } catch (e) { log(`Warning: no backup before the upgrade (${e.message}).`); } saveState(db, s); }
+  if (migrated) { try { takeBackup(db, 'before upgrading the data'); } catch (e) { log(`Warning: no backup before the upgrade (${e.message}).`); } }
+  else if (settled) autoBackup(db, 'before adding waiting devices with nothing unclear', { daily: true });
+  if (migrated || settled) saveState(db, s);
   /* Photos of devices removed some other way (a sync, an older version) go at the start. */
   purgeOrphanImages(db);
   /* Backups from before 0.9.75 are stored as parts once (server/backup-store.js). */

@@ -59,7 +59,7 @@ export function timelineOf(o, { history = [], contracts = [], life = {}, today =
   /* Where the history has no line of its being added (cut short, or older than it): what the sources noted. */
   const f = o.feed || {};
   if (!out.some(e => e.kind === 'added' || e.kind === 'seen')) {
-    if (f.created) add('added', 'ok', 'Added from Lansweeper', stampTime(f.created), String(f.created).slice(0, 10));
+    if (f.created) add('added', 'ok', o.review ? 'Found by Lansweeper' : 'Added from Lansweeper', stampTime(f.created), String(f.created).slice(0, 10));
     else if (f.linked) add('seen', 'ok', 'Linked to Lansweeper', stampTime(f.linked), String(f.linked).slice(0, 10));
   }
   if (DAY.test(f.firstSeen || '')) addDay('seen', 'ok', 'First found by Lansweeper', f.firstSeen);

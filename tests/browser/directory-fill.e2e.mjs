@@ -154,7 +154,7 @@ try {
   await stored(st => { const o = st.objs.find(x => x.id === 'pold'); return o.review.ignored && o.excluded === true; });
   await p.click('#fbar [data-ckign]');
   await p.waitForSelector('#rvRestoreAll');
-  assert.match(await p.textContent('#fbar'), /1 ignored device/);
+  assert.match(await p.textContent('#fbar'), /Ignored · 1 device kept out/);
   assert.equal((await p.textContent('#rvRestoreAll')).trim(), 'Unignore all 1');
   // picked: Unignore, or Accept straight into the inventory; the device page offers the same
   await p.click(pold + ' .cardtick');

@@ -20,7 +20,7 @@ test('the clear ones are added, as of when they were found; the unclear ones wai
   ] };
   assert.equal(settleWaiting(s, '17.11.2026 10:00', now), 2);
   const by = id => s.objs.find(o => o.id === id);
-  assert.equal(by('a').review, undefined); assert.equal(by('a').added, '2026-03-05T09:30:00.000Z');
+  assert.equal(by('a').review, undefined); assert.equal(by('a').added, new Date(2026, 2, 5, 9, 30).toISOString(), 'as of when it was found (local time)');
   assert.equal(by('a').status, 'stock', 'nobody has it: in stock');
   assert.equal(by('b').status, 'active', 'it has a user');
   assert.match(s.history.a[0].msg, /Added to the inventory: nothing unclear \(found by Lansweeper\)/);

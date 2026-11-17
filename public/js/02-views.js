@@ -198,14 +198,16 @@ export function renderFilterBar(){
   /* To check, a list of its own: what it is, and its filters (why they wait, which source found them, the ignored ones),
      in place of the inventory's left bar. */
   const waitAll = REVIEW.filter(o => o.review && !o.review.ignored), ignAll = REVIEW.filter(o => o.review && o.review.ignored);
-  const bySrc = waitAll.filter(o => !st.rvSrc || o.review.src === st.rvSrc);
+  /* The counts follow the type picked (+N beside a type), so they add up to what is shown. */
+  const ofType = waitAll.filter(o => !st.type || o.type === st.type);
+  const bySrc = ofType.filter(o => !st.rvSrc || o.review.src === st.rvSrc);
   const whyN = k => k ? bySrc.filter(o => waitReason(o).kind === k).length : bySrc.length;
   const WHY = [['', 'All'], ['clear', 'Nothing unclear'], ['dup', 'Possible duplicate'], ['ip', 'Address only'], ['old', `Not seen for ${REVIEW_STALE_DAYS} days`]];
-  const srcs = Object.entries(REVIEW_SRC).map(([k, l]) => [k, l, waitAll.filter(o => o.review.src === k).length]).filter(([, , c]) => c);
+  const srcs = Object.entries(REVIEW_SRC).map(([k, l]) => [k, l, ofType.filter(o => o.review.src === k).length]).filter(([, , c]) => c);
   const seg = (label, items) => html`<span class="vswitch fb-seg" role="group" aria-label="${label}">${items}</span>`;
   const scope = !list || !st.scope ? '' : st.scope === 'ignored'
-    ? html`<div class="fb-person fb-check"><span class="fb-scope"><b>Ignored</b> ${pool} ignored ${pool === 1 ? 'device' : 'devices'}: kept out of the inventory and every sync</span><span class="grow"></span><button type="button" data-ckign>Back to waiting (${waitAll.length})</button><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button></div>`
-    : html`<div class="fb-person fb-check fb-ckrow"><b class="fb-scope" title="${pool} ${pool === 1 ? 'device' : 'devices'} waiting in To check: not in the inventory yet">To check</b>${seg('Why they wait', WHY.filter(([k]) => !k || whyN(k) || st.rvWhy === k).map(([k, l]) => html`<button type="button" class="${st.rvWhy === k ? 'on' : ''}" aria-pressed="${st.rvWhy === k}" data-ckwhy="${k}">${l} <span class="cnt">${whyN(k)}</span></button>`))}${srcs.length > 1 ? seg('Found by', [['', 'All sources', waitAll.length], ...srcs].map(([k, l, c]) => html`<button type="button" class="${st.rvSrc === k ? 'on' : ''}" aria-pressed="${st.rvSrc === k}" data-cksrc="${k}">${l} <span class="cnt">${c}</span></button>`)) : ''}<span class="grow"></span>${ignAll.length ? html`<button type="button" data-ckign title="Kept out of the inventory and of every sync">Ignored (${ignAll.length})</button>` : ''}<button type="button" class="fb-clear" data-fx="scope">Back to inventory</button></div>`;
+    ? html`<div class="fb-person fb-check"><span class="fb-scope"><b>Ignored</b> · ${pool} ${pool === 1 ? 'device' : 'devices'} kept out of the inventory and every sync</span><span class="grow"></span><button type="button" data-ckign>Back to waiting (${waitAll.length})</button><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button></div>`
+    : html`<div class="fb-person fb-check fb-ckrow"><b class="fb-scope" title="${pool} ${pool === 1 ? 'device' : 'devices'} waiting in To check: not in the inventory yet">To check</b>${seg('Why they wait', WHY.filter(([k]) => !k || whyN(k) || st.rvWhy === k).map(([k, l]) => html`<button type="button" class="${st.rvWhy === k ? 'on' : ''}" aria-pressed="${st.rvWhy === k}" data-ckwhy="${k}">${l} <span class="cnt">${whyN(k)}</span></button>`))}${srcs.length > 1 ? seg('Found by', [['', 'All sources', ofType.length], ...srcs].map(([k, l, c]) => html`<button type="button" class="${st.rvSrc === k ? 'on' : ''}" aria-pressed="${st.rvSrc === k}" data-cksrc="${k}">${l} <span class="cnt">${c}</span></button>`)) : ''}<span class="grow"></span>${ignAll.length ? html`<button type="button" data-ckign title="Kept out of the inventory and of every sync">Ignored (${ignAll.length})</button>` : ''}<button type="button" class="fb-clear" data-fx="scope">Back to inventory</button></div>`;
   /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
   const who = !list || !person ? '' : html`<div class="fb-person"><b>${person.name}</b>${person.active === false ? html` <span class="chip warn">left</span>` : ''}<span class="muted">${[person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · ')}</span>
@@ -221,7 +223,7 @@ export function renderFilterBar(){
   /* In To check: the ones with nothing unclear, added at once by their type; the others are decided one by one. */
   const clear = list && st.scope === 'review' && isAdmin() ? filtered().filter(o => waitReason(o).clear) : [];
   const groups = typeSum(clear);
-  const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait"><b>Add at once</b><span class="muted">${clear.length} shown with nothing unclear</span><span class="grow"></span>${groups.slice(0, 6).map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
+  const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait fb-ckrow"><b>Add at once</b><span class="muted">${clear.length} shown with nothing unclear</span>${groups.map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
   bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar;
   bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${scope}${addBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
@@ -233,7 +235,11 @@ $('#fbar').addEventListener('click', e => {
     if ('ckwhy' in ck.dataset) st.rvWhy = ck.dataset.ckwhy;
     if ('cksrc' in ck.dataset) st.rvSrc = ck.dataset.cksrc;
     if ('ckign' in ck.dataset){ st.scope = st.scope === 'ignored' ? 'review' : 'ignored'; st.rvWhy = st.rvSrc = ''; }
-    st.bulk = new Set(); view(); return;
+    st.bulk = new Set(); view();
+    /* The bar is drawn again: the keyboard stays on the filter just picked. */
+    const sel = 'ckwhy' in ck.dataset ? `[data-ckwhy="${ck.dataset.ckwhy}"]` : 'cksrc' in ck.dataset ? `[data-cksrc="${ck.dataset.cksrc}"]` : '[data-ckign]';
+    const again = $('#fbar ' + sel); if (again && e.detail === 0) again.focus();
+    return;
   }
   const at = e.target.closest('[data-addtype]');
   if (at && isAdmin()){ const t = at.dataset.addtype; reviewDo('accept', filtered().filter(o => waitReason(o).clear && (t === '*' || o.type === t))); return; }

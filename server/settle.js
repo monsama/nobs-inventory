@@ -7,12 +7,13 @@
 import { graphSeen } from '../public/js/intune.js';
 import { isPlaceholderSerial } from '../public/js/serials.js';
 import { intakeOf } from './state.js';
+import { stampTime } from '../public/js/dates.js';
 
 const STALE_DAYS = 90;
 const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios'];
 const SRC = { lansweeper: 'Lansweeper', ad: 'Active Directory', graph: 'Entra & Intune' };
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
-const lc = v => String(v || '').trim().toLowerCase();
+const lc = v => String(v || '').toLowerCase();
 
 /* Days since any source last saw it; null when none ever did (no reason to wait). */
 function daysUnseen(o, now){
@@ -44,9 +45,8 @@ export function settleWaiting(s, stampText, now = new Date()){
     if (days != null && days > STALE_DAYS) continue;
     const src = SRC[o.review.src] || o.review.src;
     /* Added as of when it was found, so a device that waited for months does not show as New now. */
-    const [, d, m, y, hh = '00', mm = '00'] = String(o.review.at || '').match(/^(\d{2})\.(\d{2})\.(\d{4})(?: (\d{2}):(\d{2}))?/) || [];
-    const found = y ? Date.parse(`${y}-${m}-${d}T${hh}:${mm}:00Z`) : NaN;
-    delete o.review; o.added = new Date(Number.isFinite(found) && found < now.getTime() ? found : now.getTime()).toISOString();
+    const found = stampTime(o.review.at);
+    delete o.review; o.added = new Date(found && found < now.getTime() ? found : now.getTime()).toISOString();
     /* A computer or phone nobody has is in stock, not in use (as when a person accepts it). */
     const stock = PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk;
     if (stock) o.status = 'stock';
