@@ -36,7 +36,7 @@ try {
   let r = await rows();
   assert.deepEqual(r.map(x => x[1]), ['Network', 'USB', 'Network']);
   assert.equal(r[0][3], 'PRN-2OG', 'the network printer is not matched by its address');
-  assert.equal(r[2][3], 'Not found');
+  assert.equal(r[2][3], 'Add as device', 'a network printer not in the inventory can be added too');
   // the USB printer: added as a device, attached to the computer, in its room
   await p.click('[data-prnadd="1"]');
   await storedBy(() => loadState(db), s => s.objs.some(o => o.type === 'printer' && o.name === 'Desk label printer'));
@@ -49,6 +49,26 @@ try {
   await p.waitForSelector('table.prn-table');
   r = await rows();
   assert.deepEqual(r.map(x => x[0]), ['PC-1']);
+  // Network → Printers: each printer once, how many computers use it, and those not in the inventory added from here
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'prn'; (await import('/js/07-render.js')).render(); });
+  await p.waitForSelector('table.prns tbody tr');
+  const view = () => p.$$eval('table.prns tbody tr', trs => trs.map(tr => [...tr.cells].map(c => c.textContent.replace(/\s+/g, ' ').trim())));
+  let v = await view();
+  assert.equal(v.length, 3, 'one row per printer: ' + JSON.stringify(v));
+  assert.ok(v.some(x => /PRN-2OG/.test(x[0]) && x[3] === '1 computer' && x[4] === 'In the inventory'));
+  assert.match(await p.textContent('#prnCount'), /3 printers · 1 not in the inventory/);
+  await p.selectOption('#prnShow', 'missing');
+  v = await view(); assert.equal(v.length, 1); assert.match(v[0][0], /Plotter/);
+  await p.click('table.prns [data-prnadd]');
+  await storedBy(() => loadState(db), s => s.objs.some(o => o.type === 'printer' && o.name === 'Plotter'));
+  const pl = loadState(db).objs.find(o => o.name === 'Plotter');
+  assert.ok(!loadState(db).rels.some(x => x.from === pl.id), 'a network printer is attached to nobody');
+  await p.waitForSelector('table.prns tbody tr td.muted');
+  // the computers using a printer open in the Table
+  await p.selectOption('#prnShow', '');
+  await p.click('table.prns tbody tr:first-child [data-prnusers]');
+  await until(p, async () => (await import('/js/01-core.js')).st.tab === 'table');
+  assert.match(await p.textContent('#fbar'), /Computers using/);
   assert.deepEqual(errors, [], 'page errors');
   console.log('printers: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

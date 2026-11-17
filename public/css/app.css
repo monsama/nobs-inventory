@@ -2181,3 +2181,7 @@ table.grid.ds-matrix td.ds-write input{margin:0}
 .mv-body{padding:4px 12px 12px}
 .mv-body h4{display:flex;align-items:center;gap:8px;margin:12px 0 6px;font-size:13px}
 .mv-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:12.5px;line-height:1.55}
+/* Printers: a port that still points to a printer's old address, on a device page and in Network → Printers. */
+.prn-warn{margin-top:3px;color:var(--danger);font-size:12px}
+tr.prn-stale>td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+table.grid.prns td{white-space:normal;vertical-align:top}
