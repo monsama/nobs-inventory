@@ -1,4 +1,4 @@
-/* Every way to resolve a probable duplicate, end to end: a dock (from the inventory and from To review), a shared dock at
+/* Every way to resolve a probable duplicate, end to end: a dock (from the inventory and from To check), a shared dock at
    a desk, the same device, obsolete and not a duplicate. Each is saved, survives a reload from the server, and the next
    Lansweeper push brings no merged record back. */
 import { chromium } from 'playwright';
@@ -52,7 +52,7 @@ try {
   await resolve('a2', 'dock', 'Add as attachment');
   await stored(st => obj(st, 'a2').review?.merged === 'a' && obj(st, 'a2').excluded && (obj(st, 'a').accessories || [])[0]?.mac === '64:c9:01:00:00:35');
   assert.equal(obj(loadState(db), 'a').nics, undefined);
-  // dock, from To review
+  // dock, from To check
   await resolve('e2', 'dock', 'Add as attachment');
   await stored(st => obj(st, 'e2').review?.merged === 'e' && obj(st, 'e2').review.ignored && (obj(st, 'e').accessories || [])[0]?.seenAs === 'nb-43.corp.example');
   // shared dock at a desk
@@ -72,7 +72,7 @@ try {
   await resolve('b2', 'notdup', 'Keep both');
   await stored(st => obj(st, 'b2').notTwin === true);
 
-  // after a reload from the server: merged records sit in To review's ignored list, the rest in the inventory, and nothing
+  // after a reload from the server: merged records sit in To check's ignored list, the rest in the inventory, and nothing
   // is flagged as a duplicate any more
   await p.reload(); await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   const where = await p.evaluate(async () => { const c = await import('/js/01-core.js');
@@ -93,7 +93,7 @@ try {
   // Back to review on a merged record takes it out of its device too, like Unmerge
   await p.evaluate(async () => (await import('/js/15-review.js')).reviewDo('restore', [(await import('/js/01-core.js')).byId('a2')]));
   await stored(st => !obj(st, 'a2').review.merged && !obj(st, 'a2').excluded && !obj(st, 'a').accessories);
-  // a dock merged into a device that itself waits in To review: Unmerge takes the attachment off it again
+  // a dock merged into a device that itself waits in To check: Unmerge takes the attachment off it again
   await p.evaluate(async () => { const c = await import('/js/01-core.js');
     c.REVIEW.push({ id: 'g', code: 'INV-0020', type: 'notebook', name: 'NB-60', serial: 'S60', status: 'active', feed: null, review: { src: 'ad', at: 'x' } });
     c.objs.push({ id: 'g2', code: 'INV-0021', type: 'notebook', name: 'nb-60.corp.example', mac: '64:c9:01:00:00:60', status: 'active', feed: null });

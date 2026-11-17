@@ -98,7 +98,7 @@ export function fieldOrderProblem(v) {
 /* What else each source keeps on a device or brings in, beyond the fields: [what, how]. */
 export const SOURCE_EXTRAS = {
   ls: [
-    ['New devices', 'Every asset it scans that the inventory does not have: waiting in To review, or added straight away (Settings)'],
+    ['New devices', 'Every asset it scans that the inventory does not have: waiting in To check, or added straight away (Settings)'],
     ['Type', 'By the type rules, from its Lansweeper type, model, chassis and Windows role; a type set by hand stays'],
     ['Location', 'Its building and location, as a room here or mapped to one in Settings → Locations; else the room its IP address is in (IP locations), when the device has none'],
     ['Purchase data', 'Order number, and price and supplier from the custom fields the push script is told about; fills empty fields only'],
@@ -110,7 +110,7 @@ export const SOURCE_EXTRAS = {
     ['Docking stations', 'With "Merge docking-station records" on: a dock\'s DNS-named record becomes an attachment of its device, by its MAC address'],
   ],
   ad: [
-    ['New devices', 'Computer accounts the inventory does not have (disabled ones never): waiting in To review, or added straight away'],
+    ['New devices', 'Computer accounts the inventory does not have (disabled ones never): waiting in To check, or added straight away'],
     ['Computer account', 'Last logon, created on, managed by, location and description, services from its SPNs'],
     ['Groups', 'The AD groups of the computer account, to filter by'],
     ['In AD', 'Whether the device has a computer account, shown on the card'],
@@ -119,7 +119,7 @@ export const SOURCE_EXTRAS = {
     ['User office', 'With "Use the office of the device\'s user" on (Settings → Locations): a device without a location takes the room its user\'s office names'],
   ],
   graph: [
-    ['New devices', 'Devices in Entra or Intune the inventory does not have: waiting in To review, or added straight away'],
+    ['New devices', 'Devices in Entra or Intune the inventory does not have: waiting in To check, or added straight away'],
     ['Join state', 'Entra joined, hybrid joined or registered'],
     ['Intune', 'Managed or not, compliance, encryption, last check-in and last sign-in'],
     ['Phones and tablets', 'IMEI, phone number, ownership and free storage'],

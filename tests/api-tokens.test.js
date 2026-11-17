@@ -26,7 +26,7 @@ test('an API token reads the devices (people only when made with them), nothing 
     assert.equal((await get('/api/v1/devices')).status, 401);
     assert.equal((await get('/api/v1/devices', 'nobs_wrong')).status, 401);
     const j = await (await get('/api/v1/devices', plain.token)).json();
-    assert.equal(j.count, 2, 'not the one waiting in To review');
+    assert.equal(j.count, 2, 'not the one waiting in To check');
     assert.equal(j.devices[0].user, undefined, 'no names without the people choice');
     const k = await (await get('/api/v1/devices?status=active', named.token)).json();
     assert.deepEqual(k.devices.map(d => [d.code, d.user, d.department]), [['INV-0001', 'Anna Muster', 'Sales']]);

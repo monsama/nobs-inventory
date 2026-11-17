@@ -14,19 +14,19 @@ import { openObj } from './02-views.js';
 import { renderCards } from './views-cards.js';
 import { renderTable } from './views-table.js';
 import { bulkEditModal } from './views-bulk-edit.js';
-/* In To review (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
+/* In To check (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
    none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
 export function scopeActs(list, allAlso){
   if (!st.scope || !isAdmin()) return '';
   const n = st.bulk.size, ign = st.scope === 'ignored';
-  /* Ignored ones: Unignore puts them back in To review; Accept takes them straight into the inventory (not a record merged
+  /* Ignored ones: Unignore puts them back in To check; Accept takes them straight into the inventory (not a record merged
      into a device: that one is unmerged first, by Unignore). */
   const mergedIn = ign && [...st.bulk].map(byId).some(o => o && o.review && o.review.merged);
-  if (n) return ign ? `<button id="rvRestore" title="Take ${n === 1 ? 'it' : 'them'} off the ignored list: ${n === 1 ? 'it waits' : 'they wait'} in To review again${mergedIn ? '; a merged record leaves its device' : ''}">Unignore ${n}</button>${mergedIn ? '' : `<button id="rvAccept" class="primary" title="Unignore and take ${n === 1 ? 'it' : 'them'} into the inventory">Accept ${n}</button>`}`
+  if (n) return ign ? `<button id="rvRestore" title="Take ${n === 1 ? 'it' : 'them'} off the ignored list: ${n === 1 ? 'it waits' : 'they wait'} in To check again${mergedIn ? '; a merged record leaves its device' : ''}">Unignore ${n}</button>${mergedIn ? '' : `<button id="rvAccept" class="primary" title="Unignore and take ${n === 1 ? 'it' : 'them'} into the inventory">Accept ${n}</button>`}`
     : `<button id="rvAccept" class="primary">Accept ${n}</button><button id="rvIgnore" class="danger-text">Ignore ${n}</button>`;
   if (!allAlso || !list.length) return '';
   const fresh = list.filter(o => !reviewStale(o)).length;
-  return ign ? `<button id="rvRestoreAll" title="Take every ignored device shown off the list: they wait in To review again">Unignore all ${list.length}</button>`
+  return ign ? `<button id="rvRestoreAll" title="Take every ignored device shown off the list: they wait in To check again">Unignore all ${list.length}</button>`
     : `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" title="${fresh === list.length || !fresh ? '' : `Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out unless you tick them in the next step`}">Accept ${fresh === list.length ? `all ${fresh}` : fresh ? `${fresh} recently seen` : `all ${list.length} old`}</button>`;
 }
 /* Resolve: the picked records that are most likely a device the inventory has (a dock's DNS-named record, or one of the
@@ -37,7 +37,7 @@ export function mergeBtn(){
   const m = mergeable().length;
   return m ? `<button id="rvResolve" title="Say what ${m === 1 ? 'it is' : 'they are'}: a dock's record, the same device, obsolete or no duplicate">Resolve ${m}…</button>` : '';
 }
-/* Wires the To review buttons that scopeActs and mergeBtn draw. list: the devices shown, for the All buttons, which ask
+/* Wires the To check buttons that scopeActs and mergeBtn draw. list: the devices shown, for the All buttons, which ask
    first. */
 export function bindScopeActs(list){
   const on = (id, f) => { const b = $('#' + id); if (b) b.onclick = f; };
@@ -65,11 +65,11 @@ export function bindScopeActs(list){
    Table, where the picked rows can be moved, given a status or a responsible together. */
 export function pickBar(list){
   const n = (st.bulk || new Set()).size;
-  /* The picked devices' actions on a row of their own, always in one order: count, the To review actions, Resolve, the rest. */
+  /* The picked devices' actions on a row of their own, always in one order: count, the To check actions, Resolve, the rest. */
   return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
     : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several · Ctrl+A all</span>' + scopeActs(list, true);
 }
-/* The picked devices that are still among those shown (the inventory, or To review): a pick does not reach across. */
+/* The picked devices that are still among those shown (the inventory, or To check): a pick does not reach across. */
 export const pickedInPool = () => { const ids = new Set(scopePool().map(o => o.id)); return new Set([...(st.bulk || [])].filter(id => ids.has(id))); };
 export function bindPickBar(){
   const o = $('#cdOpen'); if (o) o.onclick = () => openObjs([...st.bulk]);
@@ -87,7 +87,7 @@ export function openObjs(ids){
 }
 /* A redraw that leaves the list where it was scrolled to. */
 export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 0; draw(); const w = $('#view'); if (w) w.scrollTop = y; };
-/* Picking cards (also of To review): Ctrl (⌘) + click or the tick in a card's corner picks one or takes it back;
+/* Picking cards (also of To check): Ctrl (⌘) + click or the tick in a card's corner picks one or takes it back;
    Shift + click picks every card from the last one picked to this one. While cards are picked, a plain click on a card
    picks it (or takes it back) too; with none picked, it opens the card. */
 let lastPick = null;
@@ -119,7 +119,7 @@ document.addEventListener('keydown', e => {
     st.bulk.clear(); keepScroll(st.tab === 'table' ? renderTable : renderCards);
   }
 });
-/* The Table's bar for the selected rows: in To review its actions; else one menu that opens, hands out, moves, or sets
+/* The Table's bar for the selected rows: in To check its actions; else one menu that opens, hands out, moves, or sets
    the status, the responsible or any field of them all. */
 export const tableBulkBar = (list, n) => String(html`${n && st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>${rawHtml(scopeActs(list))}${rawHtml(mergeBtn())}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
 ${n && !st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>${rawHtml(mergeBtn())}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? html`<option value="handout">Hand out to a person…</option><option value="edit">Edit fields…</option>` : ''}

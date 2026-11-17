@@ -62,7 +62,7 @@ const STATE = () => ({
 });
 test('the devices a view lists are picked by the page\'s own filter, and go out as an Excel file', () => {
   const before = JSON.stringify(st);
-  assert.deepEqual(viewDevices(STATE(), { filters: { type: 'pc' } }).map(o => o.id), ['a', 'b'], 'retired too, as the page lists them; not those in To review');
+  assert.deepEqual(viewDevices(STATE(), { filters: { type: 'pc' } }).map(o => o.id), ['a', 'b'], 'retired too, as the page lists them; not those in To check');
   assert.deepEqual(viewDevices(STATE(), { filters: { type: 'pc', live: true } }).map(o => o.id), ['a']);
   assert.deepEqual(viewDevices(STATE(), { q: 'be-nb' }).map(o => o.id), ['c']);
   assert.deepEqual(viewDevices(STATE(), { filters: { loc: 'Zurich' } }).map(o => o.id), ['a', 'b']);

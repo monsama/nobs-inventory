@@ -219,10 +219,10 @@ export function adType(s, d) {
 /* Adds devices from the list of computer accounts the inventory does not have. Each gets the next code, its type from
    the rules, its operating system and domain (marked as from AD, so Lansweeper and Intune can replace them), and what
    AD says of the account; the sync keeps that up to date from then on. */
-/* A computer account with no logon for this many days (or none at all) is likely gone: it always waits in To review. */
+/* A computer account with no logon for this many days (or none at all) is likely gone: it always waits in To check. */
 export const AD_STALE_DAYS = 90;
 const adStale = (d, now) => !d.logon || (now - Date.parse(d.logon + 'T00:00:00Z')) / 864e5 > AD_STALE_DAYS;
-/* The computer accounts the sync found and the inventory does not have become devices: waiting in To review, or straight
+/* The computer accounts the sync found and the inventory does not have become devices: waiting in To check, or straight
    in when Settings says so (a stale account still waits). The list is used up. */
 export function intakeFromAd(s, now = new Date()) {
   const list = s.adUnmatched || [], direct = intakeOf(s, 'ad') === 'direct';
@@ -233,7 +233,7 @@ export function intakeFromAd(s, now = new Date()) {
   return { direct: n, review: m };
 }
 /* ids are computer accounts from s.adUnmatched (without case), or 'all'; who is named in the history; review: true puts
-   them in To review. A name the inventory has already is skipped. Each gets the next free code and id and leaves the
+   them in To check. A name the inventory has already is skipped. Each gets the next free code and id and leaves the
    list. Returns the ids added. */
 export function addFromAd(s, ids, who, now = new Date(), { review = false } = {}) {
   const at = stamp(now), want = ids === 'all' ? null : new Set(ids.map(low));
@@ -252,9 +252,9 @@ export function addFromAd(s, ids, who, now = new Date(), { review = false } = {}
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: adType(s, d), name: d.name, serial: '', status: 'active',
       loc: '', feed: null, ...(d.os ? { os: d.os } : {}), ...(d.domain ? { domain: d.domain } : {}), ...(d.description ? { purpose: d.description } : {}), ...(Object.keys(src).length ? { src } : {}),
       inAd: true, ...(adOf(d) ? { ad: adOf(d) } : {}),
-      ...(d.groups ? { adGroups: d.groups } : {}), ...(review ? { review: { src: 'ad', at } } : {}) };
+      ...(d.groups ? { adGroups: d.groups } : {}), ...(review ? { review: { src: 'ad', at } } : { added: now.toISOString() }) };
     s.objs.push(o);
-    (s.history[o.id] ??= []).unshift({ t: at, msg: review ? 'Found in Active Directory: waiting in To review' : `Added from Active Directory by ${who}` });
+    (s.history[o.id] ??= []).unshift({ t: at, msg: review ? 'Found in Active Directory: waiting in To check' : `Added from Active Directory by ${who}` });
     added.push(o.id);
   }
   const done = new Set(list.map(d => d.id));

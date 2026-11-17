@@ -216,7 +216,7 @@ export const KIND_HINTS = {
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
 /* Ids are random so two people creating things at once cannot pick the same one. Object codes are given by the server when the object is first saved. */
 export const rid = () => Math.random().toString(36).slice(2, 10);
-export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ...f});
+export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, added: new Date().toISOString(), ...f});
 
 export const objs = [];
 /* The models named in the inventory: those typed on a device, and those listed in Settings. Every device offers them to choose from. */
@@ -234,14 +234,27 @@ export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model
 export const SYNC = {run: '', time: 0, graph: false, defender: false, lansweeper: false};
 export { stampTime };
 export const updateSync = () => {
-  SYNC.run = ''; SYNC.time = 0;
+  SYNC.run = ''; SYNC.time = 0; firstAdded = 0;
   for (const o of objs){ const s = o.feed && o.feed.seen, t = stampTime(s); if (t > SYNC.time){ SYNC.time = t; SYNC.run = s; } }
 };
 /* Edited by hand is a word, not a pencil: a pencil reads as an Edit button. A card shows it in its footer (hand false
    here), so its top right corner is left to the pick box. */
 export const handHtml = o => o.handAt && Date.parse(o.handAt) > SYNC.time ? '<span class="mk mk-hand" title="Edited by hand after the last sync">Edited</span>' : '';
+/* When a device came into the inventory: its added date (by hand, a sync, or taken from To check), else when Lansweeper
+   first brought it. 0 when not known. */
+export const NEW_DAYS = 7;
+export const addedTime = o => Date.parse(o.added || '') || stampTime(o.feed && o.feed.created) || 0;
+export const addedRecently = o => { const t = addedTime(o); return !!t && Date.now() - t < NEW_DAYS * 864e5; };
+/* New on a card: added in the last week, after the first import (on the day the inventory was first filled every device
+   is new, and saying so says nothing). */
+let firstAdded = 0;
+export const isNewDevice = o => {
+  if (o.review || !addedRecently(o)) return false;
+  if (!firstAdded) firstAdded = objs.reduce((m, x) => { const t = addedTime(x); return t && (!m || t < m) ? t : m; }, 0);
+  return addedTime(o) > firstAdded + 864e5;
+};
 export const markHtml = (o, hand = true) => {
-  const isNew = !!(o.feed && SYNC.run && o.feed.created === SYNC.run);
+  const isNew = isNewDevice(o);
   return (isNew ? '<span class="mk mk-new">New</span>' : '') + (hand ? handHtml(o) : '');
 };
 /* An object by its id, from an index of where each id sits in objs. A hit is checked against objs itself, so a list that
@@ -254,11 +267,11 @@ export const byId = id => {
   ID_AT = new Map(objs.map((o, i) => [o.id, i]));
   return idAt(id) || REVIEW.find(o => o.id === id);
 };
-/* Devices a sync found that wait in To review (o.review): kept apart from objs, so no list, count, plan or cost sees them
+/* Devices a sync found that wait in To check (o.review): kept apart from objs, so no list, count, plan or cost sees them
    until they are accepted. Ignored ones stay here too (review.ignored), so no sync brings them back. */
 export const REVIEW = [];
 export const REVIEW_SRC = { lansweeper: 'Lansweeper', ad: 'Active Directory', graph: 'Entra & Intune' };
-/* A device waiting for review that no source has seen for this many days (or never) is likely gone: shown grey. */
+/* A device waiting in To check that a source saw, but not for this many days, is likely gone: shown grey. */
 export const REVIEW_STALE_DAYS = 90;
 /* The browser tests look objects up by name; the page itself finds them by id. */
 export const byName = n => objs.find(o => o.name === n);
@@ -446,9 +459,11 @@ export function defenderState(o){
 /* When a device was last seen, by whichever source saw it last: Lansweeper's scan, its AD logon, Intune's check-in,
    its Entra sign-in or Defender. at: the day with its time where the source gives one (Intune, Entra, Defender), for
    the hover; AD and Lansweeper give the day only. */
-/* A device waiting in To review that no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, Old,
+/* A device waiting in To check that no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, Old,
    and left out of Accept all unless asked. */
-export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };
+/* Seen by a source, but not for REVIEW_STALE_DAYS: likely gone. Never scanned at all is not "gone" (Lansweeper may list a
+   computer it has not scanned yet). */
+export const reviewStale = o => { const s = lastSeenOf(o); return !!s && s.days > REVIEW_STALE_DAYS; };
 /* The latest a source saw the device: {src, day, at, days}, days counted to today. null when no source has a date. */
 export function lastSeenOf(o){
   /* Intune's date only for a device Intune manages, Entra's for its sign-in (intune.js graphSeen). */
@@ -547,11 +562,11 @@ export function sourceText(o, k, src = sourceOf(o, k)){
 /* The device a record named by a DNS name most likely stands for: argonb35.corp.example with no serial number, when a
    device here is named ARGONB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
    adapter. A record marked as no duplicate (notTwin) has none, unless marked asks for the one it was marked against.
-   Retired devices count on neither side; the device may also still wait in To review. The names are indexed
+   Retired devices count on neither side; the device may also still wait in To check. The names are indexed
    once per task, so a list of thousands stays quick. */
 let twinIdx = null;
 export function twinOf(o, { marked = false } = {}){
-  /* A record already decided on (ignored or merged in To review) is no open question. */
+  /* A record already decided on (ignored or merged in To check) is no open question. */
   if (!o || (o.notTwin && !marked) || (o.review && o.review.ignored) || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
   if (!twinIdx){
     twinIdx = new Map();
@@ -562,7 +577,7 @@ export function twinOf(o, { marked = false } = {}){
   return t && t.id !== o.id ? t : null;
 }
 /* The other way round: the probable second records of a device (argonb35.corp.example for ARGONB35), in the inventory or
-   still waiting in To review. Indexed once per task, like twinOf. */
+   still waiting in To check. Indexed once per task, like twinOf. */
 let twinsIdx = null;
 export function twinsOf(o){
   if (!o) return [];
@@ -770,17 +785,17 @@ const outletWords = o => {
 };
 export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
-export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.seen || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
-/* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,
+export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
+/* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To check,
    one source of them (st.rvSrc), or the ones ignored there. */
 export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.review && o.review.ignored)
   : st.scope === 'review' ? REVIEW.filter(o => o.review && !o.review.ignored && (!st.rvSrc || o.review.src === st.rvSrc) && (!st.rvKnown || o.inAd || !!o.graph) && (!st.rvOld || reviewStale(o))) : objs;
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
    search for something that is there never ends in "nothing matches". */
 export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? scopePool().filter(o => matchesQ(o, q)) : []; };
-/* The count over a device list, said the same in Cards and Table: "7 of 48 devices" (or waiting, ignored in To review). */
+/* The count over a device list, said the same in Cards and Table: "7 of 48 devices" (or waiting, ignored in To check). */
 export const listCount = (n, total) => `${n} of ${total} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : total === 1 ? 'device' : 'devices'}`;
-/* To review lists the devices a source saw last first: those are the ones to act on; never seen and Old ones last. */
+/* To check lists the devices a source saw last first: those are the ones to act on; never seen and Old ones last. */
 const seenDays = o => { const s = lastSeenOf(o); return s ? s.days : Infinity; };
 const byRecentlySeen = list => list.map(o => [seenDays(o), o]).sort((a, b) => a[0] - b[0] || String(a[1].name || '').localeCompare(String(b[1].name || ''))).map(x => x[1]);
 export function filtered(){
@@ -790,7 +805,7 @@ export function filtered(){
 }
 function filteredAsIs(q){
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 

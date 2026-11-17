@@ -105,7 +105,7 @@ export function renderSetPane(){
   const pane = $('#setPane');
   /* Each source's page: its status header and connection, then the fields it brings (#srcFields, settings-sources.js). */
   const fields = src => `<div id="srcFields" data-src="${src}"></div>`;
-  const lsIntake = `<div class="panelbox"><div class="hdr">New devices <span class="cnt">Lansweeper</span></div>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
+  const lsIntake = `<div class="panelbox"><div class="hdr">New devices <span class="cnt">Lansweeper</span></div>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To check</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To check)</label></div></div>`;
   const body = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? lsIntake + '<details class="ls-adv" id="lsTypeAdv" ' + (typeAdvOpen ? 'open' : '') + '><summary>Advanced: Lansweeper type names and type rules</summary><div id="setTypeMap"></div><div id="setTypeRules"></div></details>' + fields('ls') : ''),
     directory: '<div id="setLdap"></div>' + fields('ad'),
@@ -246,7 +246,7 @@ export function personById(id){
   return u && u.id === id ? u : null;
 }
 /* Where a person named on a device comes from, when the page has to make them: the source that brought the device (also
-   one waiting in To review), else typed here. Lansweeper's people are never shown as Manual. */
+   one waiting in To check), else typed here. Lansweeper's people are never shown as Manual. */
 const personSource = o => (o.feed && o.feed.sys === 'Lansweeper') || (o.review && o.review.src === 'lansweeper') ? 'lansweeper'
   : (o.review && o.review.src === 'graph') || (o.graph && o.graph.added) ? 'entra' : 'manual';
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
@@ -260,7 +260,7 @@ export function bindUser(o){
   if (!o.uid || (name && !personById(o.uid))) o.uid = name ? ensureUser(name, personSource(o)).id : null;
   Object.defineProperty(o, 'user', {
     get(){ if (this.hotdesk) return 'Hot desk'; const u = personById(this.uid); return u ? u.name : ''; },
-    /* Typed here: a person made here (Manual); a record waiting in To review brings its own source. */
+    /* Typed here: a person made here (Manual); a record waiting in To check brings its own source. */
     set(v){ this.uid = v ? ensureUser(v, this.review ? personSource(this) : 'manual').id : null; },
     enumerable: true, configurable: true
   });

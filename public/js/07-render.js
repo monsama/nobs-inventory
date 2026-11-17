@@ -39,7 +39,7 @@ export function render(opts = {}){
   if (drawAgain){ const again = drawAgain; drawAgain = null; render(again); }
 }
 function renderNow({ save = true } = {}){
-  /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
+  /* To check is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */
   if (!tabAllowed(st.tab)) st.tab = ownOnly() ? 'mine' : 'cards';
   if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); st.person = null; st.live = false; } st.tab = 'cards'; }

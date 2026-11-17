@@ -1,7 +1,7 @@
-/* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
+/* To check: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { evEl, $, $$, byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { evEl, $, $$, byId, PERSONAL, REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, dayText, hist, lastSeenOf, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { html } from './html.js';
 import { unplace } from './03-object-modals.js';
@@ -13,13 +13,13 @@ import { graphSeen } from './intune.js';
 export { reviewStale } from './01-core.js';
 const who = () => (me() && (me().name || me().login)) || 'an admin';
 
-/* Accept: out of To review into the inventory, as an ordinary device. */
+/* Accept: out of To check into the inventory, as an ordinary device. */
 function accept(list){
   for (const o of list){
     const i = REVIEW.indexOf(o); if (i < 0) continue;
     REVIEW.splice(i, 1);
     const src = REVIEW_SRC[o.review.src] || o.review.src;
-    delete o.review; delete o.excluded;
+    delete o.review; delete o.excluded; o.added = new Date().toISOString();
     /* A computer or phone nobody has is in stock, not in use: it does not show up as "in use without a user". */
     if (PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.hotdesk) o.status = 'stock';
     objs.push(o);
@@ -28,13 +28,13 @@ function accept(list){
 }
 /* Ignore: stays here as ignored and is excluded from the syncs, so none of them brings it back or changes it. */
 function ignore(list){
-  for (const o of list){ o.review = { ...o.review, ignored: now() }; o.excluded = true; hist(o, now(), `Ignored in To review by ${who()}`); }
+  for (const o of list){ o.review = { ...o.review, ignored: now() }; o.excluded = true; hist(o, now(), `Ignored in To check by ${who()}`); }
 }
-/* Back from the ignored ones into To review. A merged record leaves its device as Unmerge does, dock and adapter too. */
+/* Back from the ignored ones into To check. A merged record leaves its device as Unmerge does, dock and adapter too. */
 function restore(list){
   for (const o of list){
     if (o.review.merged){ unmerge([o]); continue; }
-    o.review = { src: o.review.src, at: o.review.at }; delete o.excluded; hist(o, now(), `Back in To review (${who()})`);
+    o.review = { src: o.review.src, at: o.review.at }; delete o.excluded; hist(o, now(), `Back in To check (${who()})`);
   }
 }
 /* The inventory device a record most likely is too: one with its serial number, else one of its name, else (a record
@@ -47,6 +47,23 @@ export function mergeTarget(o){
   const tw = twinOf(o);
   return (o.serial && live.find(x => x.serial && lc(x.serial) === lc(o.serial))) || live.find(x => lc(x.name) === lc(o.name))
     || (tw && live.includes(tw) ? tw : null);
+}
+/* Why a device waits in To check, in a few words, the reason that matters most first. clear: nothing about it needs a
+   decision (it only waits because of a setting, or because it came before new devices went straight in), so it can be
+   added with others of its kind at once. */
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+export function waitReason(o){
+  if (!o || !o.review || o.review.ignored) return { text: '', clear: false };
+  const t = mergeTarget(o);
+  if (t) return { text: o.serial && lc(o.serial) === lc(t.serial) ? `Same serial number as ${t.name}` : `Same name as ${t.name}`, clear: false };
+  const tw = twinOf(o);
+  if (tw) return { text: `Probably a second record of ${tw.name}`, clear: false };
+  if (IPV4.test(o.name || '') && !o.serial) return { text: 'Only an IP address: no name or serial number', clear: false };
+  /* Seen long ago: likely gone. Never scanned at all (Lansweeper lists it, no scan yet) is no reason to wait. */
+  const seen = lastSeenOf(o);
+  if (seen && seen.days > REVIEW_STALE_DAYS) return { text: `No source has seen it for ${REVIEW_STALE_DAYS} days or more`, clear: false };
+  if ((st.intake || {})[o.review.src] === 'review') return { text: `New devices from ${REVIEW_SRC[o.review.src] || o.review.src} wait (Settings)`, clear: true };
+  return { text: 'Found before new devices went straight in', clear: true };
 }
 /* Merge: the record is folded into that device and kept as ignored, so no sync brings it back. A dock's DNS-named record
    becomes an attachment of the device (its MAC address); a record of the same name or serial number fills the fields the
@@ -115,7 +132,7 @@ function withUndo(list, msg, change, { reload = false } = {}){
     render(); queueServerSave();
   }, { anyEpoch: reload });
 }
-/* Does a To review action (kind) on the records in list: accept, ignore, merge, restore, or one of the RESOLVE ways.
+/* Does a To check action (kind) on the records in list: accept, ignore, merge, restore, or one of the RESOLVE ways.
    Accepting a record the inventory seems to have already asks first, offering Merge instead. Each can be undone. */
 export function reviewDo(kind, list, { asked = false } = {}){
   if (!list.length) return;
@@ -147,9 +164,9 @@ export function reviewDo(kind, list, { asked = false } = {}){
   }
   if (kind === 'accept') withUndo(list, `${what} accepted into the inventory`, accept, { reload: true });
   else if (kind === 'ignore') withUndo(list, `${what} ignored: no sync brings ${n === 1 ? 'it' : 'them'} back`, ignore);
-  else withUndo([...new Set([...list, ...list.map(o => o.review.merged && byId(o.review.merged)).filter(Boolean)])], `${what} back in To review`, () => restore(list));
+  else withUndo([...new Set([...list, ...list.map(o => o.review.merged && byId(o.review.merged)).filter(Boolean)])], `${what} back in To check`, () => restore(list));
 }
-/* Unmerge: a merged record leaves its device again: it waits in To review, and the adapter it brought goes. */
+/* Unmerge: a merged record leaves its device again: it waits in To check, and the adapter it brought goes. */
 function unmerge(list){
   for (const o of list){
     const t = byId(o.review.merged);
@@ -169,7 +186,7 @@ function unmerge(list){
       if (ends.includes('t') && r.to === t.id) r.to = o.id;
     }
     o.review = { src: o.review.src, at: o.review.at }; delete o.excluded;
-    hist(o, now(), `Unmerged from ${t ? t.name : 'its device'} by ${who()}: waiting in To review`);
+    hist(o, now(), `Unmerged from ${t ? t.name : 'its device'} by ${who()}: waiting in To check`);
     if (t) hist(t, now(), `${o.name} unmerged from this device by ${who()}`);
   }
 }
@@ -177,13 +194,13 @@ document.addEventListener('click', e => {
   const b = evEl(e).closest && evEl(e).closest('[data-unmerge]'); if (!b) return;
   const o = REVIEW.find(x => x.id === b.dataset.unmerge); if (!o || !o.review || !o.review.merged) return;
   const t = byId(o.review.merged);
-  withUndo([o, ...(t ? [t] : [])], `${o.name} unmerged: waiting in To review`, () => unmerge([o]));
+  withUndo([o, ...(t ? [t] : [])], `${o.name} unmerged: waiting in To check`, () => unmerge([o]));
 });
 /* Resolving a probable duplicate: the record and the device it most likely is, side by side, and what it is.
    - dock: a docking station's or USB adapter's record: an attachment of the device, by its MAC address (Merge)
    - desk: a shared dock at a desk: a device of its own, not flagged again
    - same: the same device, renamed or set up again: it fills the device's empty fields (Merge)
-   - obsolete: gone: retired and excluded from the syncs (ignored, when it still waits in To review)
+   - obsolete: gone: retired and excluded from the syncs (ignored, when it still waits in To check)
    - notdup: a device of its own: never flagged as a duplicate again (notTwin; Check again on its page undoes it) */
 const RESOLVE = [
   ['dock', 'Docking station or USB adapter of this device', 'Added to the attachments of the device with its MAC address; the record is kept as ignored, so no sync brings it back.'],
@@ -193,10 +210,10 @@ const RESOLVE = [
   ['notdup', 'Not a duplicate', 'A device of its own: it is not flagged again.'],
 ];
 /* The device a record stands for: by serial number or name in the inventory, else the device of its DNS name's first
-   part, also while that one still waits in To review. */
+   part, also while that one still waits in To check. */
 export const dupOf = o => mergeTarget(o) || twinOf(o);
 /* Does the RESOLVE way kind for each record and the device it most likely is (dupOf): merges it, keeps it as a shared
-   dock, marks it as no duplicate, or makes it obsolete (retired and excluded, or ignored while still in To review). */
+   dock, marks it as no duplicate, or makes it obsolete (retired and excluded, or ignored while still in To check). */
 function resolve(kind, list){
   const pairs = list.map(o => [o, dupOf(o)]).filter(([, t]) => t);
   if (!pairs.length) return;
@@ -242,7 +259,7 @@ export function resolveModal(list){
   const dns = list.every(x => twinOf(x) && lc(x.name) !== lc(dupOf(x).name));
   /** @type {[string, (x: any) => any][]} */
   const rows = [['Name', x => x.name], ['Serial number', x => x.serial], ['Model', x => x.model], ['IP address', x => x.ip], ['MAC address', x => x.mac], ['User', x => x.user],
-    ['Operating system', x => x.os], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
+    ['Operating system', x => x.os], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To check') : x.status === 'retired' ? 'Retired' : 'Inventory']];
   const table = one ? html`<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
     const a = String(f(o) || ''), b = String(f(t) || '');
     return html`<tr${l !== 'Where' && l !== 'Seen by' && a && b && a.toLowerCase() !== b.toLowerCase() ? html` class="dup-diff"` : ''}><th>${l}</th><td>${a || '-'}</td><td>${b || '-'}</td></tr>`;
@@ -266,8 +283,8 @@ export function reviewBanner(o){
   if (!o || !o.review) return '';
   const edit = isAdmin(), src = REVIEW_SRC[o.review.src] || o.review.src;
   return String(o.review.ignored
-    ? html`<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? html`Merged into <b>${byIdOf(o.review.merged).name}</b> and` : `Ignored: found by ${src},`} kept out of the inventory and every sync.</span>${edit ? html`<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : html`<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>`}` : ''}</div>`
-    : html`<div class="rv-banner"><span>Waiting in To review: found by ${src}, not in any list, count or cost yet.</span>${edit ? html`<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? html`<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${mergeTarget(o).name} (${mergeTarget(o).code})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`);
+    ? html`<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? html`Merged into <b>${byIdOf(o.review.merged).name}</b> and` : `Ignored: found by ${src},`} kept out of the inventory and every sync.</span>${edit ? html`<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To check again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : html`<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>`}` : ''}</div>`
+    : html`<div class="rv-banner"><span>Waiting in To check: found by ${src}, not in any list, count or cost yet. <b>${waitReason(o).text}.</b></span>${edit ? html`<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? html`<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${mergeTarget(o).name} (${mergeTarget(o).code})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`);
 }
 /* Wires the buttons of the review banner on device o's page. After an accept, ignore or merge that went through, the
    next record waiting opens in the same tab. */
@@ -294,17 +311,21 @@ function openNext(id){
   const j = st.tabIds.indexOf(st.tab); if (j >= 0) st.tabIds[j] = next.id; else st.tabIds.push(next.id);
   st.tab = next.id; render();
 }
-/* Settings: where a source's new devices go. To review is the default for every source; a source trusted fully can add
-   them straight in (a device not seen for long still waits). */
+/* Settings: where a source's new devices go. Straight into the inventory is the default, as in asset tools: only what
+   needs a decision waits in To check (a second record, an address without a name, a device not seen for long). A source
+   can be set to make every new device wait. */
 export function intakeRowHtml(src){
-  const v = (st.intake || {})[src] === 'direct' ? 'direct' : 'review';
+  const v = (st.intake || {})[src] === 'review' ? 'review' : 'direct';
   return String(html`<div class="lpanel-add intake-row"><label for="intake_${src}">New devices from ${REVIEW_SRC[src]}</label><select id="intake_${src}" data-intake="${src}" ${isAdmin() ? '' : 'disabled'}>
-    <option value="review" ${v === 'review' ? 'selected' : ''}>Wait in To review</option><option value="direct" ${v === 'direct' ? 'selected' : ''}>Go straight into the inventory</option></select></div>`);
+    <option value="direct" ${v === 'direct' ? 'selected' : ''}>Add to the inventory (recommended)</option><option value="review" ${v === 'review' ? 'selected' : ''}>Wait in To check until someone adds them</option></select>
+    <span class="muted intake-note">${v === 'direct' ? 'Only unclear ones wait: a possible duplicate, an address without a name, or one not seen for 90 days.' : 'Every new device waits in To check.'}</span></div>`);
 }
 export function bindIntakeRows(root){
   root.querySelectorAll('[data-intake]').forEach(sel => sel.onchange = () => {
     const next = { ...(st.intake || {}) };
-    if (sel.value === 'direct') next[sel.dataset.intake] = 'direct'; else delete next[sel.dataset.intake];
+    if (sel.value === 'review') next[sel.dataset.intake] = 'review'; else delete next[sel.dataset.intake];
     st.intake = next; queueServerSave();
+    const note = sel.parentElement && sel.parentElement.querySelector('.intake-note');
+    if (note) note.textContent = sel.value === 'review' ? 'Every new device waits in To check.' : 'Only unclear ones wait: a possible duplicate, an address without a name, or one not seen for 90 days.';
   });
 }

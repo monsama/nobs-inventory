@@ -3,7 +3,7 @@
    the mail) and the tests. */
 
 /* The sidebar filters a view keeps: text (an id or a name) or on/off. Lists made elsewhere (a data-quality check, a
-   list from the Overview, To review) are left out: they are not filters one picks again. */
+   list from the Overview, To check) are left out: they are not filters one picks again. */
 export const VIEW_FILTERS = { type: 's', loc: 's', status: 's', warranty: 's', seen: 's', intune: 's', osFam: 's', resp: 's', person: 's', adGroup: 's', scanOld: 'b', twins: 'b', live: 'b' };
 export const VIEW_TABS = ['cards', 'table', 'map'];
 export const VIEWS_MAX = 50;
