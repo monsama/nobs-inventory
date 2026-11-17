@@ -98,9 +98,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 :is(summary,a,th[tabindex],.hdr[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 /* A control flush with the edge of a box that clips (a list, the sidebar, a table that scrolls, a panel with round corners,
    a segmented switch) has its ring drawn just inside, where nothing cuts it off. */
-:is(#side .item,#side .side-more,#side summary,.tp-item,.pl-item,.ho-item,.ho-p,.vswitch>button,th[tabindex],.panelbox .hdr[tabindex],.panelbox summary,.ip-dev a,.prn-dev a,td.n a):focus-visible{outline-offset:-2px}
+:is(#side .item,#side .side-more,#side summary,.tp-item,.pl-item,.ho-item,.ho-p,.vswitch>button,th[tabindex],.panelbox .hdr[tabindex],.panelbox summary,.ip-dev a,.prn-dev a,td.n a,td .link,td.act>button):focus-visible{outline-offset:-2px}
 /* Tab scrolls a control into view with room around it, so its ring is not cut by the edge of what scrolls. */
-:is(.mb,#view,#side,.gridwrap,.tp-list,.pl-list,.ho-list,.imp-table,.pp-wrap){scroll-padding:8px}
+:is(.mb,#view,#side,.gridwrap,.tp-list,.pl-list,.ho-list,.imp-table,.pp-wrap,#tabsbar,.settabs,.ds-scroll){scroll-padding:8px}
 .locgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start}
 /* A count in a title bar, the same everywhere: muted, normal case. */
 .hdr .cnt{font-weight:500;font-size:12px;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
