@@ -18,7 +18,7 @@ const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
    A disabled or deleted Entra account is said in words. */
 export function sourceChips(u){
   const src = ['ldap', 'lansweeper', 'entra'].includes(u.source) ? u.source : 'manual';
-  const from = {ldap: ['LDAP', 'From the directory (LDAP sync)'], lansweeper: ['Lansweeper', "Named as a device's user by Lansweeper"], entra: ['Entra', 'Added from Microsoft Entra: the primary user of a device'], manual: ['Manual', 'Added here']}[src];
+  const from = {ldap: ['LDAP', 'From the directory (LDAP sync)'], lansweeper: ['Lansweeper', "Named as a device's user by Lansweeper"], entra: ['Entra', 'Added from Microsoft Entra: the primary user of a device'], manual: ['Manual', 'Made in this app: added under Users, typed as a device\'s user, given a device as a new person, or imported from a CSV']}[src];
   const e = u.entra, own = src === 'entra';
   const entraTip = !e ? '' : e.gone ? `Was in Microsoft Entra until ${e.gone}`
     : ['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', ');
@@ -217,8 +217,10 @@ export function renderSetUsers(){
     ${dupesHtml(devicesOfUser)}${kindTabs}${filterBar}
     ${rows.length ? '' : html`<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>`}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:14%"><col style="width:11%"><col style="width:14%"><col style="width:7%"><col style="width:12%"><col style="width:7%"><col style="width:8%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th><span class="sr-only">More</span></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name">${rawHtml(comboHtml('<input id="nuDept" data-combo="dept" placeholder="Department" style="min-width:120px" aria-label="Department: type one, or pick one in use">', 'nuDept'))}</div>
-    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div><p class="fieldnote warn" id="nuPwNote" aria-live="polite"></p></div>`;
+    <div class="nu-form"><span class="nu-head">Add a person</span>
+      <input id="nuFirst" placeholder="First name" aria-label="First name"><input id="nuLast" placeholder="Last name" aria-label="Last name">${rawHtml(comboHtml('<input id="nuDept" data-combo="dept" placeholder="Department" aria-label="Department: type one, or pick one in use">', 'nuDept'))}
+      <input id="nuLogin" placeholder="Login (optional, lets them sign in)" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" aria-label="Password" autocomplete="new-password"><div class="nu-act"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd" class="primary">Add user</button></div>
+      <p class="fieldnote warn" id="nuPwNote" aria-live="polite"></p></div></div>`;
   /* The search and filters first, then the edits in the table. */
   const root = $('#setUsers');
   const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };

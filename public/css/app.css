@@ -1914,7 +1914,10 @@ table.stack>tbody>tr>td{max-width:none}
 table.grid.keys{width:100%;table-layout:fixed}table.grid.keys td{white-space:normal;max-width:none;vertical-align:top}table.grid.keys td:first-child{width:130px}
 /* A cell of plain text sits level with the fields beside it (28px), and the ⋯ menu button (24px) in their middle. */
 #setUsers table.grid td:not(:has(input, select, textarea)){line-height:var(--ctl)}
-#setUsers table.grid td .menu>.menu-btn{margin-top:2px}
+#setUsers table.grid td .menu>.menu-btn{margin-top:1px}
+/* The device count and the Active box sit on the same middle line as the text and fields beside them. */
+#setUsers table.grid td>button[data-devs]{display:inline-block;height:var(--ctl);line-height:var(--ctl);vertical-align:top;padding-top:0;padding-bottom:0}
+#setUsers table.grid td>input[type=checkbox]{width:14px;height:14px;margin:6px 0 0;vertical-align:top}
 /* A contract on a device: its state wraps under the name rather than cutting the name short. */
 .relrow:has([data-contract]){flex-wrap:wrap}
 /* Labels beside a field of more than one line start at its first line. */
@@ -2185,3 +2188,12 @@ table.grid.ds-matrix td.ds-write input{margin:0}
 .prn-warn{margin-top:3px;color:var(--danger);font-size:12px}
 tr.prn-stale>td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
 table.grid.prns td{white-space:normal;vertical-align:top}
+/* Users: adding a person over the whole width, the name and department on one line, the sign-in on the next. */
+.nu-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px;padding:12px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) var(--r-m)}
+.nu-form>.nu-head{grid-column:1/-1;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.nu-form>input,.nu-form>.combo,.nu-form>.combo>input{width:100%;min-width:0;box-sizing:border-box}
+.nu-form>.nu-act{display:flex;gap:8px;min-width:0}.nu-form>.nu-act>select{flex:1;min-width:0}
+.nu-form>.fieldnote{grid-column:1/-1;margin:0}.nu-form>.fieldnote:empty{display:none}
+@media (max-width:760px){.nu-form{grid-template-columns:minmax(0,1fr)}}
+/* How a field is filled: the explanation in line with its summary, with room before what follows. */
+.panelbox>details.how.ds-how .ds-explain{margin:6px 0 10px}

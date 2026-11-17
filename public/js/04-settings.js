@@ -245,6 +245,10 @@ export function personById(id){
   if (!u || u.id !== id){ personAt = new Map(USERS.map((x, i) => [x.id, i])); u = USERS[personAt.get(id)]; }
   return u && u.id === id ? u : null;
 }
+/* Where a person named on a device comes from, when the page has to make them: the source that brought the device (also
+   one waiting in To review), else typed here. Lansweeper's people are never shown as Manual. */
+const personSource = o => (o.feed && o.feed.sys === 'Lansweeper') || (o.review && o.review.src === 'lansweeper') ? 'lansweeper'
+  : (o.review && o.review.src === 'graph') || (o.graph && o.graph.added) ? 'entra' : 'manual';
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
 export function bindUser(o){
   const d = Object.getOwnPropertyDescriptor(o, 'user');
@@ -253,10 +257,10 @@ export function bindUser(o){
   delete o.user;
   /* A device names its user by id; one whose id no longer finds a person (saved by a page that had made the person but
      not saved it yet) is found again by the name it also keeps. */
-  if (!o.uid || (name && !personById(o.uid))) o.uid = name ? ensureUser(name, o.feed && o.feed.sys === 'Lansweeper' ? 'lansweeper' : 'manual').id : null;
+  if (!o.uid || (name && !personById(o.uid))) o.uid = name ? ensureUser(name, personSource(o)).id : null;
   Object.defineProperty(o, 'user', {
     get(){ if (this.hotdesk) return 'Hot desk'; const u = personById(this.uid); return u ? u.name : ''; },
-    set(v){ this.uid = v ? ensureUser(v).id : null; },
+    set(v){ this.uid = v ? ensureUser(v, personSource(this)).id : null; },
     enumerable: true, configurable: true
   });
 }

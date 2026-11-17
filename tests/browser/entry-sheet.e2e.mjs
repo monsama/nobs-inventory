@@ -40,6 +40,12 @@ try {
   await page.waitForSelector('.card');
   await page.click('#setBtn'); await openSetTab(page, 'company');
   // the company: its name and logo go on the sheets instead of NOBS Inventory; an SVG logo is kept as a PNG
+  // Escape in a field typed in puts back what it held and keeps Settings open; nothing is saved
+  await page.fill('#coName', 'Half typ'); await page.locator('#coName').press('Escape');
+  assert.equal(await page.inputValue('#coName'), '', 'Escape kept the typing');
+  assert.equal(await page.locator('#setPane').count(), 1, 'the first Escape closed Settings');
+  await page.waitForTimeout(300);
+  assert.equal((loadState(db).company || {}).name || '', '', 'the typing was saved');
   await page.fill('#coName', 'Example AG'); await page.locator('#coName').press('Tab');
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80"><rect width="240" height="80" fill="#c00"/></svg>';
   await page.setInputFiles('#coFile', { name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
