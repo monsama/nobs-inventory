@@ -120,13 +120,13 @@ try {
   await p.check('[name=dupWay][value=obsolete]'); await p.click('#dupOk');
   await stored(st => { const d = st.objs.find(o => o.id === 'd99'); return d && d.status === 'retired' && d.excluded === true; });
 
-  // To check: the other sources that know a device, and the filter by AD or Entra
+  // To check: the other sources that know a device, and the filter by why they wait
   await p.click('#tabsbar [data-tab=review]');
   await p.waitForSelector('#cards .card[data-open="r7"]');
   assert.match(await p.textContent('#cards .card[data-open="r7"]'), /also in AD/);
-  await p.click('#scopeList [data-rvknown]');
+  await p.click('#fbar [data-ckwhy="dup"]');
   await until(p, () => document.querySelectorAll('#cards .card').length === 1);
-  await p.click('#fbar [data-fx=rvKnown]');
+  await p.click('#fbar [data-ckwhy=""]');
   await until(p, () => document.querySelectorAll('#cards .card').length === 2);
 
   // accepting PC-7, which the inventory has, asks first: Accept anyway makes a second one (undone), Merge folds it in

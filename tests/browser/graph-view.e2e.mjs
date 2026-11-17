@@ -143,7 +143,7 @@ try {
   await p.click('#tabsbar [data-tab=review]');
   await p.waitForSelector('#view .card[data-open="m9o"]');
   assert.match(await p.textContent('#tabsbar [data-tab=review]'), /To check\s*1/);
-  assert.match(await p.textContent('#fbar'), /1 device waiting in To check/);
+  assert.match(await p.textContent('#toolbar'), /1 of 1 waiting/);
   assert.match(await p.textContent('#view .card[data-open="m9o"]'), /iPhone Ana.*Entra & Intune/s);
   if (process.env.NI_SHOTS) await p.locator('#view').screenshot({ path: path.join(process.env.NI_SHOTS, 'to-review.png') });
   await p.click('#view .card[data-open="m9o"] .cardtick'); await p.click('#rvAccept');

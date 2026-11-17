@@ -1,7 +1,7 @@
 /* To check: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { evEl, $, $$, byId, PERSONAL, REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, dayText, hist, lastSeenOf, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { evEl, $, $$, byId, PERSONAL, REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, dayText, hist, lastSeenOf, now, objs, rels, setWhyOf, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { html } from './html.js';
 import { unplace } from './03-object-modals.js';
@@ -53,18 +53,19 @@ export function mergeTarget(o){
    added with others of its kind at once. */
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 export function waitReason(o){
-  if (!o || !o.review || o.review.ignored) return { text: '', clear: false };
+  if (!o || !o.review || o.review.ignored) return { text: '', clear: false, kind: '' };
   const t = mergeTarget(o);
-  if (t) return { text: o.serial && lc(o.serial) === lc(t.serial) ? `Same serial number as ${t.name}` : `Same name as ${t.name}`, clear: false };
+  if (t) return { text: o.serial && lc(o.serial) === lc(t.serial) ? `Possible duplicate: same serial number as ${t.name}` : `Possible duplicate: same name as ${t.name}`, clear: false, kind: 'dup' };
   const tw = twinOf(o);
-  if (tw) return { text: `Probably a second record of ${tw.name}`, clear: false };
-  if (IPV4.test(o.name || '') && !o.serial) return { text: 'Only an IP address: no name or serial number', clear: false };
+  if (tw) return { text: `Possible duplicate: probably a second record of ${tw.name}`, clear: false, kind: 'dup' };
+  if (IPV4.test(o.name || '') && !o.serial) return { text: 'Only an IP address: no name or serial number', clear: false, kind: 'ip' };
   /* Seen long ago: likely gone. Never scanned at all (Lansweeper lists it, no scan yet) is no reason to wait. */
   const seen = lastSeenOf(o);
-  if (seen && seen.days > REVIEW_STALE_DAYS) return { text: `No source has seen it for ${REVIEW_STALE_DAYS} days or more`, clear: false };
-  if ((st.intake || {})[o.review.src] === 'review') return { text: `New devices from ${REVIEW_SRC[o.review.src] || o.review.src} wait (Settings)`, clear: true };
-  return { text: 'Found before new devices went straight in', clear: true };
+  if (seen && seen.days > REVIEW_STALE_DAYS) return { text: `Not seen by any source for ${REVIEW_STALE_DAYS} days or more`, clear: false, kind: 'old' };
+  if ((st.intake || {})[o.review.src] === 'review') return { text: `Nothing unclear: new devices from ${REVIEW_SRC[o.review.src] || o.review.src} wait (Settings)`, clear: true, kind: 'clear' };
+  return { text: 'Nothing unclear: it waits from before new devices were added automatically', clear: true, kind: 'clear' };
 }
+setWhyOf(waitReason);
 /* Merge: the record is folded into that device and kept as ignored, so no sync brings it back. A dock's DNS-named record
    becomes an attachment of the device (its MAC address); a record of the same name or serial number fills the fields the
    device has empty and keeps its address as an adapter. Its relations (monitors attached to it) go to the device. */
@@ -284,7 +285,7 @@ export function reviewBanner(o){
   const edit = isAdmin(), src = REVIEW_SRC[o.review.src] || o.review.src;
   return String(o.review.ignored
     ? html`<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? html`Merged into <b>${byIdOf(o.review.merged).name}</b> and` : `Ignored: found by ${src},`} kept out of the inventory and every sync.</span>${edit ? html`<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To check again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : html`<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>`}` : ''}</div>`
-    : html`<div class="rv-banner"><span>Waiting in To check: found by ${src}, not in any list, count or cost yet. <b>${waitReason(o).text}.</b></span>${edit ? html`<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? html`<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${mergeTarget(o).name} (${mergeTarget(o).code})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`);
+    : html`<div class="rv-banner"><span>Waiting in To check: found by ${src}, not in any list, count or cost yet. <b>${waitReason(o).text}${waitReason(o).clear ? ': it can be added' : ''}.</b></span>${edit ? html`<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? html`<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${mergeTarget(o).name} (${mergeTarget(o).code})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`);
 }
 /* Wires the buttons of the review banner on device o's page. After an accept, ignore or merge that went through, the
    next record waiting opens in the same tab. */
