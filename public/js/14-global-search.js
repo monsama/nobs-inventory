@@ -41,6 +41,7 @@ const ACTIONS = [
   ['Start an inventory check', 'stocktake count audit verify', true, goTab('stocktake')],
   ['Go to the Overview', 'dashboard home summary', false, goTab('overview')],
   ['Go to IP addresses', 'ip list addresses static dhcp free', false, goTab('ips')],
+  ['Go to Printers', 'printers print server shared usb toner', false, goTab('prn')],
   ['Go to Floor plans', 'plan map building floor', false, goTab('plans')],
   ['Go to Ports', 'switch ports patch network', false, goTab('net')],
   ['Go to Racks', 'rack cabinet units', false, goTab('rack')],

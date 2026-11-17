@@ -278,7 +278,7 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
-export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
+export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','prn','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFocus:null, mapPos:{},
   policy:/** @type {Record<string, boolean>} */ ({ ...DEFAULT_POLICY }),
   ldap:/** @type {Record<string, any>} */ ({url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}), lansweeper:{}};

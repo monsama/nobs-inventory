@@ -85,7 +85,7 @@ try {
     c.st.tabIds = ['mine', 'overview', 'review', 'cards', 'table', 'map', 'plans', 'net', 'rack', 'sw', 'contracts', 'contacts'];
     /* a saved order from before IP addresses gets it beside Ports */
     v.reorderTabs('table', 'contracts'); return c.st.tabIds.join(','); });
-  assert.match(order, /^mine,overview,review,map,plans,net,ips,rack,sw,contracts,contacts,cards,table(,|$)/);
+  assert.match(order, /^mine,overview,review,map,plans,net,ips,prn,rack,sw,contracts,contacts,cards,table(,|$)/);
   assert.deepEqual(errors, [], 'no page errors');
   console.log('back and forward: all checks passed');
 } finally { await browser.close(); server.close(); }

@@ -10,6 +10,7 @@ import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
 import { renderMine, renderStocktake } from './22-stocktake.js';
 import { renderIps } from './views-ips.js';
+import { renderPrinters } from './views-printers.js';
 import { FIXED_TABS, closeObjTab, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { closeModal, modal } from './19-modal.js';
@@ -52,6 +53,7 @@ function renderNow({ save = true } = {}){
   else if (st.tab === 'plans') renderPlans();
   else if (st.tab === 'net') renderPorts();
   else if (st.tab === 'ips') renderIps();
+  else if (st.tab === 'prn') renderPrinters();
   else if (st.tab === 'rack') renderRack();
   else if (st.tab === 'sw') renderSoftware();
   else if (st.tab === 'contracts') renderContracts();
