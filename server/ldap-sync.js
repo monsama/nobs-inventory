@@ -7,6 +7,7 @@ import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
 import { fillField, mappedRoom, noteValue, officeLocations, pickOf } from './fill.js';
 import { stamp, typeFor } from './feed.js';
+import { settleWaiting } from './settle.js';
 import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
 import { exactKeys, loginCore, mergeSamePeople } from '../public/js/people-match.js';
 
@@ -111,6 +112,7 @@ export async function syncLdapUsers(db, config, { dryRun = false } = {}) {
   }
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
   if (linked.length) counts.linked = linked.length;
+  { const settled = settleWaiting(s, stamp(new Date())); if (settled) { counts.settled = settled; counts.listChanged = true; } }
   const listChanged = counts.listChanged; delete counts.listChanged;
   if (dryRun) return counts;
   if (counts.created || counts.updated || counts.linked || counts.merged || counts.deactivated || counts.computers || listChanged) { autoBackup(db, 'before an LDAP sync', { daily: true }); saveState(db, s); }

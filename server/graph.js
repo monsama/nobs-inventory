@@ -8,6 +8,7 @@ import { freeUserId, loadState, saveState, intakeOf } from './state.js';
 import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor, modelFor } from './feed.js';
+import { settleWaiting } from './settle.js';
 import { checkAddress } from './validate.js';
 import { fillField, officeLocations, profileFields, noteValue, pickOf } from './fill.js';
 import { graphOsName, managedBy } from '../public/js/intune.js';
@@ -641,6 +642,7 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch, { 
   if (autopilotError) counts.autopilotError = autopilotError;
   if (cfg.secureBoot === 'on' && !secureBootError) counts.secureBoot = records.filter(r => r.secureBoot).length;
   if (secureBootError) counts.secureBootError = secureBootError;
+  { const settled = settleWaiting(s, stamp(now), now); if (settled) counts.settled = settled; }
   noteChanges(s, 'graph', lens, now);
   if (dryRun) return counts;
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });

@@ -13,6 +13,8 @@ import { graphConfigOf, syncGraph } from './graph.js';
 import { isDue, scheduleOf } from '../public/js/schedule.js';
 import { autoBackup, takeBackup } from './backup.js';
 import { migrateState } from './migrate.js';
+import { settleWaiting } from './settle.js';
+import { stamp } from '../public/js/dates.js';
 import { exportSet, exportSettings, lastExport, runExport } from './backup-export.js';
 import { digestSettings, smtpConfig } from './digest.js';
 import { viewsDue } from './view-mail.js';
@@ -34,7 +36,11 @@ export function bootstrap(db, env, log = console.log) {
   { const cut = trimHistory(db); if (cut) log(`History: ${cut} device(s) had more than ${HISTORY_KEEP} lines; the oldest were removed.`); }
   const s = loadState(db);
   /* An upgrade that changes the saved data keeps what was there first, as a backup. */
-  if (migrateState(s)) { try { takeBackup(db, 'before upgrading the data'); } catch (e) { log(`Warning: no backup before the upgrade (${e.message}).`); } saveState(db, s); }
+  /* Devices waiting in To check with nothing unclear go into the inventory (server/settle.js): the ones that waited from
+     before new devices went straight in, once, at the upgrade. */
+  const migrated = migrateState(s), settled = settleWaiting(s, stamp(new Date()));
+  if (settled) log(`To check: ${settled} waiting device(s) with nothing unclear were added to the inventory.`);
+  if (migrated || settled) { try { takeBackup(db, 'before upgrading the data'); } catch (e) { log(`Warning: no backup before the upgrade (${e.message}).`); } saveState(db, s); }
   /* Photos of devices removed some other way (a sync, an older version) go at the start. */
   purgeOrphanImages(db);
   /* Backups from before 0.9.75 are stored as parts once (server/backup-store.js). */

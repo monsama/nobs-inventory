@@ -163,7 +163,7 @@ export function renderSetLdap(){
     const c = j.counts;
     msg.textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated.`
       + (c.computerError ? ` Computer accounts could not be read: ${c.computerError}` : c.computers != null ? ` ${c.computers} ${c.computers === 1 ? 'device' : 'devices'} updated from their computer accounts.` : '')
-      + (c.review ? ` ${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in To check.` : '') + (c.added ? ` ${c.added} new ${c.added === 1 ? 'device' : 'devices'} added.` : '');
+      + (c.review ? ` ${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in To check.` : '') + (c.added ? ` ${c.added} new ${c.added === 1 ? 'device' : 'devices'} added.` : '') + (c.settled ? ` ${c.settled} from To check added (nothing unclear).` : '');
     await reloadFromServer(); renderSetLdap(); $('#ldapMsg').textContent = msg.textContent;
   };
 }

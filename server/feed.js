@@ -24,6 +24,7 @@ const FEED_FIELDS = LS_FIELDS;
 /* A change to one of these by a sync is written to the device's history, with the old and the new value. Others change silently. */
 const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
 import { stamp, stampTime } from '../public/js/dates.js';
+import { settleWaiting } from './settle.js';
 export { stamp };
 
 
@@ -298,7 +299,7 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
 
 /* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
 /* scans: a newer scan day, or a dock's links seen again (they are kept for DOCK_LINKS_DAYS from then): saved too. */
-export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans'].some(k => counts[k] > 0);
+export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans', 'settled'].some(k => counts[k] > 0);
 
 /* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
 /* byHand: an export an admin uploaded: its new devices go straight in (IP-only ones still wait), as the person chose the file. */
@@ -566,6 +567,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   counts.links = applyLinks(s, pairs, counts, seen);
   counts.software = applySoftware(s, pairs);
   counts.printers = applyPrinters(s, pairs);
+  /* Waiting devices whose question went away (seen again, or waiting from before new devices went straight in). */
+  { const settled = settleWaiting(s, seen, now); if (settled) counts.settled = settled; }
   noteChanges(s, 'ls', lens, now);
   return counts;
 }

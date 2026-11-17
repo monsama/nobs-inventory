@@ -63,7 +63,7 @@ export function waitReason(o){
   const seen = lastSeenOf(o);
   if (seen && seen.days > REVIEW_STALE_DAYS) return { text: `Not seen by any source for ${REVIEW_STALE_DAYS} days or more`, clear: false, kind: 'old' };
   if ((st.intake || {})[o.review.src] === 'review') return { text: `Nothing unclear: new devices from ${REVIEW_SRC[o.review.src] || o.review.src} wait (Settings)`, clear: true, kind: 'clear' };
-  return { text: 'Nothing unclear: it waits from before new devices were added automatically', clear: true, kind: 'clear' };
+  return { text: 'Nothing unclear: the next sync adds it to the inventory', clear: true, kind: 'clear' };
 }
 setWhyOf(waitReason);
 /* Merge: the record is folded into that device and kept as ignored, so no sync brings it back. A dock's DNS-named record
