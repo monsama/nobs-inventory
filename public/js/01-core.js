@@ -869,9 +869,12 @@ if (typeof document !== 'undefined'){
    (the tab bars on a phone, a wide table). Only for the keyboard; nothing moves when it shows already. Once more after
    the next frame: rows of a long table are drawn as they come into view (content-visibility) and can be taller than
    their estimate, which pushes the control out again. */
+let pointerAt = 0;
+if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { pointerAt = Date.now(); }, true);
 if (typeof document !== 'undefined') document.addEventListener('focusin', e => {
   const t = evEl(e);
-  if (!t || !t.matches || !t.matches(':focus-visible') || t.closest('#fsrcPop')) return;
+  /* A click puts the focus where the pointer is: nothing to bring into view (and the box must not move under it). */
+  if (!t || !t.matches || Date.now() - pointerAt < 500 || !t.matches(':focus-visible') || t.closest('#fsrcPop')) return;
   const show = () => { if (document.activeElement === t) t.scrollIntoView({ block: 'nearest', inline: 'nearest' }); };
   show(); requestAnimationFrame(() => requestAnimationFrame(show));
 });

@@ -47,6 +47,11 @@ try {
   await page.waitForTimeout(300);
   assert.equal((loadState(db).company || {}).name || '', '', 'the typing was saved');
   await page.fill('#coName', 'Example AG'); await page.locator('#coName').press('Tab');
+  // typing again after the save, Escape goes back to what was saved, not to the value the pane was drawn with
+  await page.locator('#coName').focus(); await page.locator('#coName').press('End'); await page.keyboard.type(' typo');
+  await page.locator('#coName').press('Escape');
+  assert.equal(await page.inputValue('#coName'), 'Example AG', 'Escape went back to the value before the save');
+  await page.locator('#coName').press('Tab');
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80"><rect width="240" height="80" fill="#c00"/></svg>';
   await page.setInputFiles('#coFile', { name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
   await page.waitForSelector('.company-logo img');

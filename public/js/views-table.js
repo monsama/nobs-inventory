@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { listCount, scopePool, SEEN_FILTERS, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol } from './01-core.js';
+import { listCount, scopePool, SEEN_FILTERS, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
 import { SERVER } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -147,7 +147,7 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${listCount(list.length, scopePool().length)}</span><span class="tbsep"></span>
-    ${rawHtml(columnsMenu())}${rawHtml(printMenuHtml())}${rawHtml(menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV', String(html`<button type="button" id="csvShown">The columns shown<span class="muted">, as in the table</span></button><button type="button" id="csvBtn">All fields<span class="muted">, to import again</span></button>`), { id: 'csvMenu' }))}${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
+    ${rawHtml(columnsMenu())}${rawHtml(printMenuHtml())}${rawHtml(menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export', String(html`${SERVER.on ? html`<button type="button" id="xlsxShown">Excel<span class="muted">, the columns shown</span></button>` : ''}<button type="button" id="csvShown">CSV<span class="muted">, the columns shown</span></button><button type="button" id="csvBtn">CSV, all fields<span class="muted">, to import again</span></button>`), { id: 'csvMenu' }))}${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -164,11 +164,24 @@ export function renderTable(){
   });
   $('#csvBtn').onclick = () => { $('#csvMenu .menubox').hidePopover(); exportCsv(list, null, fileName()); };
   /* The columns in the order they are shown (moved by their heading too), each cell's text as it is seen. */
-  $('#csvShown').onclick = () => {
-    $('#csvMenu .menubox').hidePopover();
+  const shownRows = () => {
     const ks = [...$('#view').querySelectorAll('table.grid thead th[data-ck]')].map(th => /** @type {HTMLElement} */ (th).dataset.ck);
     const cols = ks.map(k => shown.find(c => c.k === k)).filter(Boolean);
-    exportCsv(list, { head: cols.map(c => c.label), rows: list.map(o => cols.map(c => textOf(c.cell(o, idx)))) }, fileName());
+    return { head: cols.map(c => c.label), rows: list.map(o => cols.map(c => textOf(c.cell(o, idx)))) };
+  };
+  $('#csvShown').onclick = () => { $('#csvMenu .menubox').hidePopover(); exportCsv(list, shownRows(), fileName()); };
+  /* Excel: the same rows and columns, made into a workbook by the server (with filters on the heading row, like the
+     Reports); the file is named like the CSV. */
+  const xb = $('#xlsxShown');
+  if (xb) xb.onclick = async () => {
+    $('#csvMenu .menubox').hidePopover();
+    const { head, rows } = shownRows(), name = fileName().replace(/\.csv$/, '');
+    const subtitle = `${listCount(list.length, scopePool().length)}${st.q.trim() ? ` · search: ${st.q.trim()}` : ''}`;
+    const r = await fetch('api/reports/list?format=xlsx', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ list: 'devices', name, subtitle, columns: head.map(label => ({ label, w: 1 })), rows }) }).catch(() => null);
+    if (!r || !r.ok){ toast(r ? ((await r.json().catch(() => ({}))).error || 'The file could not be made.') : 'The server cannot be reached.'); return; }
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await r.blob()), download: `${name}.xlsx` });
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   const imp = $('#csvImp'); if (imp) imp.onclick = importCsvModal;
   const pimp = $('#patchImp'); if (pimp) pimp.onclick = () => patchImportModal();

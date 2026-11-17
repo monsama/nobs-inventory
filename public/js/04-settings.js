@@ -260,7 +260,8 @@ export function bindUser(o){
   if (!o.uid || (name && !personById(o.uid))) o.uid = name ? ensureUser(name, personSource(o)).id : null;
   Object.defineProperty(o, 'user', {
     get(){ if (this.hotdesk) return 'Hot desk'; const u = personById(this.uid); return u ? u.name : ''; },
-    set(v){ this.uid = v ? ensureUser(v, personSource(this)).id : null; },
+    /* Typed here: a person made here (Manual); a record waiting in To review brings its own source. */
+    set(v){ this.uid = v ? ensureUser(v, this.review ? personSource(this) : 'manual').id : null; },
     enumerable: true, configurable: true
   });
 }
