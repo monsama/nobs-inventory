@@ -946,7 +946,7 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 .mlab{opacity:0;transition:opacity .12s}
 .mline:hover .mlab,.labels .mlab{opacity:1}
 .focus .mline:not(.hi),.focus .mnode:not(.hi){opacity:.18}
-.maphint{position:absolute;left:12px;bottom:10px;font-size:12px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);padding:4px 8px;pointer-events:none}
+.maphint{position:absolute;left:12px;bottom:10px;font-size:12px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);padding:4px 8px;pointer-events:none;max-width:calc(100% - 110px)}
 
 /* object page */
 .obj{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:var(--gap);padding:var(--gutter);align-items:start}
