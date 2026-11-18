@@ -70,7 +70,7 @@ try {
   assert.ok(ids.includes('o2') && ids.includes('o1'), 'a filtered device and the switch it is linked to: ' + ids.join(','));
   // A filter with no relations at all: the message names the filter, and the toolbar still works to switch back.
   await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.type = 'no-such-type'; (await import('/js/02-views.js')).renderMap(); });
-  await p.waitForSelector('#mapClr');
+  await p.waitForSelector('#view [data-clearall]');
   await p.selectOption('#mapFocus', 'o1');
   await p.waitForFunction(() => /^3 devices · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.type = null; });

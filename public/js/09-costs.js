@@ -1,7 +1,7 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
 import { dateBad, dateFieldHtml, dateValue } from './datefield.js';
-import { deleteButton, toastUndo, editButton, $, CONTACTS, COSTS, byId, contactOf, dayText, esc, objs, st, tico, toast } from './01-core.js';
+import { deleteButton, toastUndo, editButton, $, CONTACTS, COSTS, byId, contactOf, dayText, esc, objs, st, tico, toast, noMatchHtml } from './01-core.js';
 import { contactLabel } from './contacts.js';
 import { contactCompanies, contactModal } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
@@ -96,7 +96,7 @@ export function renderContracts(){
       <td>${CONTRACT_KINDS[c.kind]}</td><td>${c.supplier || ''}${contactsLine(c)}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
       <td class="num">${c.cost > 0 ? html`${rawHtml(money(c.cost))} <span class="muted">${PERIODS[c.per || 'year']}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
       <td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-contract="${c.id}"`), c.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-ctdel="${c.id}"`), c.name)) : ''}</span></td></tr>`)
-      : html`<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${st.q}”.`}</td></tr>`}
+      : html`<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue && !st.q ? 'No contract needs anyone now.' : rawHtml(noMatchHtml())}</td></tr>`}
     </tbody>${year ? html`<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${rawHtml(money(year))}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
   $('#view').querySelectorAll('[data-ctcontact]').forEach(b => b.onclick = () => { const k = contactOf(b.dataset.ctcontact); if (k) contactModal(k); });

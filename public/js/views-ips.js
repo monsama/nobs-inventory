@@ -2,7 +2,8 @@
    adapters), in address order, with the device, whether it is static or dynamic, its subnet, and what is wrong with it:
    two devices on one address, a static address inside a DHCP range, the gateway taken by a device. The filters on the
    left and the search apply as in Cards and the Table. With one subnet picked, its free addresses can be shown too. */
-import { $, STATUS, SUBNETS, TYPES, filtered, hist, menuHtml, now, objs, restoreSnapshot, setByHand, snapshot, st, tico, toast, toastUndo } from './01-core.js';
+import { $, STATUS, SUBNETS, TYPES, filtered, hist, menuHtml, now, objs, restoreSnapshot, setByHand, snapshot, st, tico, toast, toastUndo, noMatchHtml } from './01-core.js';
+import { EXPORT_ICON } from './print-view.js';
 import { closeModal, modal } from './19-modal.js';
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin, me } from './04-settings.js';
@@ -61,14 +62,14 @@ export function renderIps(){
   const canFree = !!span && span.last - span.first - 1 <= FREE_MAX;
   const edit = isAdmin(), q = (st.q || '').trim().toLowerCase();
   const freeOff = !!(st.ipProblems || st.ipAssign || q);
-  $('#toolbar').innerHTML = html`<label class="muted" for="ipSub">Subnet</label><select id="ipSub" aria-label="Subnet">
+  $('#toolbar').innerHTML = html`<span class="muted" id="ipCount"></span><span class="tbsep"></span><label class="muted" for="ipSub">Subnet</label><select id="ipSub" aria-label="Subnet">
       <option value="">All addresses</option>${subs.map(n => html`<option value="${n.cidr}" ${st.ipSub === n.cidr ? 'selected' : ''}>${n.name && n.name !== n.cidr ? `${n.name} · ${n.cidr}` : n.cidr}</option>`)}
       ${subs.length ? html`<option value="-" ${st.ipSub === '-' ? 'selected' : ''}>In no listed subnet</option>` : ''}</select>
     <label class="muted" for="ipAssign">Assignment</label><select id="ipAssign" aria-label="Assignment">
       <option value="">All</option><option value="static" ${st.ipAssign === 'static' ? 'selected' : ''}>Static</option><option value="dhcp" ${st.ipAssign === 'dhcp' ? 'selected' : ''}>Dynamic (DHCP)</option><option value="none" ${st.ipAssign === 'none' ? 'selected' : ''}>Not known</option></select>
     <label class="pchk" style="width:auto"><input type="checkbox" id="ipProblems" ${st.ipProblems ? 'checked' : ''}> Only problems</label>
     ${canFree ? html`<label class="pchk" style="width:auto" ${freeOff ? html`title="Free addresses show with no search, Assignment All and Only problems off"` : ''}><input type="checkbox" id="ipFree" ${st.ipFree ? 'checked' : ''} ${freeOff ? 'disabled' : ''}> Free addresses</label>` : ''}
-    <span class="muted" id="ipCount"></span><div class="grow"></div>${rawHtml(menuHtml('Export', String(html`
+    <div class="grow"></div>${rawHtml(menuHtml(EXPORT_ICON + 'Export', String(html`
       <button type="button" data-ipx="xlsx">Excel<span class="muted">the rows shown</span></button>
       <button type="button" data-ipx="pdf">PDF<span class="muted">A4 landscape</span></button>
       <button type="button" data-ipx="csv">CSV<span class="muted">for other tools</span></button>
@@ -124,7 +125,7 @@ export function renderIps(){
       <td class="ip-opt mono">${r.mac}</td>
       <td class="ip-opt">${(r.o.loc || '').replace(' / ', ' · ')}</td>
       <td>${r.notes.map(x => html`<span class="ip-note ${x.warn ? 'warn' : 'info'}">${x.text}</span>`)}</td></tr>`)}`
-    : html`<tr><td colspan="8" class="muted" style="padding:14px">${objs.some(o => o.ip) ? 'No address matches.' : 'No device has an IP address yet. Lansweeper, Intune or a device page fills them in.'}</td></tr>`;
+    : html`<tr><td colspan="8" class="muted" style="padding:14px">${objs.some(o => o.ip) ? rawHtml(noMatchHtml()) : 'No device has an IP address yet. Lansweeper, Intune or a device page fills them in.'}</td></tr>`;
   /* A viewer limited to some sites gets only their devices: an address another site uses can show as free. */
   const u = me(), scoped = !!u && !edit && (u.own || (Array.isArray(u.sites) && u.sites.length));
   $('#view').innerHTML = html`<div class="ip-page">${scoped && lines.some(l => l.free) ? html`<p class="note ip-scope">Only the devices of your sites are listed: a free address here can still be used at another site.</p>` : ''}<div class="gridwrap" style="height:auto"><table class="grid ips" data-tb="own">${head}<tbody>${body}</tbody></table></div></div>`;

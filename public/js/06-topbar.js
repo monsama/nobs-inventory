@@ -1,4 +1,4 @@
-import { evEl, $$, $, COSTS, REVIEW, UNDO, objs, rels, st } from './01-core.js';
+import { evEl, $$, $, COSTS, REVIEW, UNDO, leftFilters, objs, rels, st } from './01-core.js';
 import { newObjModal } from './05-new-object.js';
 import { isAdmin, me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render.js';
@@ -205,7 +205,7 @@ export function setupTable(t){
       if (th.querySelector('input')){ fr.appendChild(c); return; }   /* the select-all column has nothing to filter */
       const inp = document.createElement('input');
       inp.placeholder = 'filter'; inp.dataset.fci = String(i); inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
-      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!redrawFromData(t, i)) applyView(t); if (colFiltered()) $('#clearF').hidden = false; });
+      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!redrawFromData(t, i)) applyView(t); { const c = $('#clearF'); if (c) c.hidden = !colFiltered() && !leftFilters() && !st.q.trim(); } });
       c.appendChild(inp); fr.appendChild(c);
     });
     head.parentNode.appendChild(fr);

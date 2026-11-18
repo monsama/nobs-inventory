@@ -174,6 +174,16 @@ export const scanChip = o => !scanOld(o) ? '' : neverScanned(o)
   ? `<span class="chip warn lsst" title="Lansweeper has tried to scan it (last on ${dayText(o.feed.tried)}) but has never scanned it. Check by hand that it is there, and why Lansweeper cannot scan it.">Never scanned</span>`
   : `<span class="chip warn lsst" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>`;
 export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
+/* A past day said the same way everywhere: today, yesterday, 12 days ago, then the date (from 31 days on). Anything
+   that is not a day (a time with a T, or empty) gives dayText's answer. */
+export const agoText = d => {
+  const day = String(d || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return dayText(d);
+  const t = new Date(), days = Math.round((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - Date.parse(day + 'T00:00:00Z')) / 864e5);
+  return days < 0 ? dayText(day) : days === 0 ? 'today' : days === 1 ? 'yesterday' : days < 31 ? days + ' days ago' : dayText(day);
+};
+/* The same, with the date itself in the title when the words are relative. */
+export const agoHtml = d => { const a = agoText(d), full = dayText(String(d || '').slice(0, 10)); return a === full ? esc(a) : `<span title="${esc(full)}">${esc(a)}</span>`; };
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 /* Five kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
    attached (a monitor or accessory on a computer, server or phone), hosted (a virtual machine on its host, shown as "runs on")
@@ -545,7 +555,7 @@ export const QUALITY = {
 /* "Seen today · Intune", "Seen 3 days ago · AD", "Seen 12.08.2026 · Lansweeper": amber after 30 days. */
 export const seenChip = o => {
   const s = lastSeenOf(o); if (!s) return '';
-  const when = s.days === 0 ? 'today' : s.days === 1 ? 'yesterday' : s.days < 31 ? s.days + ' days ago' : dayText(s.day);
+  const when = agoText(s.day);
   return `<span class="chip ${s.days > GRAPH_STALE_DAYS ? 'warn' : 'ok'} lsst seen" title="Last seen ${esc(s.at)} by ${esc(s.src)}">Seen ${esc(when)} · ${esc(s.src)}</span>`;
 };
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls} lsst" data-sync="${s.k}" title="${esc(s.label)}">${esc(s.label)}</span>` : ''; };
@@ -689,6 +699,9 @@ export const $ = s => document.querySelector(s);
 export const $$ = s => document.querySelectorAll(s);
 /** @param {Event} e @returns {El} */
 export const evEl = e => /** @type {El} */ (e.target);
+/* Nothing to show for a search or filters, said the same on every list, with Clear filters (02-views.js clears the
+   search, the filters on the left and the list's own ones: subnet, assignment, which printers, kind of contact). */
+export const noMatchHtml = () => `${st.q && st.q.trim() ? `Nothing matches “${esc(st.q.trim())}”.` : 'Nothing matches these filters.'} <button type="button" class="link" data-clearall>Clear filters</button>`;
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* A type's colour goes into a style attribute: only a hex colour is used. */
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';

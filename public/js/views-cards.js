@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { REVIEW, addedTime, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
+import { REVIEW, addedTime, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
 import { SERVER, view } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -80,7 +80,7 @@ const graphProblem = o => {
 const seenCell = o => {
   const s = lastSeenOf(o);
   if (s){
-    const when = s.days === 0 ? 'today' : s.days === 1 ? 'yesterday' : s.days < 31 ? s.days + ' days ago' : dayText(s.day);
+    const when = agoText(s.day);
     const hint = scanOld(o) && s.src === 'Lansweeper' ? `Lansweeper last scanned it on ${dayText(s.day)}. Check by hand that it is still there and in use.` : `Last seen ${s.at} by ${s.src}`;
     return html`<span class="seen lsst${s.days > GRAPH_STALE_DAYS ? ' warn' : ''}" title="${hint}">${when}</span>`;
   }
@@ -132,7 +132,7 @@ const PEND_HEADS = [['name', 'Name', 'c-name'], ['user', 'User', 'c-user'], ['lo
 export function listHead(pend = false, join = showJoin()){
   const cell = ([k, l, c]) => k ? html`<span class="${c}"><button type="button" class="lh-sort${cardSort.k === k ? ' on' : ''}" data-csort="${k}" title="Sort by ${l.toLowerCase()}" aria-label="${`Sort by ${l.toLowerCase()}` + (cardSort.k === k ? (cardSort.dir === 1 ? ', now ascending' : ', now descending') : '')}">${l}${cardSort.k === k ? rawHtml(sortIcon(cardSort.dir)) : ''}</button></span>` : html`<span class="${c}">${l}</span>`;
   const picking = !!(st.bulk && st.bulk.size);
-  return html`<div class="lhead"><span><button type="button" class="cardtick all${picking ? ' some' : ''}" data-pickall="1" title="Select every device shown" aria-label="Select every device shown"></button></span><span></span>${(pend ? PEND_HEADS : join ? [...HEADS.slice(0, 5), ['', 'Directory', 'c-dir'], ...HEADS.slice(5)] : HEADS).map(cell)}</div>`;
+  return html`<div class="lhead"><span><button type="button" class="cardtick all${picking ? ' some' : ''}" data-pickall="1" aria-pressed="${picking ? 'mixed' : 'false'}" title="${picking ? 'Clear the selection' : 'Select every device shown'}" aria-label="${picking ? 'Clear the selection' : 'Select every device shown'}"></button></span><span></span>${(pend ? PEND_HEADS : join ? [...HEADS.slice(0, 5), ['', 'Directory', 'c-dir'], ...HEADS.slice(5)] : HEADS).map(cell)}</div>`;
 }
 /* One device as a row of the list, as HTML text: tick, type, name with its inventory number, user, location, IP, the
    type's detail, chips and last seen. A device waiting in Pending devices shows which source found it, why it waits
@@ -176,7 +176,7 @@ const CARD_SORTS = {
   code: ['Inventory code', o => o.code || null, 1],
   /* An address sorts by its numbers: 10.0.0.9 before 10.0.0.10. */
   ip: ['IP', o => /^\d{1,3}(\.\d{1,3}){3}$/.test(o.ip || '') ? o.ip.split('.').reduce((n, x) => n * 256 + +x, 0) : null, 1],
-  detail: ['Detail', o => String(cardLine(o, detailOf(o.type))[1] || '').replace(/<[^>]*>/g, '') || null, 1],
+  detail: ['Detail', o => String(cardLine(o, detailOf(o.type))[1] || '').replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&') || null, 1],
   src: ['Found by', o => o.review ? REVIEW_SRC[o.review.src] || o.review.src : null, 1],
 };
 /* A heading sorts by its column; the same heading again turns the order, a third time back to the list's own order. */
@@ -186,7 +186,9 @@ export function sortBy(k){
   keepSort();
 }
 let cardSort = { k: '', dir: 1 };
-try { const v = JSON.parse(localStorage.getItem('ni-card-sort') || 'null'); if (v && v.k in CARD_SORTS && (v.dir === 1 || v.dir === -1)) cardSort = v; } catch { /* not kept */ }
+/* Only a sort a heading shows: one kept from before the list (date added, warranty end...) would order it unseen. */
+const HEAD_SORTS = ['name', 'user', 'loc', 'ip', 'detail', 'seen', 'src'];
+try { const v = JSON.parse(localStorage.getItem('ni-card-sort') || 'null'); if (v && HEAD_SORTS.includes(v.k) && (v.dir === 1 || v.dir === -1)) cardSort = v; } catch { /* not kept */ }
 const keepSort = () => { try { localStorage.setItem('ni-card-sort', JSON.stringify(cardSort)); } catch { /* not kept */ } };
 const byText = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 export function sortCards(list){
@@ -210,6 +212,8 @@ export function renderCardsBody(){
   const pool = scopePool();
   $('#toolbar').innerHTML = html`<span class="muted">${listCount(list.length, pool.length)}</span><span class="tbsep"></span>
     <span class="tb-grp"><label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select></span>
+    <span class="tb-grp ph-only"><label class="muted" for="cardSortM">Sort by</label><select id="cardSortM">${[['', 'Default'], ...(st.scope ? PEND_HEADS : HEADS).filter(h => h[0]).flatMap(([k, l]) => [[k + ':1', l + (k === 'seen' ? ', oldest first' : ', A to Z')], [k + ':-1', l + (k === 'seen' ? ', newest first' : ', Z to A')]])].map(([v, l]) => html`<option value="${v}" ${(cardSort.k ? cardSort.k + ':' + cardSort.dir : '') === v ? 'selected' : ''}>${l}</option>`)}</select></span>
+    ${list.length ? html`<button type="button" class="ph-only" data-pickall="1">${st.bulk && st.bulk.size ? 'Clear selection' : 'Select all'}</button>` : ''}
     ${st.cardsGroup !== 'none' ? html`<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>` : ''}
     ${joinCardsAvailable() && !st.scope ? html`<span class="tbsep"></span><label class="pchk" title="A column that shows whether computers and phones are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Directory status</label>` : ''}
     ${saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(saveViewBtn())}` : ''}${list.length ? html`<span class="tbsep"></span>${rawHtml(printMenuHtml())}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;
@@ -218,15 +222,16 @@ export function renderCardsBody(){
   if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
+  /* On a phone the headings are not shown: the same sorts as a list, each way round. */
+  const sm = $('#cardSortM'); if (sm) sm.onchange = () => { const [k, d] = sm.value.split(':'); cardSort = k && k in CARD_SORTS ? { k, dir: d === '-1' ? -1 : 1 } : { k: '', dir: 1 }; keepSort(); renderCards(); const again = $('#cardSortM'); if (again) again.focus(); };
   if (!list.length){
     $('#view').innerHTML = pool.length
-      ? hiddenHits() || (st.q.trim() ? html`<div class="empty">Nothing matches “${st.q.trim()}”. <button class="primary" id="newFromSearch">Create “${st.q.trim()}” as a new device</button></div>` : html`<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
+      ? hiddenHits() || (st.q.trim() ? html`<div class="empty">${rawHtml(noMatchHtml())} <button class="primary" id="newFromSearch">Create “${st.q.trim()}” as a new device</button></div>` : html`<div class="empty">${rawHtml(noMatchHtml())}</div>`)
       : st.scope === 'review' && REVIEW.some(o => !o.review.ignored) ? html`<div class="empty">None of the devices waiting match these filters. <button type="button" class="primary" data-ck-all>Show all waiting</button></div>`
       : st.scope ? html`<div class="empty empty-inbox"><b>${st.scope === 'ignored' ? 'No ignored devices' : 'No pending devices'}</b><span class="muted">${st.scope === 'ignored' ? 'Devices you ignore stay here, out of the inventory and every sync.' : 'New devices go straight into the inventory. Only those that need a decision wait here.'}</span></div>`
       : (SERVER.on && !st.meId ? html`<div class="empty">Sign in to see the inventory.</div>` : emptyHtml());
     const ca = $('[data-ck-all]'); if (ca) ca.onclick = () => { st.rvWhy = st.rvSrc = ''; st.type = null; view(); };
     const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); view(); };
-    const c2 = $('#clr2'); if (c2) c2.onclick = () => $('#clearF').click();
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     bindHiddenHits();
     return;
@@ -239,7 +244,7 @@ export function renderCardsBody(){
   let rows;
   if (st.cardsGroup === 'none') rows = list.map(o => card(o)).join('');
   else {
-    const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc || 'No location';
+    const key = st.cardsGroup === 'type' ? o => (TYPES[o.type] || { label: o.type }).label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc || 'No location';
     /* The group of devices without a user or location comes last. */
     const none = g => g === 'No user' || g === 'No location';
     const groups = [...new Set(list.map(key))].sort((a, b) => none(a) ? 1 : none(b) ? -1 : a.localeCompare(b));

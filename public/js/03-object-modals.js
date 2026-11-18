@@ -152,7 +152,7 @@ export function purgeModal(o){
   modal(html`<div class="mh">Delete ${o.name}?</div>
     <div class="mb"><p class="note">This removes the device, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p>
     ${fromLs ? html`<p class="fieldnote warn">Lansweeper still has this device: its next push adds it again, as a new device with a new code. To keep it out, retire it and exclude it from the sync instead.</p>` : ''}</div>
-    <div class="mf"><button id="pgCancel">Cancel</button>${fromLs ? html`<button id="pgExcl" class="primary">Retire and exclude</button>` : ''}<button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
+    <div class="mf">${fromLs ? html`<button id="pgOk" class="danger-text">Delete permanently</button><span class="grow"></span>` : ''}<button id="pgCancel">Cancel</button>${fromLs ? html`<button id="pgExcl" class="primary">Retire and exclude</button>` : html`<button id="pgOk" class="danger-text">Delete permanently</button>`}</div>`, 'sm');
   $('#pgCancel').onclick = closeModal;
   const ex = $('#pgExcl');
   if (ex) ex.onclick = () => {
@@ -408,6 +408,14 @@ export function renderObj(o){
     const toggle = () => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); rememberPanel(key, c); };
     h.addEventListener('click', e => { if (!e.target.closest('button,input,select,a,label')) toggle(); });
     h.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h){ e.preventDefault(); toggle(); } });
+  });
+  /* The panels that fold as details (Path to the network, Timeline) keep the same memory, by their title. History keeps
+     its own (28-restore.js). */
+  $('#view').querySelectorAll('.obj details.panelbox.fold:not(#histPanel) > summary.hdr').forEach(sm => {
+    const d = /** @type {HTMLDetailsElement} */ (sm.parentNode), key = (sm.childNodes[0] ? sm.childNodes[0].textContent : sm.textContent).trim();
+    const kept = collapsedPanels()[key];
+    if (kept !== undefined) d.open = !kept;
+    d.addEventListener('toggle', () => rememberPanel(key, !d.open));
   });
   /* A device with ports but no port count yet cannot have its port checked: say so, but let the connection be made. */
   /* The Add relation row: kind, target, port or LAG, VLAN. */

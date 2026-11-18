@@ -1,7 +1,7 @@
 /* Software: a device's software panel, and the Software view of all packages (split out of 03-object-modals.js, which re-exports it). */
 import './srcpick.js';
 import { bindLicences, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
-import { $, TYPES, hist, now, objs, st, tico, toast } from './01-core.js';
+import { $, TYPES, hist, now, objs, st, tico, toast, noMatchHtml } from './01-core.js';
 import { render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
@@ -92,7 +92,7 @@ export function renderSoftware(){
         <td><b>${r.name}</b>${licencesFor(r.name).map(l => html` ${rawHtml(licenceMark(l))}`)}</td>
         <td class="sw-ver"><span class="vchips">${shown.map(([v, n]) => html`<span class="vchip">${v}${r.versions.length > 1 ? html`<i>${n}</i>` : ''}</span>`)}${r.versions.length > 4 ? html`<span class="muted">+${r.versions.length - 4} more</span>` : ''}</span></td>
         <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
-    })}` : html`<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${st.q}”.</td></tr>`;
+    })}` : html`<tr><td colspan="4" class="muted" style="padding:14px">${rawHtml(noMatchHtml())}</td></tr>`;
     $('#swCollapse').hidden = !st.swOpen.length;
     /* Opened from a device's package: that package in sight, marked a moment. */
     if (st.swFocus){

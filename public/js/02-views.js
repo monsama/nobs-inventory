@@ -163,6 +163,13 @@ export function resetFilters(){
 /** A filter typed under a column of the device table counts too: Clear filters clears it. */
 export const colFiltered = () => st.tab === 'table' && Object.values((TBL['view:table:0'] || {}).filters || {}).some(v => String(v || '').trim());
 $('#clearF').onclick = () => { resetFilters(); view(); };
+/* Clear filters in a list's "Nothing matches": the list's own filters go too. */
+document.addEventListener('click', e => {
+  if (!(evEl(e).closest && evEl(e).closest('#view [data-clearall]'))) return;
+  e.preventDefault(); resetFilters();
+  st.ipSub = st.ipAssign = st.prnShow = st.cnKind = ''; st.ipProblems = st.ctDue = false;
+  view();
+});
 /* The filters in force, as chips over the list (Cards, Table, Relationships): what each is, and × to take it off, so a
    short list is never a mystery. Nothing is shown when nothing narrows the list. */
 export function renderFilterBar(){
@@ -224,7 +231,8 @@ export function renderFilterBar(){
   const typeSum = l => Object.entries(l.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
   /* Only news: the devices that came into Pending since this person last looked there (or closed this line). The tab's
      count says how many wait in all. */
-  const fresh = waitingAll.filter(o => stampTime(o.review.at) > pendingSeen());
+  /* Found times are kept to the minute: one found in the minute Pending devices was last opened counts as new. */
+  const fresh = waitingAll.filter(o => stampTime(o.review.at) >= Math.floor(pendingSeen() / 6e4) * 6e4);
   const waitBar = !list || st.scope || !fresh.length || leftFilters() || st.q.trim() || person ? '' : html`<div class="fb-person fb-wait"><span class="dot warn" aria-hidden="true"></span><b>${fresh.length} new ${fresh.length === 1 ? 'device waits' : 'devices wait'} in Pending devices</b><span class="muted">${typeSum(fresh).slice(0, 5).map(([t, n]) => `${n} ${TYPES[t] ? TYPES[t].label : t}`).join(' · ')}${typeSum(fresh).length > 5 ? ' · …' : ''}</span><span class="grow"></span><button type="button" data-gowait="1">Show them</button><button type="button" class="fb-x" data-waitok="1" title="Got it: hide this until more come" aria-label="Hide this until more come">×</button></div>`;
   /* In Pending devices: the ones with nothing unclear, added at once by their type; the others are decided one by one. */
   const clear = list && st.scope === 'review' && isAdmin() ? filtered().filter(o => waitReason(o).clear) : [];

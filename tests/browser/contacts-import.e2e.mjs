@@ -74,7 +74,7 @@ try {
   await page.click('#impCancel');
 
   // the export downloads a CSV that the import reads back as it is
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#cnExport')]);
+  const [dl] = await Promise.all([page.waitForEvent('download'), (async () => { await page.click('#cnExportMenu .menu-btn'); await page.click('#cnExport'); })()]);
   assert.equal(dl.suggestedFilename(), 'contacts.csv');
   const text = fs.readFileSync(await dl.path(), 'utf8');
   assert.ok(text.startsWith('﻿Name;Company;Area;Role;'));
