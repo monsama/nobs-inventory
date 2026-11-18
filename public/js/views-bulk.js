@@ -91,6 +91,13 @@ export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 
    Shift + click picks every card from the last one picked to this one. While cards are picked, a plain click on a card
    picks it (or takes it back) too; with none picked, it opens the card. */
 let lastPick = null;
+/* The tick in the list's heading: picks every device shown, or, while some are picked, takes the pick back. */
+document.addEventListener('click', e => {
+  const all = evEl(e).closest && evEl(e).closest('#view [data-pickall]'); if (!all) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  st.bulk = st.bulk && st.bulk.size ? new Set() : new Set(filtered().map(o => o.id));
+  keepScroll(renderCards);
+}, true);
 document.addEventListener('click', e => {
   const card = evEl(e).closest && evEl(e).closest('#view .card[data-open]'); if (!card || evEl(e).closest('[data-rvc]')) return;
   const tick = evEl(e).closest('.cardtick');

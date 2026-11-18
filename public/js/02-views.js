@@ -307,7 +307,7 @@ export function emptyHtml(){
 document.addEventListener('click', e => { const b = evEl(e).closest && evEl(e).closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'Pending devices', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', ips:'IP addresses', prn:'Printers', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Inventory check'};
+export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'Pending devices', cards:'List', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', ips:'IP addresses', prn:'Printers', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Inventory check'};
 /* The views someone gets: My devices only for a viewer who sees only their own devices, and for them only it and the
    lists (Cards, Table); the others show nothing they can use. */
 const OWN_TABS = ['mine', 'cards', 'table'];

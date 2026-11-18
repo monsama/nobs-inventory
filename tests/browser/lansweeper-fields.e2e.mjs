@@ -90,8 +90,8 @@ try {
     core.st.tab = 'cards'; (await import('/js/07-render.js')).render();
   });
   await page.waitForSelector('.card[data-open=o1]');
-  // the card says when, in amber, like every card; the hint to check it by hand is on the date
-  assert.match(await page.textContent('.card[data-open=o1] .seen'), /Seen \d\d\.\d\d\.\d{4} · Lansweeper/);
+  // the row says when, in amber, like every row; the hint to check it by hand is on the date
+  assert.match(await page.textContent('.card[data-open=o1] .seen'), /^\d\d\.\d\d\.\d{4}$/);
   assert.match(await page.getAttribute('.card[data-open=o1] .seen', 'class'), /warn/);
   assert.match(await page.getAttribute('.card[data-open=o1] .seen', 'title'), /Check by hand/);
   assert.doesNotMatch(await page.getAttribute('.card[data-open=o2] .seen', 'title'), /Check by hand/);
