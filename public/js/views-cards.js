@@ -22,8 +22,9 @@ const mono = v => v ? String(html`<span class="mono">${String(v)}</span>`) : '';
 export const CARD_FIELDS = {
   ip: ['IP', o => mono(o.ip)],
   mac: ['MAC', o => mono(o.mac)],
-  user: ['User', o => esc(o.user || '')],
-  loc: ['Location', o => esc((o.loc || '').replace(' / ', ' · '))],
+  /* A device attached to another (a monitor to its PC) with no user or location of its own shows the host's, marked so. */
+  user: ['User', (o, idx) => o.user ? esc(o.user) : viaHost(o, idx, h => h.user)],
+  loc: ['Location', (o, idx) => o.loc ? esc(o.loc.replace(' / ', ' · ')) : viaHost(o, idx, h => h.loc && h.loc.replace(' / ', ' · '))],
   warranty: ['Warranty', o => { const w = warrantyState(o); return w ? String(html`<span class="wty ${w}">${w === 'ended' ? 'ended ' : 'ends '}${dayText(o.warranty)}</span>`) : ''; }],
   serial: ['Serial', o => mono(o.serial)],
   os: ['OS', o => esc(o.os || '')],
@@ -41,14 +42,17 @@ export const CARD_FIELDS = {
   /* On a card (a button) a link cannot be clicked: the line names the links, the device page opens them. */
   urls: ['Links', o => esc((o.urls || []).map(l => l.label || linkKind(l.url)).join(' · '))],
 };
+/* The device o is attached to (attached to: a monitor to its PC), when it is one. */
+const hostOf = (o, idx) => { const x = relsOf(o, idx).find(y => y.out && isAttached(y.r.kind)); return x && x.other; };
+const viaHost = (o, idx, f) => { const h = hostOf(o, idx), v = h && f(h); return v ? String(html`${v} <span class="via" title="From ${h.name}, the device it is attached to">via ${h.name}</span>`) : ''; };
 /* Every card shows five lines, the same five for every device of a type (the fifth its description), so cards are the same height and a value sits
    in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
 export const CARD_DEFAULTS = {
-  pc: ['ip', 'user', 'loc', 'warranty'], notebook: ['ip', 'user', 'loc', 'warranty'], camera: ['ip', 'model', 'loc', 'serial'], bmc: ['ip', 'fw', 'loc', 'serial'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'user'],
+  pc: ['ip', 'user', 'loc', 'os'], notebook: ['ip', 'user', 'loc', 'os'], camera: ['ip', 'model', 'loc', 'serial'], bmc: ['ip', 'fw', 'loc', 'serial'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'user'],
   accesspoint: ['ip', 'ssid', 'loc', 'serial'], sip: ['ext', 'ip', 'user', 'loc'], pbx: ['ip', 'fw', 'loc', 'serial'],
-  monitor: ['serial', 'user', 'loc', 'warranty'], switch: ['ip', 'ports', 'loc', 'fw'], printer: ['ip', 'serial', 'loc', 'warranty'],
+  monitor: ['user', 'loc', 'serial'], switch: ['ip', 'ports', 'loc', 'fw'], printer: ['ip', 'serial', 'loc', 'model'],
   patch: ['ports', 'loc', 'serial', 'model'], router: ['ip', 'ports', 'loc', 'fw'], firewall: ['ip', 'ports', 'loc', 'fw'],
-  modem: ['ip', 'loc', 'serial', 'model'], storage: ['ip', 'cap', 'loc', 'warranty'], android: ['user', 'os', 'serial', 'loc'],
+  modem: ['ip', 'loc', 'serial', 'model'], storage: ['ip', 'cap', 'loc', 'model'], android: ['user', 'os', 'serial', 'loc'],
   ios: ['user', 'os', 'serial', 'loc'], mobile: ['user', 'os', 'serial', 'loc'], plc: ['ip', 'fw', 'loc', 'serial'],
   rack: ['loc', 'units', 'serial', 'model'], other: ['ip', 'user', 'loc', 'serial'],
 };
@@ -56,9 +60,13 @@ export const CARD_LINES = 5;
 export const cardLines = type => {
   const set = (FIELD_LAYOUT[type] || {}).card;
   const base = Array.isArray(set) && set.length ? set : CARD_DEFAULTS[type] || CARD_DEFAULTS.other;
-  /* Lines chosen before there were five keep their four; the fifth is the description, unless one of them is already. */
-  const fifth = base.length < CARD_LINES && !base.includes('purpose') ? ['purpose'] : [];
-  return [...base, ...fifth, '', '', '', '', ''].slice(0, CARD_LINES);
+  /* Four lines (the defaults, or chosen before there were five) get the description as the fifth, unless one of them is
+     already. A type with fewer (a monitor: little to say) keeps its few, and its cards are shorter. */
+  const fifth = base.length === CARD_LINES - 1 && !base.includes('purpose') ? ['purpose'] : [];
+  const lines = [...base, ...fifth].slice(0, CARD_LINES);
+  /* Nothing at the end is no line: the card ends with its last field. */
+  while (lines.length && !lines[lines.length - 1]) lines.pop();
+  return lines;
 };
 /* A line's label and value: a built-in line, or a field the type has (custom.<key>). An empty slot is a blank line. */
 export function cardLine(o, key, idx){
@@ -106,7 +114,7 @@ export function cardHtml(o, idx, join = showJoin()){
   return String(html`<article class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${o.review ? `${o.name}: pending` : o.name}"><button type="button" class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button>
     <div class="ch">${rawHtml(tico(o.type))}<div class="hd"><span class="nmrow"><button type="button" class="nm card-open" data-open="${o.id}">${o.name}</button>${rawHtml(markHtml(o, false))}</span><span class="model">${o.model}</span></div>
       ${o.status !== 'active' ? html`<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
-    <dl class="kv">${lines.map(([k,v]) => html`<dt>${k || rawHtml('&nbsp;')}</dt><dd${v ? '' : html` class="none"`}>${v ? rawHtml(v) : k ? '-' : rawHtml('&nbsp;')}</dd>`)}</dl>
+    <dl class="kv">${lines.map(([k,v]) => html`<dt${v ? '' : html` class="none"`}>${k || rawHtml('&nbsp;')}</dt><dd${v ? '' : html` class="none"`}>${v ? rawHtml(v) : k ? '-' : rawHtml('&nbsp;')}</dd>`)}</dl>
     ${join ? rawHtml(joinBadges(o)) : ''}
     ${o.review ? reviewChips(o, stale) : twinOf(o) ? html`<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? html`<div class="rv-chips">${twinsChip(o)}</div>` : ''}
     ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts">${mergeTarget(o)
@@ -123,8 +131,8 @@ export const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweep
 const reviewChips = (o, stale) => html`${!o.review.ignored && waitReason(o).text ? html`<div class="rv-why" title="Why it waits">${waitReason(o).text}</div>` : ''}<div class="rv-chips"><span class="rv-from">Found by <b>${REVIEW_SRC[o.review.src] || o.review.src}</b>${alsoIn(o).length ? html`<span class="rv-also" title="Other sources that know this device: one the directory knows is most likely real"> · also in ${alsoIn(o).join(', ')}</span>` : ''}</span>${stale ? html`<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? twinChip(o) : mergeTarget(o) ? html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="A device of this name or serial number is in the inventory: accepting this one adds a second.${isAdmin() ? ' Click to resolve.' : ''}">Already in inventory: ${mergeTarget(o).name}</span>` : ''}</div>`;
 /* On the card of a probable second record: which device it most likely is; a click opens Resolve (15-review.js). */
 /* On the card of the device itself: its probable second records, so it is seen from both sides. */
-const twinsChip = o => { const l = twinsOf(o); return html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${l.map(x => x.id).join(',')}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${l.map(x => x.name).join(', ')}.${isAdmin() ? ' Click to resolve.' : ''}">${l.length === 1 ? html`Also as ${l[0].name}` : `${l.length} possible duplicates`}</span>`; };
-const twinChip = o => html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="Probably a second record of ${twinOf(o).name}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${isAdmin() ? ' Click to resolve it.' : ''}">Probably ${twinOf(o).name}</span>`;
+const twinsChip = o => { const l = twinsOf(o); return html`<span class="chip rv-twin"${isAdmin() ? html` data-resolve="${l.map(x => x.id).join(',')}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${l.map(x => x.name).join(', ')}.${isAdmin() ? ' Click to resolve.' : ''}">${l.length === 1 ? html`Also as ${l[0].name}` : `${l.length} possible duplicates`}</span>`; };
+const twinChip = o => html`<span class="chip rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="Probably a second record of ${twinOf(o).name}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${isAdmin() ? ' Click to resolve it.' : ''}">Probably ${twinOf(o).name}</span>`;
 /* Sort by, for the cards: [label, value of a card, direction it starts in]. Default keeps the list's own order (the
    inventory as kept; pending devices the most recently seen first). Cards without a value go last, either way. Kept per
    browser, like the other view choices here. */

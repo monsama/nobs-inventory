@@ -212,6 +212,8 @@ export function applyRole(){
   $('#newBtn').disabled = ro; $('#newBtn').hidden = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
+  { const w = $('#barWho'), b = $('#barMoreBtn'); const who = me() ? me().name : USERS.length ? 'Sign in' : 'Account';
+    if (w) w.textContent = who; if (b) b.setAttribute('aria-label', who + ': account, sign out and display'); }
   /* A control that only picks what is shown (data-view: whose fields Settings → Device types lists) stays open. */
   $$(':is(#setPane, [data-edit]) :is(button, input, select, textarea):not([data-view])').forEach(el => {
     if (!ro){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }

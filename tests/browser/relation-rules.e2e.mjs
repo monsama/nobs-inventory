@@ -22,7 +22,7 @@ try {
   const p = await (await browser.newContext({ viewport: { width: 1300, height: 900 } })).newPage();
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
-  await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
+  await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await p.waitForSelector('#setBtn'); await p.evaluate(async () => { (await import('/js/01-core.js')).st.relAdd = true; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   const relsOf = id => p.evaluate(async id => (await import('/js/01-core.js')).rels.filter(r => r.from === id).map(r => [r.to, r.kind]), id);
   const toastHas = re => until(p, re => new RegExp(re).test(document.querySelector('#toast')?.textContent || ''), re.source);

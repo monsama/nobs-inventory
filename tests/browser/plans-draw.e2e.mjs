@@ -19,7 +19,7 @@ try {
   const p = await (await browser.newContext({ viewport: { width: 1300, height: 850 } })).newPage();
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
-  await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
+  await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await p.waitForSelector('#setBtn'); await p.evaluate(async () => { (await import('/js/01-core.js')).st.relAdd = true; });
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
   await p.evaluate(async (png) => {
@@ -30,7 +30,7 @@ try {
     return [save.status, img.status];
   }, png);
   await p.reload(); await p.waitForSelector('#lgUser, #tabsbar');
-  if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); }
+  if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await p.waitForSelector('#setBtn'); await p.evaluate(async () => { (await import('/js/01-core.js')).st.relAdd = true; }); }
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = 'plans'; __mods[1].render(); });
   await p.waitForSelector('#plList');

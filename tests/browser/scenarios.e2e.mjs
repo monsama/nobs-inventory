@@ -22,7 +22,7 @@ const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_C
 const errors = [];
 const page = async (ctx) => { const p = await ctx.newPage(); p.on('pageerror', e => { errors.push(e.message); console.error('page error:', e.stack || e.message); }); return p; };
 const ctxOpts = { viewport: { width: 1400, height: 900 } };
-const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
+const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await p.waitForSelector('#setBtn'); await p.evaluate(async () => { (await import('/js/01-core.js')).st.relAdd = true; }); await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
 
 // Opens an object's page the way a person does: find it in the table and click its name.
 const openByName = async (p, name) => {
@@ -145,7 +145,7 @@ try {
   await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model === 'KEPT MODEL'); });
   await until(q, async () => (await (await fetch('api/state', { credentials: 'same-origin' })).json()).objs.find(o => o.name === 'SRV-ZH-HV01')?.model === 'KEPT MODEL', null, { timeout: 10000, polling: 200 });
   await q.reload(); await q.waitForSelector('#lgUser, #tabsbar');
-  if (await q.isVisible('#lgUser')) { await q.fill('#lgUser', 'admin'); await q.fill('#lgPw', 'adminpass123'); await q.click('#lgOk'); }
+  if (await q.isVisible('#lgUser')) { await q.fill('#lgUser', 'admin'); await q.fill('#lgPw', 'adminpass123'); await q.click('#lgOk'); await q.waitForSelector('#setBtn'); await q.evaluate(async () => { (await import('/js/01-core.js')).st.relAdd = true; }); }
   await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }, null, { timeout: 10000 });
   assert.equal(await state(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model); }), 'KEPT MODEL', 'the edit was not kept after reload');
   assert.equal(await state(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SCEN-SIP-1') === undefined); }), true, 'a deleted object came back after reload');

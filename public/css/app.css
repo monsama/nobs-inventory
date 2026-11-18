@@ -569,7 +569,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .gs-why>p{margin:4px 0 0}
 /* overview */
 .ov{display:flex;flex-direction:column;gap:var(--gap);padding:var(--gap) var(--gutter);width:100%;box-sizing:border-box}   /* on the toolbar's gutter */
-.ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.ov-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .ct-sum{padding:12px 12px 0}
 /* contacts: one card per person, the company's own first, then each IT partner */
 /* Under a long list drawn in part: how many are shown, and a way to show them all. */
@@ -1223,8 +1223,22 @@ table.grid a.rowopen:hover{text-decoration:underline}
 }
 /* On a phone the top bar is one row: menu, logo, search, New, More and Settings. The account, sign-out, light / dark and
    the coffee link open from More, so the page keeps its height for the inventory. */
-#barMoreBtn{display:none}
-#barMore{display:contents}
+/* The account menu: name and role, light or dark, coffee, sign out, behind one button (the name on a desktop, ⋯ on a
+   phone); the bell and Settings stay in the bar. */
+#bar{anchor-name:--bar}
+#barMoreBtn{display:inline-flex;align-items:center;gap:6px;width:auto;padding:0 10px}
+#barMoreBtn>svg{display:none}
+.bar-who{white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.bar-who::after{content:"";display:inline-block;width:6px;height:6px;margin-left:8px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:translateY(-3px) rotate(45deg)}
+#barMore{display:none;position:fixed;inset:auto;position-anchor:--bar;position-area:bottom span-left;margin:4px 8px 0 0;color:var(--fg);flex-direction:column;align-items:stretch;gap:2px;min-width:220px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
+#barMore:popover-open{display:flex}
+#barMore>*{justify-content:flex-start;width:100%;height:32px;padding:0 10px;border-color:transparent;background:transparent;color:var(--fg);font-weight:400}
+#barMore>*:hover{background:var(--hover)}
+#barMore #coffeeBtn{display:inline-flex}
+#barMore #themeBtn::after{content:"Light / dark";margin-left:8px}
+#barMore #coffeeBtn::after{content:"Buy me a coffee";margin-left:8px}
+#barMore #whoBtn{font-weight:600;height:auto;min-height:36px;border-radius:var(--r-m) var(--r-m) 0 0;border-bottom:1px solid var(--bd);margin-bottom:2px}
+#barMore #signOutBtn{gap:8px}
 /* The bell: a count in red (a problem among them) or amber; its list says what and leads there. */
 #bellBtn{position:relative}
 .bell-n{position:absolute;top:-4px;right:-6px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;font-size:11px;font-weight:700;line-height:17px;text-align:center;color:#fff;background:var(--warnbtn);box-shadow:0 0 0 2px var(--panel)}
@@ -2263,3 +2277,21 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 /* Cards: Sort by and the direction it runs in, beside Group by. */
 .sort-dir{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .sort-dir .i{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#clearF[hidden]{display:none}
+.fbar .fb-x{min-width:28px;padding:0 8px;font-size:16px;line-height:1;color:var(--muted)}
+/* Calmer cards: a line with no value steps back (its label and dash dimmed), so the eye lands on the values; names in
+   the normal font (codes, addresses and serials keep the monospaced one). */
+.card .kv dt.none,.card .kv dd.none{color:var(--muted)}.card .kv dd.none{font-weight:400}
+.card .nm{font-family:inherit;font-size:14px;letter-spacing:.005em}
+/* A field set by hand (the pencil): only on hover or focus of its row, so the form is not dotted with pencils; the
+   sources' marks (Lansweeper, AD, Intune) and a picked source stay visible. On a touch screen it stays. */
+@media (hover:hover){
+  .obj .form .ctlrow>.fsrc[data-src="hand"]:not(.fsrc-picked):not(.fsrc-multi){opacity:0;transition:opacity .12s}
+  .obj .form .ctlrow:is(:hover,:focus-within)>.fsrc[data-src="hand"]{opacity:1}
+}
+/* "+ Add a relation", "+ Add an attachment": the forms open from a link, in the panel's padding. */
+.rel-open,.acc-open{padding:6px 12px 8px}.entries-box .acc-open{padding:4px 0 0}
+#arRow[hidden],#arOutletRow[hidden],#accRow[hidden],.rel-open[hidden],.acc-open[hidden]{display:none}
+.readonly .obj :is(.acc-open,.rel-open){display:none}
+.card .kv .via{color:var(--muted);font-size:11px;margin-left:4px}
+@media (max-width:760px){ #barMoreBtn{width:32px;padding:0} #barMoreBtn>svg{display:inline} .bar-who{display:none} }

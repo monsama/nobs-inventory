@@ -112,7 +112,7 @@ function previewCard(type){
 }
 /* The five lines a card shows for this type. Every card of the type shows the same five, so cards line up. */
 export function renderCardLines(box, type){
-  const lay = FIELD_LAYOUT[type] || {}, cur = cardLines(type), own = Array.isArray(lay.card) && lay.card.length;
+  const lay = FIELD_LAYOUT[type] || {}, cur = [...cardLines(type), '', '', '', '', ''].slice(0, 5), own = Array.isArray(lay.card) && lay.card.length;
   const choices = [...Object.entries(CARD_FIELDS).map(([k, [l]]) => [k, l]), ...(TYPE_FIELDS[type] || []).map(f => ['custom.' + f.key, f.label])];
   box.insertAdjacentHTML('beforeend', String(html`<div class="tf-sub"><div class="tf-sh">The five lines on every ${TYPES[type].label} card</div>
     <div class="cardlines">${cur.map((k, i) => html`<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => html`<option value="${v}" ${v === k ? 'selected' : ''}>${l}</option>`)}</select></label>`)}

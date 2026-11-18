@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { NEW_DAYS, addedRecently, SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen } from './01-core.js';
+import { NEW_DAYS, stampTime, addedRecently, SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -32,8 +32,6 @@ const moreOpen = () => { try { return localStorage.getItem(MORE_KEY) === '1'; } 
 /* Draws the sidebar: Pending devices, types, sites and rooms, More filters, the active one-off filters, status and the saved
    views, each with how many of the listed devices it holds. A click on an item is handled below. */
 export function renderSide(){
-  /* The devices waiting in Pending devices, for the +3 beside each type. */
-  const waitingR = REVIEW.filter(o => !o.review.ignored);
   /* The left bar is the inventory's: Pending devices is a list of its own, with its filters over it (renderFilterBar). */
   $('#scopeHdr').hidden = $('#scopeList').hidden = true; $('#scopeList').innerHTML = '';
   /* The sidebar counts what the list shows: in Pending devices only while Cards, Table or the map show it. */
@@ -43,10 +41,10 @@ export function renderSide(){
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
      picked stays. "All devices" is marked only when nothing at all narrows the list. */
   const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
-  /* Beside the inventory's count, how many more of the type wait in Pending devices (+12), so none is missed. */
-  const waitBy = st.scope ? {} : waitingR.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
-  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span>${waitBy[k] ? html`<span class="cnt-wait" data-waittype="${k}" title="${waitBy[k]} more ${waitBy[k] === 1 ? 'waits' : 'wait'} in Pending devices: click to see ${waitBy[k] === 1 ? 'it' : 'them'}">+${waitBy[k]}</span>` : ''}<span class="cnt">${byType[k] || 0}</span></button>`;
-  const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || waitBy[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
+  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span><span class="cnt">${byType[k] || 0}</span></button>`;
+  const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
+  /* Clear filters only while something is filtered: an idle button is noise. */
+  $('#clearF').hidden = !leftFilters() && !st.q.trim() && !colFiltered();
   $('#typeList').innerHTML = html`<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All devices</span><span class="cnt">${pool.length}</span></button>${
     shown.map(typeBtn)}${
     folded ? html`<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
@@ -115,9 +113,6 @@ $('#side').addEventListener('click', e => {
   if (e.target.closest('#viewList')) return;
   const more = e.target.closest('[data-alltypes]');
   if (more){ st.sideAllTypes = more.dataset.alltypes === '1'; renderSide(); return; }
-  /* +3 beside a type: the ones of that type waiting in Pending devices. */
-  const wt = e.target.closest('[data-waittype]');
-  if (wt){ enterCheck(wt.dataset.waittype); view(); return; }
   const b = e.target.closest('.item'); if (!b) return;
   /* A type clicked again goes back to all types. */
   if ('type' in b.dataset) st.type = b.dataset.type && st.type !== b.dataset.type ? b.dataset.type : null;
@@ -151,7 +146,12 @@ $('#side').addEventListener('click', e => {
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 /* Pending devices, from its tab, the line over the inventory or a type's +3: a list of its own, so the inventory's filters go;
    type: only the ones of that type. */
+/* When this person last looked at Pending devices (kept in this browser): the line over the inventory says only what
+   came after. */
+const pendingSeen = () => { try { return +localStorage.getItem('ni-pending-seen') || 0; } catch { return 0; } };
+const markPendingSeen = () => { try { localStorage.setItem('ni-pending-seen', String(Date.now())); } catch { /* not kept */ } };
 export function enterCheck(type = null){
+  markPendingSeen();
   resetFilters();
   Object.assign(st, { scope: 'review', rvSrc: '', rvWhy: '', rvKnown: false, rvOld: false, bulk: new Set(), person: null, live: false, type });
   if (!LIST_TABS.includes(st.tab)) st.tab = 'cards';
@@ -160,6 +160,8 @@ export function resetFilters(){
   st.type = st.loc = st.status = st.warranty = st.seen = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
+/** A filter typed under a column of the device table counts too: Clear filters clears it. */
+export const colFiltered = () => st.tab === 'table' && Object.values((TBL['view:table:0'] || {}).filters || {}).some(v => String(v || '').trim());
 $('#clearF').onclick = () => { resetFilters(); view(); };
 /* The filters in force, as chips over the list (Cards, Table, Relationships): what each is, and × to take it off, so a
    short list is never a mystery. Nothing is shown when nothing narrows the list. */
@@ -220,7 +222,10 @@ export function renderFilterBar(){
   /* Devices the syncs found that wait in Pending devices: said over the inventory's lists, so none is missed. */
   const waitingAll = REVIEW.filter(o => o.review && !o.review.ignored);
   const typeSum = l => Object.entries(l.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
-  const waitBar = !list || st.scope || !waitingAll.length || leftFilters() || st.q.trim() || person ? '' : html`<div class="fb-person fb-wait"><span class="dot warn" aria-hidden="true"></span><b>${waitingAll.length} found by the syncs ${waitingAll.length === 1 ? 'waits' : 'wait'} in Pending devices</b><span class="muted">${typeSum(waitingAll).slice(0, 5).map(([t, n]) => `${n} ${TYPES[t] ? TYPES[t].label : t}`).join(' · ')}${typeSum(waitingAll).length > 5 ? ' · …' : ''}</span><span class="grow"></span><button type="button" data-gowait="1">Show them</button></div>`;
+  /* Only news: the devices that came into Pending since this person last looked there (or closed this line). The tab's
+     count says how many wait in all. */
+  const fresh = waitingAll.filter(o => stampTime(o.review.at) > pendingSeen());
+  const waitBar = !list || st.scope || !fresh.length || leftFilters() || st.q.trim() || person ? '' : html`<div class="fb-person fb-wait"><span class="dot warn" aria-hidden="true"></span><b>${fresh.length} new ${fresh.length === 1 ? 'device waits' : 'devices wait'} in Pending devices</b><span class="muted">${typeSum(fresh).slice(0, 5).map(([t, n]) => `${n} ${TYPES[t] ? TYPES[t].label : t}`).join(' · ')}${typeSum(fresh).length > 5 ? ' · …' : ''}</span><span class="grow"></span><button type="button" data-gowait="1">Show them</button><button type="button" class="fb-x" data-waitok="1" title="Got it: hide this until more come" aria-label="Hide this until more come">×</button></div>`;
   /* In Pending devices: the ones with nothing unclear, added at once by their type; the others are decided one by one. */
   const clear = list && st.scope === 'review' && isAdmin() ? filtered().filter(o => waitReason(o).clear) : [];
   const groups = typeSum(clear);
@@ -230,6 +235,7 @@ export function renderFilterBar(){
 }
 $('#fbar').addEventListener('click', e => {
   if (e.target.closest('[data-gowait]')){ enterCheck(); view(); return; }
+  if (e.target.closest('[data-waitok]')){ markPendingSeen(); view(); return; }
   /* Pending devices's own filters: why they wait, which source found them, the ignored ones. */
   const ck = e.target.closest('[data-ckwhy], [data-cksrc], [data-ckign]');
   if (ck){

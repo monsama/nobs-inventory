@@ -37,17 +37,14 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await p.waitForSelector('#fbar .fb-wait');
 
-  // the inventory says what waits, and of which types; the types on the left say how many more of each wait
+  // the inventory says what is new in Pending devices, and of which types; nothing beside the types on the left
   const bar = await p.textContent('#fbar .fb-wait');
-  assert.match(bar, /7 found by the syncs wait in Pending devices/); assert.match(bar, /3 PC · 3 Notebook · 1 Other/);
-  assert.equal((await p.textContent('#typeList [data-type="pc"] .cnt-wait')).trim(), '+3');
+  assert.match(bar, /7 new devices wait in Pending devices/); assert.match(bar, /3 PC · 3 Notebook · 1 Other/);
+  assert.equal(await p.locator('#typeList .cnt-wait').count(), 0, 'no +N beside the types');
   assert.equal((await p.textContent('#typeList [data-type="pc"] .cnt')).trim(), '1', 'the count is the inventory\'s');
-
-  // +3 beside PC: Pending devices for the PCs only, the left bar hidden (it is the inventory's); Pending devices's own filters instead
-  await p.click('#typeList [data-type="pc"] .cnt-wait');
-  await until(p, () => document.querySelectorAll('#cards .card').length === 3);
-  assert.equal(await p.locator('#side').isVisible(), false, 'no left bar in Pending devices');
-  assert.match(await p.textContent('#fbar'), /Type: PC/);
+  // × hides the bar until more arrive
+  await p.click('#fbar [data-waitok]');
+  await until(p, () => !document.querySelector('#fbar .fb-wait'));
 
   // Pending devices: each card says why it waits; the clear ones are offered by type
   await p.click('#tabsbar [data-tab=review]');

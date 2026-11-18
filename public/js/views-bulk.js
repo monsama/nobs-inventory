@@ -67,7 +67,7 @@ export function pickBar(list){
   const n = (st.bulk || new Set()).size;
   /* The picked devices' actions on a row of their own, always in one order: count, the Pending devices actions, Resolve, the rest. */
   return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
-    : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several · Ctrl+A all</span>' + scopeActs(list, true);
+    : scopeActs(list, true);
 }
 /* The picked devices that are still among those shown (the inventory, or Pending devices): a pick does not reach across. */
 export const pickedInPool = () => { const ids = new Set(scopePool().map(o => o.id)); return new Set([...(st.bulk || [])].filter(id => ids.has(id))); };

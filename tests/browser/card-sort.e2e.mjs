@@ -15,10 +15,11 @@ bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const s0 = loadState(db);
 const dev = (id, name, added, more = {}) => ({ id, code: 'INV-' + id, type: 'pc', name, status: 'active', loc: '', ovr: {}, feed: null, added, ...more });
 saveState(db, { ...s0, objs: [
-  dev('3', 'PC-10', '2026-03-01T08:00:00.000Z', { purpose: 'Front desk', warranty: '2027-01-01' }),
+  dev('3', 'PC-10', '2026-03-01T08:00:00.000Z', { purpose: 'Front desk', warranty: '2027-01-01', user: 'Alex Example', loc: 'HQ / Office' }),
   dev('1', 'PC-2', '2026-05-01T08:00:00.000Z', { warranty: '2026-12-01' }),
   dev('2', 'PC-1', '2026-01-01T08:00:00.000Z'),
-], rels: [], history: {} });
+  { id: 'm', code: 'INV-m', type: 'monitor', name: 'MON-1', status: 'active', loc: '', ovr: {}, feed: null, added: '2026-02-01T08:00:00.000Z' },
+], rels: [{ id: 'r1', from: 'm', to: '3', kind: 'attached' }], history: {} });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -31,30 +32,36 @@ try {
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await p.waitForSelector('#cards .card');
-  const order = () => p.evaluate(() => [...document.querySelectorAll('#cards .card')].map(c => c.querySelector('.nm').textContent.trim()));
+  const order = () => p.evaluate(() => [...document.querySelectorAll('#cards .card')].map(c => c.querySelector('.nm').textContent.trim()).filter(n => n !== 'MON-1'));
+
+  // a monitor: three lines, no warranty, and the user and location of the PC it is attached to
+  const mon = await p.textContent('#cards .card[data-open="m"]');
+  assert.match(mon, /User\s*Alex Example\s*via PC-10/); assert.match(mon, /Location\s*HQ · Office\s*via PC-10/);
+  assert.doesNotMatch(mon, /Warranty|Description/);
+  assert.doesNotMatch(await p.textContent('#cards .card[data-open="1"]'), /Warranty/, 'no warranty line on a PC');
 
   // by name: numbers in names in their order, then turned round
   await p.selectOption('#cardSort', 'name');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-1');
+  await until(p, () => document.querySelector('#cards .card:not([data-open="m"]) .nm').textContent.trim() === 'PC-1');
   assert.deepEqual(await order(), ['PC-1', 'PC-2', 'PC-10']);
   assert.match(await p.textContent('#cardDir'), /A to Z/);
   await p.click('#cardDir');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-10');
+  await until(p, () => document.querySelector('#cards .card:not([data-open="m"]) .nm').textContent.trim() === 'PC-10');
   assert.deepEqual(await order(), ['PC-10', 'PC-2', 'PC-1']);
   assert.match(await p.textContent('#cardDir'), /Z to A/);
 
   // date added starts with the newest
   await p.selectOption('#cardSort', 'added');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-2');
+  await until(p, () => document.querySelector('#cards .card:not([data-open="m"]) .nm').textContent.trim() === 'PC-2');
   assert.deepEqual(await order(), ['PC-2', 'PC-10', 'PC-1']);
   assert.match(await p.textContent('#cardDir'), /Newest first/);
 
   // warranty end: the one without goes last, both ways
   await p.selectOption('#cardSort', 'warranty');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-2');
+  await until(p, () => document.querySelector('#cards .card:not([data-open="m"]) .nm').textContent.trim() === 'PC-2');
   assert.deepEqual(await order(), ['PC-2', 'PC-10', 'PC-1']);
   await p.click('#cardDir');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-10');
+  await until(p, () => document.querySelector('#cards .card:not([data-open="m"]) .nm').textContent.trim() === 'PC-10');
   assert.deepEqual(await order(), ['PC-10', 'PC-2', 'PC-1']);
 
   // kept in this browser

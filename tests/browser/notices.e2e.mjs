@@ -100,11 +100,9 @@ try {
   await v.click('#bellBtn');
   assert.deepEqual(await items(v), ['reported-o9']);
 
-  /* A phone: the bell is in More, which shows a dot. */
+  /* A phone: the bell stays in the bar. */
   const ph = await open('admin', 'adminpass123', { width: 390, height: 800 });
-  await until(ph, () => document.querySelector('#barMoreBtn').classList.contains('has-n'));
-  assert.ok(await ph.evaluate(() => document.querySelector('#barMoreBtn').classList.contains('bad')));
-  await ph.click('#barMoreBtn');
+  await until(ph, () => !document.querySelector('#bellN').hidden);
   await ph.click('#bellBtn');
   await ph.waitForSelector('#bellPop:popover-open');
   assert.ok((await items(ph)).length >= 3);
