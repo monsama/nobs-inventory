@@ -93,10 +93,13 @@ export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 
 let lastPick = null;
 /* The tick in the list's heading: picks every device shown, or, while some are picked, takes the pick back. */
 document.addEventListener('click', e => {
-  const all = evEl(e).closest && evEl(e).closest('#view [data-pickall]'); if (!all) return;
+  const all = evEl(e).closest && evEl(e).closest('#view [data-pickall], #toolbar [data-pickall]'); if (!all) return;
   e.preventDefault(); e.stopImmediatePropagation();
+  const inBar = !!all.closest('#toolbar');
   st.bulk = st.bulk && st.bulk.size ? new Set() : new Set(filtered().map(o => o.id));
   keepScroll(renderCards);
+  /* The list is drawn again: the focus goes back to the tick that was pressed. */
+  const again = $(inBar ? '#toolbar [data-pickall]' : '#view [data-pickall]'); if (again) again.focus();
 }, true);
 document.addEventListener('click', e => {
   const card = evEl(e).closest && evEl(e).closest('#view .card[data-open]'); if (!card || evEl(e).closest('[data-rvc]')) return;
@@ -110,7 +113,10 @@ document.addEventListener('click', e => {
     if (a >= 0 && b >= 0) ids.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => set.add(x)); else set.add(id);
   } else if (set.has(id)) set.delete(id); else set.add(id);
   lastPick = id;
+  const onTick = !!tick;
   keepScroll(renderCards);
+  /* Back to the row's tick (or its name) after the list is drawn again, so the keyboard keeps its place. */
+  const row = $(`#view .card[data-open="${CSS.escape(id)}"]`), f = row && row.querySelector(onTick ? '.cardtick' : '.card-open'); if (f) f.focus();
 }, true);
 /* Ctrl (⌘) + A in Cards or the Table picks every device shown (in the Table, the rows its column filters leave); Escape
    takes the pick back. Not while typing or in a dialog, where they keep their usual meaning. */

@@ -2,7 +2,7 @@
    says how it is reached, how many computers use it (opening them in the Table), the printer device it stands for or
    Add as device, the print server a shared one goes through, and computers whose port points to an address the printer
    no longer has. Printers of the inventory no computer uses are listed too. */
-import { $, objs, rels, st, tico, toastUndo } from './01-core.js';
+import { $, objs, rels, st, tico, toastUndo, noMatchHtml } from './01-core.js';
 import { deleteObject } from './03-object-modals.js';
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
@@ -21,9 +21,9 @@ export function renderPrinters(){
   const all = printerRows(objs, rels), q = (st.q || '').trim().toLowerCase(), edit = isAdmin();
   const show = SHOW.some(([k]) => k === st.prnShow) ? st.prnShow || '' : '';
   const n = { missing: all.filter(r => !r.d).length, stale: all.filter(r => r.stale.length).length, unused: all.filter(r => !r.users.length).length };
-  $('#toolbar').innerHTML = html`<label class="muted" for="prnShow">Show</label><select id="prnShow" aria-label="Which printers">
+  $('#toolbar').innerHTML = html`<span class="muted" id="prnCount"></span><span class="tbsep"></span><label class="muted" for="prnShow">Show</label><select id="prnShow" aria-label="Which printers">
     ${SHOW.map(([k, l]) => html`<option value="${k}" ${show === k ? 'selected' : ''}>${l}${k ? ` (${n[k]})` : ''}</option>`)}</select>
-    <span class="muted" id="prnCount"></span><div class="grow"></div>`;
+    <div class="grow"></div>`;
   let rows = all;
   if (show === 'missing') rows = rows.filter(r => !r.d);
   else if (show === 'stale') rows = rows.filter(r => r.stale.length);
@@ -41,7 +41,7 @@ export function renderPrinters(){
       <td data-label="Used by">${r.users.length ? html`<button type="button" class="link" data-prnusers="${i}">${r.users.length} ${r.users.length === 1 ? 'computer' : 'computers'}</button>` : html`<span class="muted">None</span>`}</td>
       <td data-label="Inventory">${r.d ? html`<span class="chip ok">In the inventory</span>` : edit ? html`<button type="button" class="link" data-prnadd="${i}">Add as device</button>` : html`<span class="muted">Not in the inventory</span>`}</td>
       <td data-label="${r.stale.length ? 'Notes' : ''}">${r.stale.length ? html`<span class="ip-note warn" title="${r.stale.map(s => `${s.pc.name}: ${s.port}`).join(', ')}">${r.stale.length === 1 ? `${r.stale[0].pc.name} prints to ${r.stale[0].port}` : `${r.stale.length} computers print to an old address`}; the printer is at ${r.stale[0].now}</span>` : ''}</td></tr>`)
-    : html`<tr><td colspan="6" class="muted" style="padding:14px">${anyData ? 'No printer matches.' : 'No printers yet: Lansweeper sends the printers set up on each Windows computer with its push.'}</td></tr>`;
+    : html`<tr><td colspan="6" class="muted" style="padding:14px">${anyData ? rawHtml(noMatchHtml()) : 'No printers yet: Lansweeper sends the printers set up on each Windows computer with its push.'}</td></tr>`;
   $('#view').innerHTML = html`<div class="ip-page"><div class="gridwrap" style="height:auto"><table class="grid prns stack" data-tb="own">
     <thead><tr><th>Printer</th><th>Connection</th><th>Address or share</th><th>Used by</th><th>Inventory</th><th>Notes</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
 

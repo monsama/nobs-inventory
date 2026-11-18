@@ -1,7 +1,7 @@
 /* Contacts: the company's own IT people and the people at its IT partners who look after the devices. The Contacts tab
    lists them, the company's own first, then each partner company; a device names one internal and one external
    responsible, on its page or for many devices at once in the table. */
-import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast , byId } from './01-core.js';
+import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast , byId, menuHtml, noMatchHtml } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, modal } from './19-modal.js';
@@ -10,6 +10,7 @@ import { queueServerSave, render, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { applyImport, contactsCsv, decodeText, IMPORT_FIELDS, planImport, readContactFile } from './contacts-import.js';
 import { html, rawHtml } from './html.js';
+import { EXPORT_ICON } from './print-view.js';
 
 const newId = () => 'k' + Math.random().toString(36).slice(2, 10);
 export const RESP_KEYS = { internal: 'respIn', external: 'respEx' };
@@ -68,14 +69,15 @@ export function renderContacts(){
   const all = CONTACTS.list;
   const hit = c => (!kind || c.kind === kind) && (!q || [c.name, c.company, c.area, c.role, c.email, c.phone, c.mobile, c.note].some(v => String(v || '').toLowerCase().includes(q)));
   const shown = all.filter(hit);
-  $('#toolbar').innerHTML = html`<select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
-    <span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span><div class="grow"></div>
-    ${all.length ? html`<button id="cnExport" title="All contacts as a CSV file for Excel">Export CSV</button>` : ''}
+  $('#toolbar').innerHTML = html`<span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span><span class="tbsep"></span><select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
+    <div class="grow"></div>
+    ${all.length ? rawHtml(menuHtml(EXPORT_ICON + 'Export', String(html`<button type="button" id="cnExport">CSV<span class="muted">, all contacts, for Excel or to import again</span></button>`), { id: 'cnExportMenu' })) : ''}
     ${isAdmin() ? html`${dirPeople().length ? html`<button id="cnDir" title="People from Active Directory or Entra, as internal contacts linked to them">From directory…</button>` : ''}<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>` : ''}`;
   const nb = $('#cnNew'); if (nb) nb.onclick = () => contactModal(null);
   const ib = $('#cnImport'); if (ib) ib.onclick = () => importModal();
   const db = $('#cnDir'); if (db) db.onclick = () => directoryModal();
   const eb = $('#cnExport'); if (eb) eb.onclick = () => {
+    const box = /** @type {HTMLElement|null} */ ($('#cnExportMenu .menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([contactsCsv(CONTACTS.list)], { type: 'text/csv;charset=utf-8' })), download: 'contacts.csv' });
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
@@ -93,7 +95,7 @@ export function renderContacts(){
   const group = (title, sub, list) => html`<section class="cn-group"><div class="hdr">${title} <span class="cnt">${list.length}</span>${sub ? html`<span class="cn-sub">${sub}</span>` : ''}</div><div class="cn-grid">${list.sort(byName).map(contactCard)}</div></section>`;
   $('#view').innerHTML = html`<div class="cn">${own.length ? group(COMPANY.name ? `Internal · ${COMPANY.name}` : 'Internal', '', own) : ''}
     ${companies.map(k => group(k || 'External, no company', 'IT partner', byCompany.get(k)))}
-    ${shown.length ? '' : html`<div class="empty">Nothing matches “${st.q || ''}”.</div>`}</div>`;
+    ${shown.length ? '' : html`<div class="empty">${rawHtml(noMatchHtml())}</div>`}</div>`;
   const v = $('#view');
   v.querySelectorAll('[data-cnedit]').forEach(b => b.onclick = () => contactModal(contactOf(b.dataset.cnedit)));
   v.querySelectorAll('[data-cndel]').forEach(b => b.onclick = () => { const c = contactOf(b.dataset.cndel); if (c) deleteContact(c); });

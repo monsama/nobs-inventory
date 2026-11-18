@@ -1,5 +1,6 @@
 /* The relations map: layout, drawing, zoom and the toolbar (split out of 02-views.js, which re-exports it). */
-import { isAttached, $, menuHtml, STATUS, TYPES, byId, filtered, objs, portLabel, rels, st, tcol, tico, toast, used } from './01-core.js';
+import { isAttached, $, menuHtml, STATUS, TYPES, byId, filtered, objs, portLabel, rels, st, tcol, tico, toast, used, noMatchHtml } from './01-core.js';
+import { EXPORT_ICON } from './print-view.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { bindHiddenHits, hiddenHits, openObj } from './02-views.js';
@@ -244,7 +245,7 @@ export function renderMap(){
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
     <div class="grow"></div><span class="tbgroup"><span class="pl-zoom"><button id="mapZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="mapZoomReset" title="Actual size" class="pl-zv">${Math.round(MAP.zoom * 100)}%</button><button id="mapZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span><button id="mapFitBtn" title="Zoom so the whole map fits">Fit</button>
-    ${rawHtml(menuHtml('More', '<button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button>'))}</span>`;
+    <button id="mapReset" title="Lay the map out again from scratch">Reset layout</button>${rawHtml(menuHtml(EXPORT_ICON + 'Export', '<button id="mapExport">SVG picture<span class="muted">, the map as drawn</span></button>', { id: 'mapExportMenu' }))}</span>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
   MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);
@@ -254,10 +255,9 @@ export function renderMap(){
     $('#mapCount').textContent = '0 devices';
     $('#view').innerHTML = narrowed
       ? (!found.length && hiddenHits()) || (found.length
-        ? html`<div class="empty">None of the ${found.length} devices in the current filter ${found.length === 1 ? 'has' : 'have'} relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
-        : html`<div class="empty">No device matches the current filter. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`)
+        ? html`<div class="empty">None of the ${found.length} devices in the current filter ${found.length === 1 ? 'has' : 'have'} relations. <button type="button" class="link" data-clearall>Clear filters</button> to see the whole map.</div>`
+        : html`<div class="empty">${rawHtml(noMatchHtml())}</div>`)
       : '<div class="empty">Nothing to draw yet: link two devices on a device\'s page.</div>';
-    const clr = $('#mapClr'); if (clr) clr.onclick = () => $('#clearF').click();
     bindHiddenHits();
     bindMapToolbar();
     return;
@@ -302,8 +302,8 @@ export function renderMap(){
   svg.classList.toggle('labels', st.mapLabels);
   $('#mapFitBtn').onclick = mapFit;
   $('#mapReset').onclick = () => { st.mapPos = {}; render(); mapFit(); };
-  $('#mapExport').onclick = e => {
-    e.target.closest('details').open = false;
+  $('#mapExport').onclick = () => {
+    const box = /** @type {HTMLElement|null} */ ($('#mapExportMenu .menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }
     const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + mapExportSvg()], {type: 'image/svg+xml'});
     const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'relations.svg'});
     document.body.appendChild(a); a.click(); a.remove(); toast('Exported relations.svg');

@@ -5,15 +5,25 @@ import { cardHtml, listHead, sortCards } from './views-cards.js';
 import { tablePrintData } from './views-table.js';
 import { html, rawHtml } from './html.js';
 
-/* The Print menu of the Cards and Table toolbars. */
-export const printMenuHtml = () => menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"/></svg>Print', String(html`
-  <button type="button" data-print="cards">As a list<span class="muted">, the devices shown</span></button>
-  <button type="button" data-print="table">As a table<span class="muted">, the columns of the Table</span></button>`), { id: 'printMenu' });
+/* The download arrow every Export menu has. */
+export const EXPORT_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>';
+/* The two ways to print the devices shown, as buttons of an Export menu. */
+export const printItems = () => String(html`<button type="button" data-print="cards">Print as a list<span class="muted">, the devices shown</span></button>
+  <button type="button" data-print="table">Print as a table<span class="muted">, the columns of the Table</span></button>`);
+/* The Export menu of the List: printing, and the files, which the Table makes from its columns. */
+export const printMenuHtml = () => menuHtml(EXPORT_ICON + 'Export', String(html`<button type="button" data-goexport>Excel or CSV<span class="muted">, from the Table's columns</span></button><hr class="msep">${rawHtml(printItems())}`), { id: 'printMenu' });
 export function bindPrintMenu(){
-  document.querySelectorAll('#printMenu [data-print]').forEach(b => b.addEventListener('click', () => {
-    const box = /** @type {HTMLElement|null} */ ($('#printMenu .menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }
+  document.querySelectorAll('#printMenu [data-print], #csvMenu [data-print]').forEach(b => b.addEventListener('click', () => {
+    const box = /** @type {HTMLElement|null} */ (b.closest('.menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }
     printView(/** @type {HTMLElement} */ (b).dataset.print);
   }));
+  /* Excel or CSV from the List: the Table has the columns, so it opens there with its Export menu open. */
+  const go = document.querySelector('#printMenu [data-goexport]');
+  if (go) go.addEventListener('click', async () => {
+    const box = /** @type {HTMLElement|null} */ (go.closest('.menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }
+    st.tab = 'table'; (await import('./07-render.js')).render();
+    const m = /** @type {HTMLElement|null} */ ($('#csvMenu .menubox')); if (m) try { m.showPopover(); /** @type {HTMLElement|null} */ (m.querySelector('button'))?.focus(); } catch { /* none */ }
+  });
 }
 
 /* What narrows the list, as the bar above it says it ("Type: PC · Entra / Intune: Not in Intune"). */

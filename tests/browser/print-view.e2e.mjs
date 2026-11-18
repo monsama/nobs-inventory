@@ -28,9 +28,10 @@ try {
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.type = 'pc'; c.st.tab = 'cards'; (await import('/js/07-render.js')).render(); });
   await p.waitForSelector('#printMenu');
   const pcs = await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.name));
-  const open = async kind => {
-    await p.click('#printMenu .menu-btn');
-    const [w] = await Promise.all([ctx.waitForEvent('page'), p.click(`#printMenu [data-print="${kind}"]`)]);
+  /* Printing is in the Export menu: the List's (#printMenu), or the Table's with its files (#csvMenu). */
+  const open = async (kind, menu = '#printMenu') => {
+    await p.click(`${menu} .menu-btn`);
+    const [w] = await Promise.all([ctx.waitForEvent('page'), p.click(`${menu} [data-print="${kind}"]`)]);
     await w.waitForLoadState(); await until(w, () => window.__printed === true);
     return w;
   };
@@ -44,7 +45,7 @@ try {
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'table'; (await import('/js/07-render.js')).render(); });
   await p.waitForSelector('table.grid');
   const heads = await p.$$eval('#view table.grid thead th[data-ck]', ths => ths.map(t => t.textContent.trim()));
-  const table = await open('table');
+  const table = await open('table', '#csvMenu');
   assert.deepEqual(await table.$$eval('.pv-table thead th', ths => ths.map(t => t.textContent.trim())), heads);
   assert.equal(await table.locator('.pv-table tbody tr').count(), pcs.length);
   if (process.env.NI_SHOTS) await table.screenshot({ path: path.join(process.env.NI_SHOTS, 'print-table.png'), fullPage: true });

@@ -1,6 +1,6 @@
 /* The device page's sources: what Lansweeper, Microsoft Entra and Intune (with Defender) and Active Directory say of a
    device, one tab each in the Sources panel. */
-import { GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
+import { GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 import { html, rawHtml } from './html.js';
@@ -15,10 +15,10 @@ function lsDates(o){
   const first = (HISTORY[o.id] || []).at(-1), added = f.created || (first && /^(Created|Added)\b/.test(first.msg) ? first.t : '');
   const never = neverScanned(o);
   return [
-    row('Last scanned', f.scanned ? html`${dayText(f.scanned)}${scanOld(o) ? html`<p class="fieldnote warn">Lansweeper has not scanned it for over three months: it may be gone, or Lansweeper cannot log on to it. Check it by hand, then retire it or fix the scan in Lansweeper.</p>` : ''}`
+    row('Last scanned', f.scanned ? html`${rawHtml(agoHtml(f.scanned))}${scanOld(o) ? html`<p class="fieldnote warn">Lansweeper has not scanned it for over three months: it may be gone, or Lansweeper cannot log on to it. Check it by hand, then retire it or fix the scan in Lansweeper.</p>` : ''}`
       : f.tried ? html`<span class="muted">never</span>${never ? html`<p class="fieldnote warn">Lansweeper tries to scan it but never has: its details are only what Active Directory knows. Check it by hand, or why Lansweeper cannot reach or log on to it (its Scan issues tab).</p>` : ''}` : html`<span class="muted">not sent by this push script</span>`,
       'When a Lansweeper scan of this device last worked'),
-    f.tried && f.tried !== f.scanned ? row('Last scan attempt', dayText(f.tried), 'When Lansweeper last tried to scan it, whether or not that worked') : '',
+    f.tried && f.tried !== f.scanned ? row('Last scan attempt', rawHtml(agoHtml(f.tried)), 'When Lansweeper last tried to scan it, whether or not that worked') : '',
     f.firstSeen ? row('In Lansweeper since', dayText(f.firstSeen), 'When Lansweeper first found it') : '',
     row('Received', f.seen || 'not yet', 'When this app last received it from Lansweeper (the push script or an import). It says nothing about a scan.'),
     added ? row('Added here', added, 'When this device was added to NOBS Inventory') : '',
@@ -159,11 +159,11 @@ const patchText = d => { const old = Math.floor((Date.now() - Date.parse(d)) / 8
 export const AD_STALE_DAYS = 90;
 function adAccountHtml(ad){
   const days = ad.logon ? Math.floor((Date.now() - Date.parse(ad.logon)) / 864e5) : null;
-  const logon = ad.logon ? html`Last logon ${dayText(ad.logon)}${days > AD_STALE_DAYS ? html` <span class="chip warn" title="AD updates the last logon only every one to two weeks">over ${AD_STALE_DAYS} days ago</span>` : ''}` : 'Never logged on';
+  const logon = ad.logon ? html`Last logon ${rawHtml(agoHtml(ad.logon))}${days > AD_STALE_DAYS ? html` <span class="chip warn" title="AD updates the last logon only every one to two weeks">over ${AD_STALE_DAYS} days ago</span>` : ''}` : 'Never logged on';
   /* One line, the stale mark beside the day as on Entra's Last sign-in: a bare chip in the column would stretch to its width. */
   /* A computer in use changes its account password every 30 days by itself: one not changed for long is likely gone. */
   const pw = ad.pwdSet ? Math.floor((Date.now() - Date.parse(ad.pwdSet)) / 864e5) : null;
-  const pwd = ad.pwdSet ? html` <span class="muted" title="pwdLastSet: a computer in use changes it every 30 days">· password changed ${dayText(ad.pwdSet)}</span>${pw > AD_STALE_DAYS ? html` <span class="chip warn" title="A computer in use changes its account password every 30 days: this one may be gone">over ${AD_STALE_DAYS} days ago</span>` : ''}` : '';
+  const pwd = ad.pwdSet ? html` <span class="muted" title="pwdLastSet: a computer in use changes it every 30 days">· password changed ${rawHtml(agoHtml(ad.pwdSet))}</span>${pw > AD_STALE_DAYS ? html` <span class="chip warn" title="A computer in use changes its account password every 30 days: this one may be gone">over ${AD_STALE_DAYS} days ago</span>` : ''}` : '';
   return html`<span class="ad-line">${logon}${ad.created ? html` <span class="muted">· created ${dayText(ad.created)}</span>` : ''}${pwd}</span>`;
 }
 /* Who manages the account, where AD says it is and what it runs (from its service principal names): a list of parts. */

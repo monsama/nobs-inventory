@@ -2345,7 +2345,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .card.lrow.stale .nm{color:var(--muted)}
 .tp-card #cards.lst{margin:0}
 .tp-card .card.lrow{pointer-events:none}
-@media (max-width:760px){
+@media screen and (max-width:760px){
   #cards.lst{margin:8px}
   .lst .lhead{display:none}
   .lst .lrow,#cards.lst.pend .lrow{grid-template-columns:16px 18px minmax(0,1fr) auto;grid-template-areas:"t i n s" ". . u u" ". . l l" ". . c c";row-gap:1px;padding:7px 12px}
@@ -2362,7 +2362,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .lst button.cardtick{position:relative;top:auto;right:auto;width:16px;height:16px;padding:0;margin:0;min-height:0}
 .lst button.cardtick::before{content:none}
 .lst button.card-open{min-height:0;margin:0}
-@media (max-width:760px){
+@media screen and (max-width:760px){
   .lst .lrow .c-name{display:flex}
   .lst button.cardtick{width:16px;height:16px;border:1.5px solid var(--bd);background:var(--bg)}
   .lst .lrow.picked button.cardtick{background:var(--accent);border-color:var(--accent)}
@@ -2375,7 +2375,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .lrow .c-dir .jbar{padding:0;border:0;gap:3px;flex-wrap:nowrap;background:none}
 .lrow .c-dir .jb{font-size:10.5px;padding:1px 5px;min-height:0}
 .lrow .c-dir .jb small{display:none}
-@media (max-width:760px){
+@media screen and (max-width:760px){
   .lst .lrow,#cards.lst.pend .lrow,#cards.lst.join .lrow{grid-template-columns:24px 18px minmax(0,1fr) auto}
   .lst button.cardtick{width:36px;height:36px;margin:-10px;border:0;background:transparent;opacity:1}
   .lst button.cardtick::before{content:"";position:absolute;left:10px;top:10px;width:16px;height:16px;box-sizing:border-box;border:1.5px solid var(--bd);border-radius:4px;background:var(--bg)}
@@ -2385,7 +2385,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
   .lrow .c-dir{display:none}
   .lst .lhead .cardtick{display:none}
 }
-@media (max-width:760px){ .lst button.card-open{min-height:36px;margin:-9px 0;display:flex;align-items:center;justify-content:flex-start;text-align:left} }
+@media screen and (max-width:760px){ .lst button.card-open{min-height:36px;margin:-9px 0;display:flex;align-items:center;justify-content:flex-start;text-align:left} }
 /* A narrow list leaves out what matters least, heading and cells together: first IP and Found by, then Detail and the
    Directory column. The list is its own container, so this follows its width, not the window's. */
 #cards.lst{container:devlist/inline-size}
@@ -2415,3 +2415,15 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .lst-compact .c-user:empty,.lst-compact .c-loc:empty,.lst-compact .c-chips:empty{display:none}
 .tf-sub>.note{margin:0;padding:0 12px 12px}
 .cardlines:has(>[data-cl]:only-of-type),.cardlines:has(label:only-of-type){grid-template-columns:minmax(0,260px) auto;justify-content:start}
+.ph-only{display:none}
+@media screen and (max-width:760px){ #toolbar .ph-only{display:inline-flex} }
+.acc-none{display:none;margin:0;padding:2px 0}
+.readonly .acc-none{display:block}
+/* The other lists (IP addresses, Printers, Software, Contracts) look like the device List: a quiet heading row, rows
+   36 px high with a line between them and no column lines, the same hover, on the same background. */
+#view:has(table.grid:is(.ips,.prns,.sw,.contracts)){background:var(--canvas)}
+table.grid:is(.ips,.prns,.sw,.contracts){background:var(--card)}
+table.grid:is(.ips,.prns,.sw,.contracts) th{height:32px;font-size:12px;font-weight:600;color:var(--muted);background:var(--card);border-right:0;border-bottom:1px solid var(--bd);text-transform:none;letter-spacing:0}
+table.grid:is(.ips,.prns,.sw,.contracts) td{height:36px;border-right:0;border-bottom:1px solid var(--bd);vertical-align:middle}
+table.grid:is(.ips,.prns,.sw,.contracts) tbody tr:last-child td{border-bottom:0}
+table.grid:is(.ips,.prns,.sw,.contracts) tbody tr:hover td{background:var(--card-hover)}
