@@ -3,6 +3,7 @@ import { subnetSpan, ipInt, subnetProblem, overlapProblem } from './net.js';
 import { queueServerSave, render } from './07-render.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { html, rawHtml } from './html.js';
+import { fieldOrder, fieldMode } from './sync-map.js';
 import { REVIEW, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
@@ -297,26 +298,42 @@ function adLocsHtml(){
   const list = locTexts();
   const office = html`<label class="pchk adloc-office" title="A user's office comes from AD or Entra; on a laptop or for remote work it may not be where the device is"><input type="checkbox" id="locOffice" ${st.locFromOffice ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Use the office of the device's user, for devices without a location</label>`;
   if (!list.length) return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources</div><p class="note lnote">No source has sent a location text yet. Active Directory's location, Lansweeper's building and location, and the office of a device's user show here, to use as rooms.</p><div class="lnote">${office}</div></section>`;
+  /* Which sources fill a device's location, in order, and how: changed in Settings → Data sources. */
+  const SHORT_SRC = { ls: 'Lansweeper', ad: 'AD', graph: 'Entra' }, order = fieldOrder(st, 'loc');
+  const orderLine = html`<div class="lnote adloc-order"><span>Fills the location: ${order.length ? html`<b>${order.map(x => SHORT_SRC[x] + (fieldMode(st, 'loc', x) === 'fill' ? ' (only if empty)' : '')).join(' → ')}</b>` : html`<b>no source</b>`}${order.length < 2 ? '' : html`<span class="muted">, the first that has a room for the device</span>`}</span>${isAdmin() ? html`<button type="button" class="link" data-locorder>Change order or leave a source out</button>` : ''}</div>`;
+  /* AD's location is often kept by hand: its texts can become rooms of a site by themselves. Off by default. */
+  const auto = html`<label class="adloc-auto">Rooms from AD's location<select id="adLocAuto" ${isAdmin() ? '' : 'disabled'} aria-label="Rooms from AD's location"><option value="">Off: I pick them here</option>${SITES.map(x => html`<option value="${x}" ${st.adLocAuto === x ? 'selected' : ''}>Made at each AD sync, in ${x}</option>`)}</select></label>`;
+  const free = list.map((e, i) => [e, i]).filter(([e]) => !LOCS.some(l => lc(l) === lc(e.text)) && !locTarget(e.text));
+  const picked = list.map((e, i) => i).filter(i => adPicked.has(lc(list[i].text)));
+  const bulk = !isAdmin() || !free.length ? '' : html`<div class="adloc-bulk"><label class="pchk"><input type="checkbox" id="adPickAll" ${picked.length && picked.length === free.length ? 'checked' : ''}> All ${free.length} not used yet</label><span class="grow"></span>${picked.length ? html`<span class="muted">${picked.length} ticked: as rooms in</span><select id="adBulkSite" aria-label="Site for the new rooms">${SITES.map(x => html`<option>${x}</option>`)}</select><button type="button" class="primary" id="adBulkGo" ${SITES.length ? '' : 'disabled'}>Create ${picked.length} ${picked.length === 1 ? 'room' : 'rooms'}</button>` : html`<span class="muted">Tick texts to make them rooms at once</span>`}</div>`;
   const row = (e, i) => {
     const direct = LOCS.find(l => lc(l) === lc(e.text)), to = locTarget(e.text);
+    const tick = isAdmin() ? (!direct && !to ? html`<input type="checkbox" data-adpick="${i}" ${adPicked.has(lc(e.text)) ? 'checked' : ''} aria-label="Tick ${e.text}">` : html`<span></span>`) : '';
     const ctl = direct ? html`<span class="muted">Is a room here</span>`
       : to ? html`<span class="adloc-to">→ <b>${to}</b></span>${isAdmin() && html`<button type="button" class="link" data-adunmap="${i}">Remove</button>`}`
       : isAdmin() ? html`<select data-admap="${i}" aria-label="Use ${e.text} as"><option value="">Use as…</option>${LOCS.length > 0 && html`<optgroup label="An existing room">${LOCS.map(l => html`<option value="loc:${l}">${l}</option>`)}</optgroup>`}${SITES.length > 0 && html`<optgroup label="A new room, in the site">${SITES.map(x => html`<option value="site:${x}">${x} / ${e.text.includes(' / ') ? e.text.split(' / ').slice(1).join(' - ') : e.text}</option>`)}</optgroup>`}</select>` : html`<span class="muted">Not used</span>`;
     const tags = [...e.src].map(x => html`<span class="chip adloc-src">${SRC_TAG[x]}</span>`);
-    return html`<div class="lrow adloc"><span class="adloc-text" title="${e.text}">${e.text}</span><span class="adloc-tags">${tags}</span><span class="n" title="Devices with this location text">${e.n}</span><span class="adloc-ctl">${ctl}</span></div>`;
+    return html`<div class="lrow adloc${isAdmin() ? ' pick' : ''}">${tick}<span class="adloc-text" title="${e.text}">${e.text}</span><span class="adloc-tags">${tags}</span><span class="n" title="Devices with this location text">${e.n}</span><span class="adloc-ctl">${ctl}</span></div>`;
   };
   return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources <span class="cnt">${list.length}</span></div>
     <p class="note lnote">What the sources call a device's location. Use a text as a room here, existing or new, and the syncs fill it in on devices without a location. A text alone never becomes a location.</p>
-    <div class="lnote">${office}</div>
-    <div class="lrows"><div class="lrow adloc head"><span>Location text</span><span>Source</span><span class="n">Devices</span><span></span></div>${list.map((e, i) => row(e, i))}</div></section>`;
+    ${orderLine}
+    <div class="lnote adloc-opts">${office}${auto}</div>
+    ${bulk}
+    <div class="lrows"><div class="lrow adloc head${isAdmin() ? ' pick' : ''}">${isAdmin() ? html`<span></span>` : ''}<span>Location text</span><span>Source</span><span class="n">Devices</span><span></span></div>${list.map((e, i) => row(e, i))}</div></section>`;
 }
 /* Devices without a location whose sources name text get its room now (as the next sync would), with one Undo. */
-function useAdLoc(text, room, msg){
+function useAdLoc(text, room, msg){ useAdLocs([[text, room]], msg); }
+function useAdLocs(pairs, msg){
   const mapBefore = { ...(st.locMap || {}) }, adBefore = st.adLocMap, locsBefore = [...LOCS];
-  const devs = objs.filter(o => !o.loc).map(o => [o, textsOf(o).find(([src, t]) => lc(t) === lc(text) && (src !== 'office' || st.locFromOffice))]).filter(([o, m]) => m && (!o.pick || !o.pick.loc || o.pick.loc === (m[0] === 'ls' ? 'ls' : 'ad')));
-  if (!LOCS.includes(room)) LOCS.push(room);
-  if (!LOCS.some(l => lc(l) === lc(text))) st.locMap = { ...(st.locMap || {}), [text]: room };
-  for (const [o, [src]] of devs){ o.loc = room; (o.src ??= {}).loc = src === 'ls' ? 'ls' : 'ad'; hist(o, now(), `Location set to ${room} from ${SRC_TAG[src]} (${text}) by ${who()}`); }
+  const devs = [];
+  for (const [text, room] of pairs){
+    const these = objs.filter(o => !o.loc).map(o => [o, textsOf(o).find(([src, t]) => lc(t) === lc(text) && (src !== 'office' || st.locFromOffice))]).filter(([o, m]) => m && (!o.pick || !o.pick.loc || o.pick.loc === (m[0] === 'ls' ? 'ls' : 'ad')));
+    if (!LOCS.includes(room)) LOCS.push(room);
+    if (!LOCS.some(l => lc(l) === lc(text))) st.locMap = { ...(st.locMap || {}), [text]: room };
+    for (const [o, [src]] of these){ o.loc = room; (o.src ??= {}).loc = src === 'ls' ? 'ls' : 'ad'; hist(o, now(), `Location set to ${room} from ${SRC_TAG[src]} (${text}) by ${who()}`); devs.push([o]); }
+  }
+  adPicked.clear();
   queueServerSave(); renderSetLocs(); render();
   toastUndo(`${msg}${devs.length ? `; ${devs.length} ${devs.length === 1 ? 'device' : 'devices'} placed there` : ''}`, () => {
     st.locMap = mapBefore; st.adLocMap = adBefore; LOCS.splice(0, LOCS.length, ...locsBefore);
@@ -326,14 +343,25 @@ function useAdLoc(text, room, msg){
 }
 /* Wires the location texts panel: the user's office option, using a text as a room (useAdLoc), and removing that
    use with Undo; devices keep the location they got. */
+/* The texts ticked to make rooms of at once, by their lower-case text (kept while the panel is drawn again). */
+const adPicked = new Set();
+const roomName = (site, t) => cleanLoc(site + ' / ' + (t.includes(' / ') ? t.split(' / ').slice(1).join(' - ') : t).replace(/\//g, '-'));
 function bindAdLocs(root){
   const list = locTexts();
+  root.querySelectorAll('[data-adpick]').forEach(cb => cb.onchange = () => { const k = lc(list[+cb.dataset.adpick].text); if (cb.checked) adPicked.add(k); else adPicked.delete(k); renderSetLocs(); });
+  const all = $('#adPickAll'); if (all) all.onchange = () => { adPicked.clear(); if (all.checked) for (const e of list) if (!LOCS.some(l => lc(l) === lc(e.text)) && !locTarget(e.text)) adPicked.add(lc(e.text)); renderSetLocs(); };
+  const go = $('#adBulkGo'); if (go) go.onclick = () => {
+    const site = $('#adBulkSite').value, pairs = list.filter(e => adPicked.has(lc(e.text))).map(e => [e.text, roomName(site, e.text)]).filter(([, r]) => r);
+    if (pairs.length) useAdLocs(pairs, `${pairs.length} ${pairs.length === 1 ? 'room' : 'rooms'} added in ${site}`);
+  };
+  const auto = $('#adLocAuto'); if (auto) auto.onchange = () => { st.adLocAuto = auto.value; queueServerSave(); toast(auto.value ? `AD's location texts become rooms in ${auto.value} at each AD sync` : 'Rooms from AD\'s location: off'); };
+  const ord = root.querySelector('[data-locorder]'); if (ord) ord.onclick = async () => { (await import('./settings-find.js')).openSetting('sources'); requestAnimationFrame(() => { const b = /** @type {HTMLElement|null} */ (document.querySelector('[data-dsedit="loc"]')); if (b){ b.scrollIntoView({ block: 'center' }); b.click(); } }); };
   const oc = $('#locOffice'); if (oc) oc.onchange = () => { st.locFromOffice = oc.checked; queueServerSave(); toast(oc.checked ? 'Devices without a location take their user\'s office at the next sync' : 'The office of a user is no longer used'); };
   root.querySelectorAll('[data-admap]').forEach(sel => sel.onchange = () => {
     const t = list[+sel.dataset.admap].text, v = sel.value; if (!v) return;
     if (v.startsWith('loc:')) useAdLoc(t, v.slice(4), `${t} is used as ${v.slice(4)}`);
     else {
-      const room = cleanLoc(v.slice(5) + ' / ' + (t.includes(' / ') ? t.split(' / ').slice(1).join(' - ') : t).replace(/\//g, '-'));
+      const room = roomName(v.slice(5), t);
       if (!room){ toast('That makes no room name.'); return; }
       useAdLoc(t, room, `Room ${room} added for ${t}`);
     }

@@ -42,7 +42,7 @@ export function buildReport(s, opts, today = new Date()) {
   const typeLabel = t => (s.types && s.types[t] && s.types[t].label) || t || '';
   const person = d => (d.uid && users.get(d.uid) && users.get(d.uid).name) || d.user || (d.hotdesk ? 'Hot desk' : '');
   const dept = d => (d.uid && users.get(d.uid) && users.get(d.uid).dept) || '';
-  /* The inventory: not retired, and not waiting in To check or ignored there. A list of devices given (what the Table or a
+  /* The inventory: not retired, and not waiting in Pending devices or ignored there. A list of devices given (what the Table or a
      saved view lists) is taken as it is, retired ones too. */
   const only = o.ids && new Set(o.ids);
   const live = (s.objs || []).filter(d => !d.review && (only ? only.has(String(d.id)) : d.status !== 'retired'));

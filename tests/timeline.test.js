@@ -20,7 +20,7 @@ test('history lines: handed out, taken back, moved, status, retired, added', () 
   assert.equal(historyEvent({ msg: 'Retired by Admin: broken' }).tone, 'gone');
   assert.equal(historyEvent({ msg: 'Created manually by Admin' }).kind, 'added');
   assert.equal(historyEvent({ msg: 'Added from Microsoft Graph by the sync' }).text, 'Added from Microsoft Graph');
-  assert.equal(historyEvent({ msg: 'Found in Active Directory: waiting in To check' }).text, 'First found in Active Directory');
+  assert.equal(historyEvent({ msg: 'Found in Active Directory: pending' }).text, 'First found in Active Directory');
   assert.equal(historyEvent({ msg: 'Serial changed', ...fieldNote('serial', 'A', 'B') }), null);
   assert.equal(historyEvent({ msg: 'Relation "connected to sw1" added by Admin' }), null);
 });

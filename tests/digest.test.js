@@ -14,7 +14,7 @@ test('the e-mail lists what needs doing, and says so when nothing does', () => {
     contracts: [{ id: 'k', name: 'Firewall support', end: '2026-12-31', renew: 12, notice: 2 }] };
   const m = buildDigest(s, { link: 'https://inv.example/', backups: '2 hours ago', health: [{ area: 'Server', name: 'Free disk space', state: 'bad', value: '1 GB free' }] }, TODAY);
   assert.equal(m.count, 6, m.text);
-  for (const t of ['Warranty ended on 1 device', 'NB-OLD (INV-1)', 'NB-SOON', 'Firewall support', 'Dino Left: 1 device', '1 device waiting in To check', 'Free disk space', 'https://inv.example/']) assert.ok(m.text.includes(t), t);
+  for (const t of ['Warranty ended on 1 device', 'NB-OLD (INV-1)', 'NB-SOON', 'Firewall support', 'Dino Left: 1 device', '1 pending device', 'Free disk space', 'https://inv.example/']) assert.ok(m.text.includes(t), t);
   assert.ok(!m.text.includes('GONE'));
   assert.ok(!/<script/i.test(buildDigest({ objs: [{ id: 'x', name: '<script>', status: 'active', warranty: '2026-10-01' }] }, {}, TODAY).html));
   assert.match(buildDigest({ objs: [] }, {}, TODAY).subject, /nothing needs attention/);

@@ -92,7 +92,7 @@ export function buildDigest(s, { link = '', backups = null, copy = null, health 
   if (maint.length) sections.push([`Maintenance: ${mLate ? `${mLate} overdue${maint.length > mLate ? `, ${maint.length - mLate} due within 14 days` : ''}` : `${maint.length} due within 14 days`}`,
     list(maint, x => `${x.o.name}${x.o.code ? ` (${x.o.code})` : ''}: ${x.m.what}, ${x.days < 0 ? 'overdue since' : 'due'} ${dateText(x.m.due)}`)]);
   if (reported.length) sections.push([`${reported.length} problem${reported.length === 1 ? '' : 's'} reported by users, not done yet`, list(reported, o => `${o.name}: ${o.reported.text} (${o.reported.by}, ${dateText(String(o.reported.at).slice(0, 10))})`)]);
-  if (review) sections.push([`${review} device${review === 1 ? '' : 's'} waiting in To check`, ['Found by a sync, not in the inventory yet: accept or ignore them.']]);
+  if (review) sections.push([`${review} pending device${review === 1 ? '' : 's'}`, ['Found by a sync, not in the inventory yet: accept or ignore them.']]);
   const bad = health.filter(c => c.state === 'bad');
   if (bad.length) sections.push(['Health', bad.map(c => `${c.area} · ${c.name}: ${c.value}${c.note ? '. ' + c.note : ''}`)]);
   const backupLine = backups ? [`Last backup: ${backups}`] : [];

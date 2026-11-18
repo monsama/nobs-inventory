@@ -195,7 +195,7 @@ function applySoftware(s, pairs) {
 /* What a dock's record says hangs on it, kept short: the monitors by their Lansweeper ref or name. */
 const linksOf = list => list.slice(0, 50).map(l => ({ ...(l.ref != null ? { ref: String(l.ref).slice(0, 60) } : {}), ...(l.name ? { name: String(l.name).slice(0, 200) } : {}), kind: String(l.kind || '').slice(0, 30), ...(l.port ? { port: String(l.port).slice(0, 30) } : {}) }));
 const DOCK_LINKS_DAYS = 30;
-/* Records waiting in To check at most: more are not added until some are accepted or ignored. */
+/* Records waiting in Pending devices at most: more are not added until some are accepted or ignored. */
 export const REVIEW_MAX = 5000;
 /* Does the link matching said above for the merged pairs ({ r, obj, linksOnly }), changing s.rels in place. seen is the
    run's time stamp; a port already taken is counted in counts.portConflict. Returns how many links changed. */
@@ -316,7 +316,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const matched = new Set();
   const locs = s.locs || [];
   let taken = null;   /* codes and ids in use, read when the first new device is made */
-  /* How many wait in To check: a push cannot add more than REVIEW_MAX there (a wrong or stolen token would fill the inventory). */
+  /* How many wait in Pending devices: a push cannot add more than REVIEW_MAX there (a wrong or stolen token would fill the inventory). */
   let waiting = null;
   /* A field that is not a valid address is left out of the record, so it is never stored. */
   const clean = raw => {
@@ -386,11 +386,11 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     cleaned.push(r);
     if (!r.name && !r.serial) continue;
     /* With "IP-only devices to review" on, a device named only by its IP address (no serial number) is never added
-       straight away: it waits in To check, like every new device does unless Settings adds them directly. */
+       straight away: it waits in Pending devices, like every new device does unless Settings adds them directly. */
     const ipOnly = !!s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial;
     /* A device named by a DNS name (argonb35.corp.example) with no serial number, whose first part is the name of a device
        here (ARGONB35), is most likely a second record of that device, left by a docking station's or a USB network adapter:
-       it is never added straight away, whatever Settings says, so a person decides in To check. */
+       it is never added straight away, whatever Settings says, so a person decides in Pending devices. */
     const twin = !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && ((byName.get(lc(r.name).split('.')[0]) || []).some(o => o.status !== 'retired') || pushed.has(lc(r.name).split('.')[0]));
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
@@ -427,7 +427,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     }
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
     /* With "Merge second records" on, such a record is no device of its own: it is the docking station of the device it
-       stands for, an attachment of it, and nothing waits in To check. A device the sync leaves alone (excluded,
+       stands for, an attachment of it, and nothing waits in Pending devices. A device the sync leaves alone (excluded,
        detached) is not changed. */
     const into = twin && !found && s.mergeTwins ? (byName.get(lc(r.name).split('.')[0]) || []).find(o => o.status !== 'retired' && !o.excluded && !o.detached) : null;
     if (into) {

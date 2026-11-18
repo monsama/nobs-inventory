@@ -131,18 +131,18 @@ export function retireModal(o){
 }
 /* A record that is most likely a second one of another device (argonb35.corp.example beside ARGONB35, see twinOf): said at
    the top of its page, with the device to open and, to clean it up, Merge: its address goes to that device as a dock's
-   adapter, and it is kept as ignored so no sync brings it back. A device still waiting in To check is said so. */
+   adapter, and it is kept as ignored so no sync brings it back. A device still waiting in Pending devices is said so. */
 function twinBanner(o){
   const tw = twinOf(o);
   /* The device itself says so too: its probable second records, to open or resolve from here. */
   const tws = twinsOf(o);
-  if (!tw && tws.length) return html`<div class="rv-banner warn"><span>${tws.length === 1 ? html`<b>${tws[0].name}</b> is most likely a second record of this device` : html`${tws.length} records are most likely second records of this device: ${tws.map((x, i) => html`${i ? ', ' : ''}<b>${x.name}</b>`)}`}${tws.some(x => x.review) ? ' (waiting in To check)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span>${tws.length === 1 ? html`<button type="button" id="twOpen">Open ${tws[0].name}</button>` : ''}${isAdmin() ? html`<button type="button" id="twResolve" class="primary">Resolve…</button>` : ''}</div>`;
+  if (!tw && tws.length) return html`<div class="rv-banner warn"><span>${tws.length === 1 ? html`<b>${tws[0].name}</b> is most likely a second record of this device` : html`${tws.length} records are most likely second records of this device: ${tws.map((x, i) => html`${i ? ', ' : ''}<b>${x.name}</b>`)}`}${tws.some(x => x.review) ? ' (pending)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span>${tws.length === 1 ? html`<button type="button" id="twOpen">Open ${tws[0].name}</button>` : ''}${isAdmin() ? html`<button type="button" id="twResolve" class="primary">Resolve…</button>` : ''}</div>`;
   if (!tw){
     const was = o.notTwin && twinOf(o, { marked: true });
     return was ? html`<div class="rv-banner"><span>Marked as not a duplicate of <b>${was.name}</b>.</span>${isAdmin() ? html`<button type="button" id="twAgain">Check again</button>` : ''}</div>` : '';
   }
   const can = isAdmin() && !o.review && mergeTarget(o) === tw;
-  return html`<div class="rv-banner warn"><span>Probably a second record of <b>${tw.name}</b>${tw.review ? ' (waiting in To check)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${tw.name}</button>${isAdmin() ? html`<button type="button" id="twResolve">Resolve…</button>` : ''}${can ? html`<button type="button" id="twMerge" class="primary" title="Adds it to the attachments of ${tw.name} as its docking station (by its MAC address); this record is kept as ignored, so no sync brings it back">Merge into ${tw.name}</button>` : ''}</div>`;
+  return html`<div class="rv-banner warn"><span>Probably a second record of <b>${tw.name}</b>${tw.review ? ' (pending)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${tw.name}</button>${isAdmin() ? html`<button type="button" id="twResolve">Resolve…</button>` : ''}${can ? html`<button type="button" id="twMerge" class="primary" title="Adds it to the attachments of ${tw.name} as its docking station (by its MAC address); this record is kept as ignored, so no sync brings it back">Merge into ${tw.name}</button>` : ''}</div>`;
 }
 /* The Delete dialog. A device the feed still sends is offered Retire and exclude as well, since deleting it only brings
    it back as a new device with the next push. */
@@ -163,10 +163,10 @@ export function purgeModal(o){
   };
   $('#pgOk').onclick = () => { deleteObject(o.id); closeModal(); toast(`${o.name} deleted`); };
 }
-/* Removes a device (or a record in To check) for good: its relations, its history, rack and on-top links to it, and its
+/* Removes a device (or a record in Pending devices) for good: its relations, its history, rack and on-top links to it, and its
    tab. Records merged into it stay ignored. No Undo. */
 export function deleteObject(id){
-  /* A record waiting in To check (or ignored there) is deleted from that list. */
+  /* A record waiting in Pending devices (or ignored there) is deleted from that list. */
   const list = objs.some(x => x.id === id) ? objs : REVIEW;
   const i = list.findIndex(x => x.id === id); if (i < 0) return;
   list.splice(i, 1);
@@ -540,7 +540,7 @@ export function renderObj(o){
     hist(o, now(), `Attachment added: ${name} by ${who()}`); queueServerSave(); render();
   };
   /* A docking station merged in goes with its merged record: it no longer belongs to this device and leaves Merged
-     records, but stays ignored, so no sync brings it back (Unmerge instead puts it back in To check). Undo takes both back. */
+     records, but stays ignored, so no sync brings it back (Unmerge instead puts it back in Pending devices). Undo takes both back. */
   $('#view').querySelectorAll('[data-delacc]').forEach(b => b.onclick = () => {
     const a = o.accessories[+b.dataset.delacc];
     const rec = a.seenAs && REVIEW.find(x => x.review && x.review.merged === o.id && String(x.name).toLowerCase() === String(a.seenAs).toLowerCase());

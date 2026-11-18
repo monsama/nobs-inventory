@@ -9,7 +9,7 @@
   "servers": [{ "url": "/", "description": "This inventory" }],
   "security": [{ "token": [] }],
   "tags": [
-    { "name": "Devices", "description": "The devices of the inventory, not those waiting in To check." },
+    { "name": "Devices", "description": "The devices of the inventory, not those waiting in Pending devices." },
     { "name": "Costs", "description": "Contracts and licences." },
     { "name": "People", "description": "Only for a token made with people." },
     { "name": "About", "description": "This description." }
@@ -52,7 +52,7 @@
         "responses": {
           "200": { "description": "The device.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Device" } } } },
           "401": { "$ref": "#/components/responses/NoToken" },
-          "404": { "description": "No such device, or it waits in To check.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "No such device, or it waits in Pending devices.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "429": { "$ref": "#/components/responses/Throttled" }
         }
       }

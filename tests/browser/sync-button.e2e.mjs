@@ -31,7 +31,7 @@ try {
   await p.click('#syncBtn');
   await p.waitForSelector('#syncMenu');
   const menu = await p.textContent('#syncMenu');
-  assert.match(menu, /Lansweeper.*today 06:00 · push · 3 added · 12 updated · 2 new in To check.*by push/s);
+  assert.match(menu, /Lansweeper.*today 06:00 · push · 3 added · 12 updated · 2 new in Pending devices.*by push/s);
   assert.match(menu, /Active Directory.*not run yet/s);
   assert.equal(await p.locator('#syncMenu [data-sync="lansweeper"]').count(), 0, 'a push cannot be started from here');
   assert.equal(await p.locator('#syncMenu [data-sync="all"]').count(), 0, 'one source to run: no Sync all');

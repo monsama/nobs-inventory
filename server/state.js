@@ -24,16 +24,16 @@ import { newLines } from '../public/js/history-merge.js';
    checked, the changes a page sends (with revisions against lost updates), and the deltas a page asks for. */
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'testRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'testRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'adLocAuto', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
-/* The syncs that bring in devices of their own: their new devices wait in To check unless Settings says otherwise. */
+/* The syncs that bring in devices of their own: their new devices wait in Pending devices unless Settings says otherwise. */
 export const INTAKE_SOURCES = ['lansweeper', 'ad', 'graph'];
 /* New devices go straight into the inventory, as asset tools do: only what needs a person's decision waits (a second
    record, an address without a name, a device no source has seen for long). A source set to wait (Settings) waits. */
 export const intakeOf = (s, src) => ((s.intake || {})[src] === 'review' ? 'review' : 'direct');
-export const PAGE_SETTINGS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame', 'groupRoles', 'lifecycle'];
+export const PAGE_SETTINGS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'adLocAuto', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame', 'groupRoles', 'lifecycle'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 /* The largest inventory stored: generous (5000 devices with their software are about 11 MB), it only guards against a
    runaway import. A page save is limited to 30 MB before it gets here. The devices' history is not counted in it: it
@@ -275,8 +275,9 @@ function checkStateRules(s, size = true, newRels = null) {
   { const p = stocktakesProblem(s.stocktakes); if (p) bad(p); }
   { const p = plansProblem(s.plans); if (p) bad(p); }
   if (s.peopleNotSame !== undefined && (!Array.isArray(s.peopleNotSame) || s.peopleNotSame.length > 5000 || s.peopleNotSame.some(x => typeof x !== 'string' || x.length > 200))) bad('The people marked as not the same are a list of pairs.');
+  if (s.adLocAuto !== undefined && (typeof s.adLocAuto !== 'string' || s.adLocAuto.length > 200)) bad('Rooms from AD\'s location are made in a site, named.');
   for (const k of ['fillGraph', 'fillAd', 'mergeTwins', 'locFromOffice', 'useAd', 'useGraph']) if (s[k] !== undefined && typeof s[k] !== 'boolean') bad(`${k} is on or off.`);
-  /* Where each source's new devices go: To check (the default) or straight into the inventory. */
+  /* Where each source's new devices go: Pending devices (the default) or straight into the inventory. */
   if (s.intake !== undefined && s.intake !== null && (typeof s.intake !== 'object' || Array.isArray(s.intake)
     || Object.entries(s.intake).some(([k, v]) => !INTAKE_SOURCES.includes(k) || !['review', 'direct'].includes(v)))) bad('New devices go to review or straight in, for Lansweeper, AD and Graph.');
   { const p = scheduleProblem(s.syncSchedule); if (p) bad(p); }
@@ -415,7 +416,7 @@ function checkStateRules(s, size = true, newRels = null) {
       }
     }
     if (o.graph !== undefined && (!o.graph || typeof o.graph !== 'object' || Array.isArray(o.graph))) bad(`${o.name}: the Microsoft Graph data is an object.`);
-    /* When it came into the inventory (added by hand, by a sync, or taken from To check). */
+    /* When it came into the inventory (added by hand, by a sync, or taken from Pending devices). */
     if (o.added !== undefined && (typeof o.added !== 'string' || o.added.length > 40 || !Date.parse(o.added) || Date.parse(o.added) > Date.now() + 864e5)) bad(`${o.name}: the date it was added is not a date.`);
     if (o.reported !== undefined && (!o.reported || typeof o.reported !== 'object' || typeof o.reported.text !== 'string' || o.reported.text.length > 500 || typeof o.reported.by !== 'string' || o.reported.by.length > 120 || !Date.parse(o.reported.at)
       || (o.reported.done !== undefined && (!o.reported.done || typeof o.reported.done !== 'object' || !Date.parse(o.reported.done.at) || typeof o.reported.done.by !== 'string' || o.reported.done.by.length > 120 || (o.reported.done.note !== undefined && (typeof o.reported.done.note !== 'string' || o.reported.done.note.length > 500)))))) bad(`${o.name}: a reported problem has its text, who and when.`);
@@ -424,7 +425,7 @@ function checkStateRules(s, size = true, newRels = null) {
     if (o.src !== undefined && (!o.src || typeof o.src !== 'object' || Array.isArray(o.src) || Object.values(o.src).some(v => !['hand', 'ls', 'graph', 'ad'].includes(v)))) bad(`${o.name}: the sources of its fields are hand, Lansweeper, Intune or AD.`);
     if (o.defender !== undefined && (!o.defender || typeof o.defender !== 'object' || Array.isArray(o.defender) || Object.values(o.defender).some(v => typeof v !== 'string' || v.length > 60))) bad(`${o.name}: what Defender says is an object of short texts.`);
     if (o.notTwin !== undefined && o.notTwin !== true) bad(`${o.name}: "not a duplicate" is set or left out.`);
-    /* A device found by a sync and waiting in To check: which source found it, when, and when it was ignored. */
+    /* A device found by a sync and waiting in Pending devices: which source found it, when, and when it was ignored. */
     if (o.review !== undefined && (!o.review || typeof o.review !== 'object' || Array.isArray(o.review) || !INTAKE_SOURCES.includes(o.review.src)
       || Object.entries(o.review).some(([k, v]) => !['src', 'at', 'ignored', 'merged', 'filled', 'moved'].includes(k) || typeof v !== 'string' || v.length > (k === 'moved' ? 4000 : k === 'filled' ? 100 : 40)))) bad(`${o.name}: the review mark names its source and when.`);
     if (o.ad !== undefined && (!o.ad || typeof o.ad !== 'object' || Array.isArray(o.ad)
@@ -658,7 +659,7 @@ export function movePersonRows(db, keepId, dropId, keepHadLogin) {
 export const SETTING_NAMES = { stockRooms: 'store rooms', savedViews: 'saved views', typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', lifecycle: 'lifetimes and replacement prices', groupRoles: 'roles from groups', company: 'company', locs: 'locations', sites: 'sites',
   vlans: 'VLANs', domains: 'domains', models: 'models', subnets: 'subnets', typeFields: 'type fields', fieldLayout: 'field layout', racks: 'racks',
   policy: 'feed fields', ldap: 'LDAP', plans: 'floor plans', mapPos: 'map layout', typeMap: 'Lansweeper type names', modelMap: 'model renames', fieldOrder: 'field sources', stocktakes: 'stocktakes',
-  locMap: 'location texts', adLocMap: 'AD location texts', locFromOffice: 'location from the user\'s office', intake: 'new devices from the sources', fillGraph: 'Intune fills fields',
+  locMap: 'location texts', adLocMap: 'AD location texts', locFromOffice: 'location from the user\'s office', adLocAuto: 'rooms from AD\'s location', intake: 'new devices from the sources', fillGraph: 'Intune fills fields',
   fillAd: 'AD fills fields', mergeTwins: 'merge docking-station records', skipIpOnly: 'devices named by an IP address', autoBackups: 'automatic backups', backupKeep: 'backups kept',
   feedOn: 'Lansweeper feed', feedSync: 'Lansweeper sync', useLansweeper: 'use Lansweeper', useAd: 'Active Directory sync', useGraph: 'Entra & Intune sync', lsSource: 'Lansweeper source', lansweeper: 'Lansweeper', syncSchedule: 'sync schedule', currency: 'currency' };
 /* body is the page's save ({ puts, dels }); before is the inventory before it, for the names of the records deleted.

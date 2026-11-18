@@ -240,7 +240,7 @@ export const updateSync = () => {
 /* Edited by hand is a word, not a pencil: a pencil reads as an Edit button. A card shows it in its footer (hand false
    here), so its top right corner is left to the pick box. */
 export const handHtml = o => o.handAt && Date.parse(o.handAt) > SYNC.time ? '<span class="mk mk-hand" title="Edited by hand after the last sync">Edited</span>' : '';
-/* When a device came into the inventory: its added date (by hand, a sync, or taken from To check), else when Lansweeper
+/* When a device came into the inventory: its added date (by hand, a sync, or taken from Pending devices), else when Lansweeper
    first brought it. 0 when not known. */
 export const NEW_DAYS = 7;
 export const addedTime = o => Date.parse(o.added || '') || stampTime(o.feed && o.feed.created) || 0;
@@ -253,8 +253,34 @@ export const isNewDevice = o => {
   if (!firstAdded) firstAdded = objs.reduce((m, x) => { const t = addedTime(x); return t && (!m || t < m) ? t : m; }, 0);
   return addedTime(o) > firstAdded + 864e5;
 };
+/* The New mark is for news: each person sees it on a device until they open it, and for an hour at most after it was
+   first shown to them (kept in this browser). "Added this week" on the left still lists them for the week. */
+const NEW_SHOWN_MS = 36e5;
+let newShown = null, newSave = /** @type {any} */ (0);
+const shownMap = () => {
+  if (!newShown){ try { newShown = JSON.parse(localStorage.getItem('ni-new-shown') || '{}') || {}; } catch { newShown = {}; } }
+  return newShown;
+};
+const keepShown = () => {
+  if (newSave) return;
+  newSave = setTimeout(() => {
+    newSave = 0;
+    const m = shownMap(), cut = Date.now() - (NEW_DAYS + 1) * 864e5;
+    for (const [k, v] of Object.entries(m)) if (Math.abs(v) < cut) delete m[k];
+    try { localStorage.setItem('ni-new-shown', JSON.stringify(m)); } catch { /* not kept */ }
+  }, 500);
+};
+/* Opened: no New on it any more, for this person. */
+export const newSeen = id => { const m = shownMap(); if (m[id] !== -1){ m[id] = -1; keepShown(); } };
+const showNew = o => {
+  if (!isNewDevice(o)) return false;
+  const m = shownMap(), at = m[o.id];
+  if (at === -1) return false;
+  if (!at){ m[o.id] = Date.now(); keepShown(); return true; }
+  return Date.now() - at < NEW_SHOWN_MS;
+};
 export const markHtml = (o, hand = true) => {
-  const isNew = isNewDevice(o);
+  const isNew = typeof localStorage === 'undefined' ? isNewDevice(o) : showNew(o);
   return (isNew ? '<span class="mk mk-new">New</span>' : '') + (hand ? handHtml(o) : '');
 };
 /* An object by its id, from an index of where each id sits in objs. A hit is checked against objs itself, so a list that
@@ -267,11 +293,11 @@ export const byId = id => {
   ID_AT = new Map(objs.map((o, i) => [o.id, i]));
   return idAt(id) || REVIEW.find(o => o.id === id);
 };
-/* Devices a sync found that wait in To check (o.review): kept apart from objs, so no list, count, plan or cost sees them
+/* Devices a sync found that wait in Pending devices (o.review): kept apart from objs, so no list, count, plan or cost sees them
    until they are accepted. Ignored ones stay here too (review.ignored), so no sync brings them back. */
 export const REVIEW = [];
 export const REVIEW_SRC = { lansweeper: 'Lansweeper', ad: 'Active Directory', graph: 'Entra & Intune' };
-/* A device waiting in To check that a source saw, but not for this many days, is likely gone: shown grey. */
+/* A device waiting in Pending devices that a source saw, but not for this many days, is likely gone: shown grey. */
 export const REVIEW_STALE_DAYS = 90;
 /* The browser tests look objects up by name; the page itself finds them by id. */
 export const byName = n => objs.find(o => o.name === n);
@@ -459,7 +485,7 @@ export function defenderState(o){
 /* When a device was last seen, by whichever source saw it last: Lansweeper's scan, its AD logon, Intune's check-in,
    its Entra sign-in or Defender. at: the day with its time where the source gives one (Intune, Entra, Defender), for
    the hover; AD and Lansweeper give the day only. */
-/* A device waiting in To check that no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, Old,
+/* A device waiting in Pending devices that no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, Old,
    and left out of Accept all unless asked. */
 /* Seen by a source, but not for REVIEW_STALE_DAYS: likely gone. Never scanned at all is not "gone" (Lansweeper may list a
    computer it has not scanned yet). */
@@ -562,11 +588,11 @@ export function sourceText(o, k, src = sourceOf(o, k)){
 /* The device a record named by a DNS name most likely stands for: argonb35.corp.example with no serial number, when a
    device here is named ARGONB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
    adapter. A record marked as no duplicate (notTwin) has none, unless marked asks for the one it was marked against.
-   Retired devices count on neither side; the device may also still wait in To check. The names are indexed
+   Retired devices count on neither side; the device may also still wait in Pending devices. The names are indexed
    once per task, so a list of thousands stays quick. */
 let twinIdx = null;
 export function twinOf(o, { marked = false } = {}){
-  /* A record already decided on (ignored or merged in To check) is no open question. */
+  /* A record already decided on (ignored or merged in Pending devices) is no open question. */
   if (!o || (o.notTwin && !marked) || (o.review && o.review.ignored) || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
   if (!twinIdx){
     twinIdx = new Map();
@@ -577,7 +603,7 @@ export function twinOf(o, { marked = false } = {}){
   return t && t.id !== o.id ? t : null;
 }
 /* The other way round: the probable second records of a device (argonb35.corp.example for ARGONB35), in the inventory or
-   still waiting in To check. Indexed once per task, like twinOf. */
+   still waiting in Pending devices. Indexed once per task, like twinOf. */
 let twinsIdx = null;
 export function twinsOf(o){
   if (!o) return [];
@@ -786,19 +812,19 @@ const outletWords = o => {
 export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
-/* Why a device waits (15-review.js waitReason), set there: To check is filtered by it. */
+/* Why a device waits (15-review.js waitReason), set there: Pending devices is filtered by it. */
 let whyOf = null;
 export const setWhyOf = f => { whyOf = f; };
-/* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To check,
+/* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in Pending devices,
    one source of them (st.rvSrc), or the ones ignored there. */
 export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.review && o.review.ignored)
   : st.scope === 'review' ? REVIEW.filter(o => o.review && !o.review.ignored && (!st.rvSrc || o.review.src === st.rvSrc) && (!st.rvKnown || o.inAd || !!o.graph) && (!st.rvOld || reviewStale(o)) && (!st.rvWhy || !whyOf || whyOf(o).kind === st.rvWhy)) : objs;
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
    search for something that is there never ends in "nothing matches". */
 export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? scopePool().filter(o => matchesQ(o, q)) : []; };
-/* The count over a device list, said the same in Cards and Table: "7 of 48 devices" (or waiting, ignored in To check). */
-export const listCount = (n, total) => `${n} of ${total} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : total === 1 ? 'device' : 'devices'}`;
-/* To check lists the devices a source saw last first: those are the ones to act on; never seen and Old ones last. */
+/* The count over a device list, said the same in Cards and Table: "7 of 48 devices" (or waiting, ignored in Pending devices). */
+export const listCount = (n, total) => `${n} of ${total} ${st.scope === 'review' ? 'pending' : st.scope ? 'ignored' : total === 1 ? 'device' : 'devices'}`;
+/* Pending devices lists the devices a source saw last first: those are the ones to act on; never seen and Old ones last. */
 const seenDays = o => { const s = lastSeenOf(o); return s ? s.days : Infinity; };
 const byRecentlySeen = list => list.map(o => [seenDays(o), o]).sort((a, b) => a[0] - b[0] || String(a[1].name || '').localeCompare(String(b[1].name || ''))).map(x => x[1]);
 export function filtered(){

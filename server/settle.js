@@ -1,9 +1,9 @@
-/* Devices waiting in To check with nothing unclear go into the inventory by themselves, when their source adds new devices
+/* Pending devices with nothing unclear go into the inventory by themselves, when their source adds new devices
    straight in (Settings → the source → New devices). Those are the ones that waited from before new devices went straight
    in, and ones whose question went away (a device seen again, the device it looked like a second record of retired).
    What still needs a person stays: an ignored or merged record, a possible duplicate (same serial number or name as
    another device, or a docking station's second record), one known only by its IP address, and one no source has seen
-   for 90 days or more. The same rules as the reasons on the cards in To check (public/js/15-review.js waitReason). */
+   for 90 days or more. The same rules as the reasons on the cards in Pending devices (public/js/15-review.js waitReason). */
 import { graphSeen } from '../public/js/intune.js';
 import { isPlaceholderSerial } from '../public/js/serials.js';
 import { intakeOf } from './state.js';

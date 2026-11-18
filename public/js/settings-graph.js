@@ -16,8 +16,8 @@ export function graphSummary(c){
   const devices = c.devices ?? c.records;
   return [`${c.records ?? devices} records in Entra and Intune for ${devices} devices: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.`,
     c.duplicates ? `${c.duplicates} duplicate record${c.duplicates === 1 ? '' : 's'}: the current one is used (filter Duplicates in Entra).` : '',
-    c.review ? `${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in To check.` : '',
-    c.settled ? `${c.settled} from To check added (nothing unclear).` : '',
+    c.review ? `${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in Pending devices.` : '',
+    c.settled ? `${c.settled} from Pending devices added (nothing unclear).` : '',
     c.added ? `${c.added} new ${c.added === 1 ? 'device' : 'devices'} added.` : '',
     c.ambiguous ? `${c.ambiguous} fit${c.ambiguous === 1 ? 's' : ''} more than one device here and ${c.ambiguous === 1 ? 'was' : 'were'} put on none: see below.` : '',
     c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : '',
@@ -128,7 +128,7 @@ export async function renderSetGraph(){
           <option value="match" ${(g.people || 'match') === 'match' ? 'selected' : ''}>Mark the people who are in Entra</option>
           <option value="add" ${g.people === 'add' ? 'selected' : ''}>Mark them, and add the primary users of the devices</option></select></div></li>
       <li><div class="gs-head"><b>Windows Autopilot</b></div>
-        <p class="note">The sync can read the devices registered in Windows Autopilot: each device gets its group tag and order number, and a device registered but not set up yet comes in by its serial number (in To check), before Intune knows it. Needs <span class="mono">DeviceManagementServiceConfig.Read.All</span> (Microsoft Graph, Application permissions), then <b>Grant admin consent</b>. Read only, like the others.</p>
+        <p class="note">The sync can read the devices registered in Windows Autopilot: each device gets its group tag and order number, and a device registered but not set up yet comes in by its serial number (in Pending devices), before Intune knows it. Needs <span class="mono">DeviceManagementServiceConfig.Read.All</span> (Microsoft Graph, Application permissions), then <b>Grant admin consent</b>. Read only, like the others.</p>
         <div class="form" style="padding:8px 0 0"><label for="gAutopilot">Autopilot</label><select id="gAutopilot" ${edit ? '' : 'disabled'}>
           <option value="off" ${(g.autopilot || 'off') === 'off' ? 'selected' : ''}>Don't read Autopilot</option>
           <option value="on" ${g.autopilot === 'on' ? 'selected' : ''}>Read Windows Autopilot</option></select></div></li>
@@ -147,7 +147,7 @@ export async function renderSetGraph(){
     ${certRows.length > 0 && html`<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
     <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>`}
     <div class="ds-subhdr">Sync</div>
-    <div style="padding:0 0 8px">${rawHtml(intakeRowHtml('graph'))}<p class="note" style="padding:0 12px">Devices in Entra or Intune that the inventory does not have yet are added as new devices; disabled records never do, and ones not heard from for 90 days always wait in To check.</p></div>${ambiguousHtml()}</div>`;
+    <div style="padding:0 0 8px">${rawHtml(intakeRowHtml('graph'))}<p class="note" style="padding:0 12px">Devices in Entra or Intune that the inventory does not have yet are added as new devices; disabled records never do, and ones not heard from for 90 days always wait in Pending devices.</p></div>${ambiguousHtml()}</div>`;
   /* Defender for Endpoint: read by the same sync, so it has no header of its own; a section below the fields. */
   const dh = $('#setDefender'), seen = objs.filter(o => o.defender).length;
   if (dh) dh.innerHTML = html`<div class="panelbox"><div class="hdr">Defender for Endpoint <span class="cnt">${!j ? '' : g.defender === 'on' ? `read with the Entra & Intune sync · ${seen} ${seen === 1 ? 'device' : 'devices'}` : 'not read'}</span></div>

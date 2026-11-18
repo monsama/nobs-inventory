@@ -22,7 +22,7 @@ const filterText = () => [...document.querySelectorAll('#fbar .fchip')].map(c =>
 export function printView(kind){
   const w = window.open('', '_blank');
   if (!w){ toast('The browser blocked the print window. Allow pop-ups for this page and try again.'); return; }
-  const what = st.scope === 'review' ? 'Devices waiting in To check' : st.scope ? 'Ignored devices' : 'Devices';
+  const what = st.scope === 'review' ? 'Pending devices' : st.scope ? 'Ignored devices' : 'Devices';
   const filters = filterText();
   let body, n;
   if (kind === 'table'){

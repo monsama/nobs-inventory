@@ -36,7 +36,7 @@ export function historyEvent(h) {
   if (/^Created manually\b/.test(msg)) return { kind: 'added', tone: 'ok', text: 'Added by hand' };
   if ((m = /^Duplicated from (.+)$/.exec(msg))) return { kind: 'added', tone: 'ok', text: `Added as a copy of ${m[1]}` };
   if ((m = /^Added from (.+?)(?: by .*| \(.*\))?$/.exec(msg))) return { kind: 'added', tone: 'ok', text: `Added from ${m[1]}` };
-  if ((m = /^(?:Found in|Registered in) (.+?)(?:, not set up yet)?: waiting in To (?:check|review)$/.exec(msg))) return { kind: 'seen', tone: 'ok', text: `First found in ${m[1]}` };
+  if ((m = /^(?:Found in|Registered in) (.+?)(?:, not set up yet)?: (?:waiting in (?:To check|To review)|pending)$/.exec(msg))) return { kind: 'seen', tone: 'ok', text: `First found in ${m[1]}` };
   return null;
 }
 
