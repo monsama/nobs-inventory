@@ -2242,3 +2242,5 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 @media (max-width:760px){.lrow.adloc.pick.head>span:nth-child(2){display:block}}
 .adloc-bulk{padding-left:12px;padding-right:12px}
 .adloc-order{padding-top:8px}
+.adloc-will{color:var(--fg)}
+.adloc-ctl>.adloc-to{flex:0 1 auto}.adloc-ctl>.link{flex:none;width:auto}

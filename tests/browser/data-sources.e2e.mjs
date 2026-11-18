@@ -221,6 +221,10 @@ try {
   await p.waitForSelector('#adBulkGo');
   assert.match(await p.textContent('#adBulkGo'), /Create 2 rooms/);
   await p.selectOption('#adBulkSite', 'Bern');
+  // a ticked text says the room it becomes, in place of Use as…
+  await p.waitForSelector('#adLocs .lrow:has-text("Raum 3.12") .adloc-will');
+  assert.match(await p.textContent('#adLocs .lrow:has-text("Raum 3.12") .adloc-will'), /Bern \/ Raum 3\.12\s*new room/);
+  assert.equal(await p.locator('#adLocs .lrow:has-text("Raum 3.12") [data-admap]').count(), 0);
   await p.click('#adBulkGo');
   await stored(st => st.locs.includes('Bern / Raum 3.12') && st.locs.includes('Bern / Lager'));
   await p.click('#toast .t-undo');
