@@ -1,7 +1,7 @@
 /* Print the list on screen: the devices the filters leave, as cards or as a table, in a page of its own made for paper
    (light, no buttons), with what was filtered and when. The browser's print dialog also saves it as a PDF. */
 import { $, filtered, menuHtml, relIndex, st, toast } from './01-core.js';
-import { cardHtml, showJoin } from './views-cards.js';
+import { cardHtml, showJoin, sortCards } from './views-cards.js';
 import { tablePrintData } from './views-table.js';
 import { html, rawHtml } from './html.js';
 
@@ -29,7 +29,7 @@ export function printView(kind){
     const t = tablePrintData(); n = t.rows.length;
     body = html`<table class="pv-table"><thead><tr>${t.head.map(h => html`<th>${h}</th>`)}</tr></thead><tbody>${t.rows.map(r => html`<tr>${r.map(v => html`<td>${v}</td>`)}</tr>`)}</tbody></table>`;
   } else {
-    const list = filtered(), idx = relIndex(), join = showJoin(); n = list.length;
+    const list = sortCards(filtered()), idx = relIndex(), join = showJoin(); n = list.length;
     body = html`<div id="cards" class="pv-cards">${list.map(o => rawHtml(cardHtml(o, idx, join).replace(/<button type="button" class="nm card-open"[^>]*>([\s\S]*?)<\/button>/, '<span class="nm">$1</span>')))}</div>`;
   }
   const css = new URL('css/app.css', location.href).href;

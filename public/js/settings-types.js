@@ -1,5 +1,5 @@
 /* Settings → Device types: the types as a list, and the one picked beside it: its name, colour and icon (uploaded icons
-   cleaned to shapes) with a preview of its card, the four lines of that card, the fields its page has, and Delete. */
+   cleaned to shapes) with a preview of its card, the five lines of that card, the fields its page has, and Delete. */
 import { typeFieldsOf, canAddPorts, fieldKind } from './17-fields.js';
 import { cardLines, CARD_FIELDS, resetFilters } from './02-views.js';
 import { cardHtml } from './views-cards.js';
@@ -110,11 +110,11 @@ function previewCard(type){
   const o = real || { id: 'tp-preview', code: 'INV-0001', type, name: (t.short || t.label).toUpperCase().replace(/\s+/g, '-') + '-01', status: 'active' };
   try { return cardHtml(o, relIndex()); } catch { return ''; }
 }
-/* The four lines a card shows for this type. Every card of the type shows the same four, so cards line up. */
+/* The five lines a card shows for this type. Every card of the type shows the same five, so cards line up. */
 export function renderCardLines(box, type){
   const lay = FIELD_LAYOUT[type] || {}, cur = cardLines(type), own = Array.isArray(lay.card) && lay.card.length;
   const choices = [...Object.entries(CARD_FIELDS).map(([k, [l]]) => [k, l]), ...(TYPE_FIELDS[type] || []).map(f => ['custom.' + f.key, f.label])];
-  box.insertAdjacentHTML('beforeend', String(html`<div class="tf-sub"><div class="tf-sh">The four lines on every ${TYPES[type].label} card</div>
+  box.insertAdjacentHTML('beforeend', String(html`<div class="tf-sub"><div class="tf-sh">The five lines on every ${TYPES[type].label} card</div>
     <div class="cardlines">${cur.map((k, i) => html`<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => html`<option value="${v}" ${v === k ? 'selected' : ''}>${l}</option>`)}</select></label>`)}
       <button id="clReset" ${own ? '' : 'disabled'}>Back to the default</button></div></div>`));
   const save = card => { const next = {...lay}; if (card) next.card = card; else delete next.card; FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderTypeDetail(); };

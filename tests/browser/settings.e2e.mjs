@@ -142,7 +142,7 @@ try {
   assert.equal(await page.isVisible('#setModels .lrows'), true);
   // Per type: the type is chosen in the title, and the fields say how many objects of it have a value
   await page.click(`[data-tsel=${'pc'}]`); await page.waitForSelector(`[data-tsel=${'pc'}].on`);
-  assert.match(await page.textContent('#tpDetail'), /PC.*Look and card.*The four lines on every PC card.*Fields.*Add field/s);
+  assert.match(await page.textContent('#tpDetail'), /PC.*Look and card.*The five lines on every PC card.*Fields.*Add field/s);
   assert.equal(await page.locator('#tpDetail .sechdr').count(), 2, 'two sections: look and card, fields');
   await page.click('[data-tsel=notebook]'); await page.waitForSelector('[data-tsel=notebook].on');
   assert.equal(await page.locator('#tpDetail .panelbox.collapsed').count(), 0, 'choosing the type does not close a section');

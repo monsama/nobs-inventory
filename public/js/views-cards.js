@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { REVIEW, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, COMPLIANCE, isAttached, markHtml, handHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
+import { REVIEW, addedTime, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, COMPLIANCE, isAttached, markHtml, handHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
 import { SERVER, view } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -41,20 +41,24 @@ export const CARD_FIELDS = {
   /* On a card (a button) a link cannot be clicked: the line names the links, the device page opens them. */
   urls: ['Links', o => esc((o.urls || []).map(l => l.label || linkKind(l.url)).join(' · '))],
 };
-/* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
+/* Every card shows five lines, the same five for every device of a type (the fifth its description), so cards are the same height and a value sits
    in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
 export const CARD_DEFAULTS = {
-  pc: ['ip', 'user', 'loc', 'warranty'], notebook: ['ip', 'user', 'loc', 'warranty'], camera: ['ip', 'model', 'loc', 'serial'], bmc: ['ip', 'fw', 'loc', 'serial'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'purpose'],
+  pc: ['ip', 'user', 'loc', 'warranty'], notebook: ['ip', 'user', 'loc', 'warranty'], camera: ['ip', 'model', 'loc', 'serial'], bmc: ['ip', 'fw', 'loc', 'serial'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'user'],
   accesspoint: ['ip', 'ssid', 'loc', 'serial'], sip: ['ext', 'ip', 'user', 'loc'], pbx: ['ip', 'fw', 'loc', 'serial'],
   monitor: ['serial', 'user', 'loc', 'warranty'], switch: ['ip', 'ports', 'loc', 'fw'], printer: ['ip', 'serial', 'loc', 'warranty'],
-  patch: ['ports', 'loc', 'purpose', 'serial'], router: ['ip', 'ports', 'loc', 'fw'], firewall: ['ip', 'ports', 'loc', 'fw'],
-  modem: ['ip', 'loc', 'serial', 'purpose'], storage: ['ip', 'cap', 'loc', 'warranty'], android: ['user', 'os', 'serial', 'loc'],
+  patch: ['ports', 'loc', 'serial', 'model'], router: ['ip', 'ports', 'loc', 'fw'], firewall: ['ip', 'ports', 'loc', 'fw'],
+  modem: ['ip', 'loc', 'serial', 'model'], storage: ['ip', 'cap', 'loc', 'warranty'], android: ['user', 'os', 'serial', 'loc'],
   ios: ['user', 'os', 'serial', 'loc'], mobile: ['user', 'os', 'serial', 'loc'], plc: ['ip', 'fw', 'loc', 'serial'],
-  rack: ['loc', 'units', 'purpose', 'serial'], other: ['ip', 'user', 'loc', 'serial'],
+  rack: ['loc', 'units', 'serial', 'model'], other: ['ip', 'user', 'loc', 'serial'],
 };
+export const CARD_LINES = 5;
 export const cardLines = type => {
   const set = (FIELD_LAYOUT[type] || {}).card;
-  return (Array.isArray(set) && set.length ? [...set, '', '', '', ''] : CARD_DEFAULTS[type] || CARD_DEFAULTS.other).slice(0, 4);
+  const base = Array.isArray(set) && set.length ? set : CARD_DEFAULTS[type] || CARD_DEFAULTS.other;
+  /* Lines chosen before there were five keep their four; the fifth is the description, unless one of them is already. */
+  const fifth = base.length < CARD_LINES && !base.includes('purpose') ? ['purpose'] : [];
+  return [...base, ...fifth, '', '', '', '', ''].slice(0, CARD_LINES);
 };
 /* A line's label and value: a built-in line, or a field the type has (custom.<key>). An empty slot is a blank line. */
 export function cardLine(o, key, idx){
@@ -121,21 +125,55 @@ const reviewChips = (o, stale) => html`${!o.review.ignored && waitReason(o).text
 /* On the card of the device itself: its probable second records, so it is seen from both sides. */
 const twinsChip = o => { const l = twinsOf(o); return html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${l.map(x => x.id).join(',')}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${l.map(x => x.name).join(', ')}.${isAdmin() ? ' Click to resolve.' : ''}">${l.length === 1 ? html`Also as ${l[0].name}` : `${l.length} possible duplicates`}</span>`; };
 const twinChip = o => html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="Probably a second record of ${twinOf(o).name}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${isAdmin() ? ' Click to resolve it.' : ''}">Probably ${twinOf(o).name}</span>`;
+/* Sort by, for the cards: [label, value of a card, direction it starts in]. Default keeps the list's own order (the
+   inventory as kept; pending devices the most recently seen first). Cards without a value go last, either way. Kept per
+   browser, like the other view choices here. */
+const CARD_SORTS = {
+  '': ['Default', null, 1],
+  name: ['Name', o => o.name, 1],
+  added: ['Date added', o => addedTime(o) || null, -1],
+  seen: ['Last seen', o => { const s = lastSeenOf(o); return s ? s.day : null; }, -1],
+  type: ['Type', o => TYPES[o.type] ? TYPES[o.type].label : o.type, 1],
+  loc: ['Location', o => o.loc || null, 1],
+  user: ['User', o => o.user || null, 1],
+  warranty: ['Warranty end', o => /^\d{4}-\d{2}-\d{2}$/.test(o.warranty || '') ? o.warranty : null, 1],
+  code: ['Inventory code', o => o.code || null, 1],
+};
+let cardSort = { k: '', dir: 1 };
+try { const v = JSON.parse(localStorage.getItem('ni-card-sort') || 'null'); if (v && v.k in CARD_SORTS && (v.dir === 1 || v.dir === -1)) cardSort = v; } catch { /* not kept */ }
+const keepSort = () => { try { localStorage.setItem('ni-card-sort', JSON.stringify(cardSort)); } catch { /* not kept */ } };
+const byText = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+export function sortCards(list){
+  const f = CARD_SORTS[cardSort.k] && CARD_SORTS[cardSort.k][1];
+  if (!f) return list;
+  const vals = new Map(list.map(o => [o, f(o)])), d = cardSort.dir;
+  return [...list].sort((a, b) => {
+    const x = vals.get(a), y = vals.get(b);
+    if (x == null || x === '') return y == null || y === '' ? 0 : 1;
+    if (y == null || y === '') return -1;
+    return d * (typeof x === 'number' && typeof y === 'number' ? x - y : byText.compare(String(x), String(y))) || byText.compare(a.name || '', b.name || '');
+  });
+}
+const sortIcon = dir => dir === 1 ? '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>' : '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>';
+const dirLabel = (k, dir) => k === 'added' || k === 'seen' || k === 'warranty' ? (dir === 1 ? 'Oldest first' : 'Newest first') : (dir === 1 ? 'A to Z' : 'Z to A');
 /* How many cards or table rows are drawn before "Show all". */
 export const SHOW_FIRST = 500;
 /* Draws the Cards toolbar (count, Group by, the join marks, Save view, the pick bar) and the cards, in one list or in
    groups that fold. The first SHOW_FIRST are drawn, the rest after Show all. An empty list says why. */
 export function renderCardsBody(){
-  let list = filtered();
+  let list = sortCards(filtered());
   const pool = scopePool();
   $('#toolbar').innerHTML = html`<span class="muted">${listCount(list.length, pool.length)}</span><span class="tbsep"></span>
     <span class="tb-grp"><label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select></span>
+    <span class="tb-grp tb-sort"><label class="muted" for="cardSort">Sort by</label><select id="cardSort">${Object.entries(CARD_SORTS).map(([k, [l]]) => html`<option value="${k}" ${cardSort.k === k ? 'selected' : ''}>${l}</option>`)}</select>${cardSort.k ? html`<button type="button" id="cardDir" class="sort-dir" title="${dirLabel(cardSort.k, cardSort.dir)}: click to turn" aria-label="Sort order: ${dirLabel(cardSort.k, cardSort.dir)}">${rawHtml(sortIcon(cardSort.dir))}<span>${dirLabel(cardSort.k, cardSort.dir)}</span></button>` : ''}</span>
     ${st.cardsGroup !== 'none' ? html`<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>` : ''}
     ${joinCardsAvailable() ? html`<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Show directory status</label>` : ''}
     ${saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(saveViewBtn())}` : ''}${list.length ? html`<span class="tbsep"></span>${rawHtml(printMenuHtml())}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;
   bindScopeActs(list); bindSaveView(); bindPrintMenu();
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
+  $('#cardSort').onchange = e => { const k = e.target.value; cardSort = { k, dir: CARD_SORTS[k][2] }; keepSort(); renderCards(); $('#cardSort').focus(); };
+  const cd = $('#cardDir'); if (cd) cd.onclick = () => { cardSort = { ...cardSort, dir: -cardSort.dir }; keepSort(); renderCards(); const again = $('#cardDir'); if (again) again.focus(); };
   const cj = $('#cardJoin');
   if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   if (!list.length){
