@@ -19,7 +19,7 @@ const SECTIONS = [
   ['Fields from Intune', 'entra', 'Fields from Intune', 'intune fields imei phone'],
   ['Store rooms', 'locations', 'Store rooms', 'stock take back store'],
   ['Location texts from the sources', 'locations', 'Location texts from the sources', 'room mapping ad office building'],
-  ['Card lines', 'types', 'Look and card', 'card lines four lines preview'],
+  ['Card lines', 'types', 'Look and card', 'card lines five lines preview'],
   ['Models', 'types', 'Models', 'model names lansweeper names'],
   ['API access', 'access', 'API access', 'api token rest'],
   ['Viewers from groups', 'access', 'Viewers from groups', 'group rules roles from groups'],
