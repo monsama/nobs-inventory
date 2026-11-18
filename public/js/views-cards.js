@@ -83,7 +83,7 @@ const cardSeen = o => {
   if (o.review || o.feed || o.inAd || o.graph) return `<span class="chip warn lsst seen" title="${scanOld(o) ? 'Lansweeper has tried to scan it but never has. Check by hand that it is there.' : 'No source has a date it was last seen.'}">Never seen</span>`;
   return (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o);
 };
-/* One device's card as HTML text: name, model, status, its type's lines, the join marks when join is on, the To check
+/* One device's card as HTML text: name, model, status, its type's lines, the join marks when join is on, the Pending devices
    actions and chips, and a footer with code, last seen and relations. idx: the relation index (relIndex). */
 /* In the footer, Intune's word on the device only when something is wrong (not compliant, grace period, conflict):
    how it is joined is in the directory status row, shown or hidden by its switch, not squeezed in here. */
@@ -99,7 +99,7 @@ export function cardHtml(o, idx, join = showJoin()){
   const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
   /* The card is a group, not one button: its name opens the device (a click anywhere on it does too), the tick in its
      corner selects it, and the review actions are buttons of their own, so a screen reader names each for what it does. */
-  return String(html`<article class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${o.review ? `${o.name}: waiting in To check` : o.name}"><button type="button" class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button>
+  return String(html`<article class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${o.review ? `${o.name}: pending` : o.name}"><button type="button" class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button>
     <div class="ch">${rawHtml(tico(o.type))}<div class="hd"><span class="nmrow"><button type="button" class="nm card-open" data-open="${o.id}">${o.name}</button>${rawHtml(markHtml(o, false))}</span><span class="model">${o.model}</span></div>
       ${o.status !== 'active' ? html`<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => html`<dt>${k || rawHtml('&nbsp;')}</dt><dd${v ? '' : html` class="none"`}>${v ? rawHtml(v) : k ? '-' : rawHtml('&nbsp;')}</dd>`)}</dl>
@@ -108,10 +108,10 @@ export function cardHtml(o, idx, join = showJoin()){
     ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts">${mergeTarget(o)
       ? html`<button type="button" class="rv-act yes" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</button><button type="button" class="rv-act" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory as a device of its own">Accept</button>`
       : html`<button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>`}<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button></span>` : ''}
-    <div class="cf"><span class="code">${o.code}</span>${rawHtml(cardSeen(o))}${rawHtml(handHtml(o))}${join && GRAPH_TYPES.includes(o.type) ? '' : rawHtml(graphProblem(o))}<span class="grow"></span>${relSummary(rs)}</div>
+    <div class="cf${o.review ? ' cf-seen' : ''}">${o.review ? '' : html`<span class="code">${o.code}</span>`}${rawHtml(cardSeen(o))}${rawHtml(handHtml(o))}${join && GRAPH_TYPES.includes(o.type) ? '' : rawHtml(graphProblem(o))}<span class="grow"></span>${relSummary(rs)}</div>
   </article>`);
 }
-/* On a device waiting in To check: which sync found it, Old when no source has seen it for long (left out of Accept
+/* On a device waiting in Pending devices: which sync found it, Old when no source has seen it for long (left out of Accept
    all), the other sources that know it, and the device it is most likely a second record of. */
 export const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
 /* Where it came from is a quiet line of text (the directory bar above already shows each source); only what needs a
@@ -180,7 +180,7 @@ export function renderCardsBody(){
 }
 
 export function renderCards(){ st.bulk = pickedInPool(); renderCardsBody(); addSearchHits(); bindPickBar(); }
-/* Accept, Merge and Ignore on a card in To check act on it straight away, without opening it. */
+/* Accept, Merge and Ignore on a card in Pending devices act on it straight away, without opening it. */
 const rvAct = e => {
   const c = e.target.closest && e.target.closest('#view [data-rvc]'); if (!c) return false;
   e.preventDefault(); e.stopImmediatePropagation();

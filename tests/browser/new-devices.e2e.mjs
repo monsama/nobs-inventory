@@ -1,4 +1,4 @@
-/* Browser test of how new devices come in: the inventory says how many wait in To check and of which types (also beside
+/* Browser test of how new devices come in: the inventory says how many wait in Pending devices and of which types (also beside
    each type on the left), each waiting card says why, the clear ones are added by their type at once (with Undo), and
    the devices added show New and under Added this week. Settings offer adding straight in as the default. */
 import { chromium } from 'playwright';
@@ -39,17 +39,17 @@ try {
 
   // the inventory says what waits, and of which types; the types on the left say how many more of each wait
   const bar = await p.textContent('#fbar .fb-wait');
-  assert.match(bar, /7 found by the syncs wait in To check/); assert.match(bar, /3 PC · 3 Notebook · 1 Other/);
+  assert.match(bar, /7 found by the syncs wait in Pending devices/); assert.match(bar, /3 PC · 3 Notebook · 1 Other/);
   assert.equal((await p.textContent('#typeList [data-type="pc"] .cnt-wait')).trim(), '+3');
   assert.equal((await p.textContent('#typeList [data-type="pc"] .cnt')).trim(), '1', 'the count is the inventory\'s');
 
-  // +3 beside PC: To check for the PCs only, the left bar hidden (it is the inventory's); To check's own filters instead
+  // +3 beside PC: Pending devices for the PCs only, the left bar hidden (it is the inventory's); Pending devices's own filters instead
   await p.click('#typeList [data-type="pc"] .cnt-wait');
   await until(p, () => document.querySelectorAll('#cards .card').length === 3);
-  assert.equal(await p.locator('#side').isVisible(), false, 'no left bar in To check');
+  assert.equal(await p.locator('#side').isVisible(), false, 'no left bar in Pending devices');
   assert.match(await p.textContent('#fbar'), /Type: PC/);
 
-  // To check: each card says why it waits; the clear ones are offered by type
+  // Pending devices: each card says why it waits; the clear ones are offered by type
   await p.click('#tabsbar [data-tab=review]');
   await until(p, () => document.querySelectorAll('#cards .card').length === 7);
   const why = async id => (await p.textContent(`#cards .card[data-open="${id}"] .rv-why`)).trim();

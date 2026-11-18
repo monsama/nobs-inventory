@@ -34,7 +34,7 @@ export function healthReport(db, s, { version = '', on = {}, graphCert = null, p
   add('Server', 'Version', 'ok', `NOBS Inventory ${version} · Node.js ${process.versions.node}`, `Running since ${dateTimeText(new Date(started).toISOString())}`);
   const file = (db.prepare('PRAGMA database_list').all().find(d => d.name === 'main') || {}).file || '';
   let size = 0; for (const f of file ? [file, `${file}-wal`] : []) { try { size += fs.statSync(f).size; } catch { /* none */ } }
-  /* Counted as everywhere in the app: the inventory's objects, not those waiting in To check or ignored there. */
+  /* Counted as everywhere in the app: the inventory's objects, not those waiting in Pending devices or ignored there. */
   const docs = db.prepare("SELECT COUNT(*) AS n FROM docs WHERE kind = 'object' AND json_extract(data, '$.review') IS NULL").get().n;
   add('Server', 'Database', 'ok', file ? `${mb(size)} · ${docs} records` : `${docs} records (in memory)`);
   /* The inventory and the history each have a limit (state.js): past it every save and sync is refused, so it is

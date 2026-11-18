@@ -1,4 +1,4 @@
-/* The sidebar's sections (To check, Views, Types, Locations, Status, More filters …): each folds up with a click on its
+/* The sidebar's sections (Pending devices, Views, Types, Locations, Status, More filters …): each folds up with a click on its
    header, and they are put in another order by dragging a header up or down, or with Alt + arrow up / down on it. The
    order and the folded ones are this browser's choice, kept in its storage; nothing is sent to the server. */
 const KEY = 'ni-side-sections';

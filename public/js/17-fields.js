@@ -381,7 +381,7 @@ export function mergedHtml(o){
     <span class="nic-name">${x.name}${acc ? html` <span class="chip" title="Kept as this attachment">${acc.name}</span>` : ''}</span>
     <span class="nic-addr mono">${x.ip || ''}</span>
     <span class="nic-meta muted">${x.mac ? html`<span class="mono">${x.mac}</span> · ` : ''}merged ${dateText(x.review.ignored) || x.review.ignored || ''}</span>
-    <span class="nic-acts"><button type="button" class="mini" data-open="${x.id}" aria-label="Open ${x.name}">Open</button>${isAdmin() ? html`<button type="button" class="mini" data-unmerge="${x.id}" aria-label="Unmerge ${x.name}" title="Take it out of this device again: it waits in To check">Unmerge</button>` : ''}</span></li>`;
+    <span class="nic-acts"><button type="button" class="mini" data-open="${x.id}" aria-label="Open ${x.name}">Open</button>${isAdmin() ? html`<button type="button" class="mini" data-unmerge="${x.id}" aria-label="Unmerge ${x.name}" title="Take it out of this device again: it waits in Pending devices">Unmerge</button>` : ''}</span></li>`;
   })}</ul>`);
 }
 /* The device's other network adapters from Lansweeper (Wi-Fi next to the cable, a second network), under the MAC address. */

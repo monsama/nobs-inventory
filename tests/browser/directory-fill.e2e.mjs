@@ -24,7 +24,7 @@ saveState(db, { ...loadState(db), locs: ['HQ'], sites: ['HQ'],
       autopilot: { groupTag: 'Sales', order: 'PO-7', state: 'enrolled', seen: '27.10.2026 06:00' } },
     { id: 'v1', code: 'INV-0005', type: 'notebook', name: 'NB-7', status: 'active', loc: 'HQ', ovr: {}, feed: null, os: 'Windows 11 Pro', src: { os: 'ad' },
       vals: { os: { graph: ['Windows 11 Enterprise', '2026-10-28T07:42:00Z'], ad: ['Windows 11 Pro', '2026-10-24'] } } },
-    /* Found by the directory sync, waiting in To check: one seen today, one not for 200 days */
+    /* Found by the directory sync, waiting in Pending devices: one seen today, one not for 200 days */
     { id: 'n20', code: 'INV-0003', type: 'notebook', name: 'NB-20', status: 'active', loc: '', ovr: {}, feed: null, inAd: true, os: 'Windows 11 Enterprise (10.0.22631)', domain: 'corp.ch',
       src: { os: 'ad', domain: 'ad' }, ad: { logon: new Date().toISOString().slice(0, 10), created: '2024-01-02' }, review: { src: 'ad', at: '27.10.2026 06:00' } },
     { id: 'pold', code: 'INV-0004', type: 'pc', name: 'PC-OLD', status: 'active', loc: '', ovr: {}, feed: null, inAd: true, os: 'Windows 10 Pro', ad: { logon: old }, review: { src: 'ad', at: '27.10.2026 06:00' } },
@@ -125,7 +125,7 @@ try {
 
   await p.click('.wc-close');
 
-  // To check: the two AD devices, in no count; the stale one grey and left out of Accept all
+  // Pending devices: the two AD devices, in no count; the stale one grey and left out of Accept all
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.length), 3, 'waiting devices are not in the inventory');
   await p.click('#tabsbar [data-tab=review]');
   const pold = '#view .card[data-open="pold"]';
@@ -135,7 +135,7 @@ try {
   assert.match(await p.textContent(pold), /Old/);
   assert.match(await p.textContent('#rvAcceptAll'), /Accept 1 recently seen/);
   assert.deepEqual(await p.$$eval('#view .card[data-open]', cs => cs.map(c => c.dataset.open)), ['n20', 'pold'], 'the recently seen one first');
-  // the old ones on their own (To check's filter row), and Accept all takes them only when ticked
+  // the old ones on their own (Pending devices's filter row), and Accept all takes them only when ticked
   await p.click('#fbar [data-ckwhy="old"]');
   await p.waitForSelector('#view .card[data-open="n20"]', { state: 'detached' });
   assert.equal(await p.locator('#view .card[data-open]').count(), 1);
@@ -154,7 +154,7 @@ try {
   await stored(st => { const o = st.objs.find(x => x.id === 'pold'); return o.review.ignored && o.excluded === true; });
   await p.click('#fbar [data-ckign]');
   await p.waitForSelector('#rvRestoreAll');
-  assert.match(await p.textContent('#fbar'), /Ignored · 1 device kept out/);
+  assert.match(await p.textContent('#fbar'), /Ignored\s*1 device kept out/);
   assert.equal((await p.textContent('#rvRestoreAll')).trim(), 'Unignore all 1');
   // picked: Unignore, or Accept straight into the inventory; the device page offers the same
   await p.click(pold + ' .cardtick');

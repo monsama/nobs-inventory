@@ -1,5 +1,5 @@
 /* Picking several cards: Ctrl+click or a card's corner picks one, Shift+click a range. In Cards the pick is the Table's
-   selection and opens as tabs; in To check (Cards and Table showing the waiting devices) it is accepted or ignored at
+   selection and opens as tabs; in Pending devices (Cards and Table showing the waiting devices) it is accepted or ignored at
    once, with one Undo. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
@@ -17,7 +17,7 @@ const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 seedBasics(db);
 const s = loadState(db);
-s.intake = { lansweeper: 'review' };   /* set to wait: the six new PCs wait in To check */
+s.intake = { lansweeper: 'review' };   /* set to wait: the six new PCs wait in Pending devices */
 mergeRecords(s, Array.from({ length: 6 }, (_, i) => ({ name: 'NEW-PC-' + i, serial: 'NS' + i, ip: '10.9.0.' + (i + 1), assetType: 'Windows', model: 'HP', ref: String(900 + i) })), new Date());
 saveState(db, s);
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
@@ -70,9 +70,9 @@ try {
   await cards.nth(1).click();
   await until(p, async () => (await import('/js/01-core.js')).st.tab !== 'cards');
 
-  // To check: the corner picks one, Shift+click the range; Accept takes those three in, Undo puts them back
-  await p.click('#tabsbar [data-tab=review]'); await p.waitForSelector('#fbar .fb-scope');
-  assert.match(await p.textContent('#toolbar'), /6 of 6 waiting/);
+  // Pending devices: the corner picks one, Shift+click the range; Accept takes those three in, Undo puts them back
+  await p.click('#tabsbar [data-tab=review]'); await p.waitForSelector('#fbar .fb-inbox');
+  assert.match(await p.textContent('#toolbar'), /6 of 6 pending/);
   const rv = p.locator('#cards .card');
   assert.equal(await rv.count(), 6);
   await rv.nth(0).locator('.cardtick').click();
@@ -86,7 +86,7 @@ try {
   // the Table shows them too, searchable, with Accept and Ignore for the ticked rows
   await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.waitForSelector('table.grid');
   assert.equal(await p.locator('table.grid tbody tr').count(), 6);
-  assert.ok((await p.locator('table.grid thead th').allTextContents()).some(t => /Found by/.test(t)), 'To check has a Found by column');
+  assert.ok((await p.locator('table.grid thead th').allTextContents()).some(t => /Found by/.test(t)), 'Pending devices has a Found by column');
   assert.match(await p.textContent('table.grid tbody tr:first-child'), /Lansweeper/);
   assert.equal(await p.locator('#rvAcceptAll').count(), 1, 'Accept all in the Table too');
   await p.fill('#search', 'NEW-PC-4'); await p.press('#search', 'Escape'); await until(p, () => document.querySelectorAll('table.grid tbody tr').length === 1);
@@ -98,7 +98,7 @@ try {
   // the overview counts the waiting ones and leads to them
   await p.click('#tabsbar [data-tab=overview]');
   await p.waitForSelector('[data-ovrv]');
-  assert.match(await p.textContent('[data-ovrv]'), /5[\s\S]*Waiting in To check/);
+  assert.match(await p.textContent('[data-ovrv]'), /5[\s\S]*Pending/);
   await p.click('[data-ovrv]');
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.scope === 'review' && c.st.tab === 'cards'; });
   await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.waitForSelector('table.grid');

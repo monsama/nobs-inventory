@@ -48,7 +48,7 @@ const ACTIONS = [
   ['Go to Software', 'software installed licences programs', false, goTab('sw')],
   ['Go to Contracts', 'contracts warranty support costs', false, goTab('contracts')],
   ['Go to Contacts', 'contacts partners supplier', false, goTab('contacts')],
-  ['Go to To check', 'review new devices inbox waiting', true, goTab('review')],
+  ['Go to Pending devices', 'review new devices inbox waiting', true, goTab('review')],
 ];
 function actions(q){
   const admin = isAdmin();
@@ -68,10 +68,10 @@ function results(q){
     icon: rawHtml(tico(o.type, 'tico sm')), main: o.name,
     sub: [TYPES[o.type] ? TYPES[o.type].label : o.type, o.ip, (o.loc || '').replace(' / ', ' · '), o.status !== 'active' ? STATUS[o.status].label : ''].filter(Boolean).join(' · '),
     go: () => openObj(o.id) }))]);
-  /* Devices a sync found that wait in To check: found here too, marked as such. */
+  /* Devices a sync found that wait in Pending devices: found here too, marked as such. */
   const waiting = REVIEW.filter(o => !o.review.ignored && matchesQ(o, q));
-  if (waiting.length) out.push(['To check', waiting.length, waiting.slice(0, MAX.other).map(o => ({
-    icon: rawHtml(tico(o.type, 'tico sm')), main: o.name, sub: ['Waiting in To check', REVIEW_SRC[o.review.src], o.ip].filter(Boolean).join(' · '),
+  if (waiting.length) out.push(['Pending devices', waiting.length, waiting.slice(0, MAX.other).map(o => ({
+    icon: rawHtml(tico(o.type, 'tico sm')), main: o.name, sub: ['Pending', REVIEW_SRC[o.review.src], o.ip].filter(Boolean).join(' · '),
     go: () => openObj(o.id) }))]);
   const people = USERS.filter(u => has(q, u.name, u.login, u.dept));
   const owned = new Map(); for (const o of objs) if (o.user && o.status !== 'retired') owned.set(o.user, (owned.get(o.user) || 0) + 1);

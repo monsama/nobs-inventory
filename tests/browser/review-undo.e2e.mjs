@@ -1,5 +1,5 @@
-/* Undo right after Accept in To check: the page loads the inventory again after an Accept, and an Undo clicked while
-   that is under way must not be overwritten by it. The device is back in To check on the page and on the server, and
+/* Undo right after Accept in Pending devices: the page loads the inventory again after an Accept, and an Undo clicked while
+   that is under way must not be overwritten by it. The device is back in Pending devices on the page and on the server, and
    the view shows it there without a reload. And any Undo draws the view again. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
@@ -44,10 +44,10 @@ try {
   await p.waitForSelector('#toast .t-undo');
   await p.click('#toast .t-undo');
 
-  // the page shows it back in To check, and stays so once the reload after Accept has come in
+  // the page shows it back in Pending devices, and stays so once the reload after Accept has come in
   await p.waitForTimeout(2500);
   const where = await p.evaluate(async () => { const c = await import('/js/01-core.js'); return [c.REVIEW.some(o => o.id === 'r8'), c.objs.some(o => o.id === 'r8')]; });
-  assert.deepEqual(where, [true, false], 'the device is back in To check on the page');
+  assert.deepEqual(where, [true, false], 'the device is back in Pending devices on the page');
   await until(p, () => !!document.querySelector('#cards .card[data-open="r8"] [data-rvc="accept"]'), 4000);
   // and on the server
   await stored(s => { const o = s.objs.find(x => x.id === 'r8'); return o && o.review && !o.review.ignored; });

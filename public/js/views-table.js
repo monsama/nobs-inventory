@@ -53,11 +53,11 @@ export const TABLE_COLS = [
   /* The date first, so the column sorts by it. */
   {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return String(html`<td>${s ? html`<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${s.at} by ${s.src}">${dayText(s.day)}</span> <span class="muted">· ${s.src}</span>` : ''}</td>`); }},
   {k:'ls', w:240, label:'Lansweeper', cell: o => String(html`<td>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o) || '-')}</td>`)},
-  /* In To check only, and last, so the other columns keep their places: which sync found it, and which others know it. */
+  /* In Pending devices only, and last, so the other columns keep their places: which sync found it, and which others know it. */
   {k:'why', w:300, label:'Why it waits', cell: o => String(html`<td>${o.review && !o.review.ignored ? waitReason(o).text : ''}</td>`)},
   {k:'found', w:220, label:'Found by', cell: o => String(html`<td>${o.review ? [REVIEW_SRC[o.review.src] || o.review.src, ...(alsoIn(o).length ? [`also ${alsoIn(o).join(' · ')}`] : [])].join(' · ') : ''}</td>`)}
 ];
-/* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To check. */
+/* The Lansweeper column is left out while Lansweeper is off; Found by shows only in Pending devices. */
 /* The rows the Table shows (after its column filters and sort, also those not drawn yet), for printing. */
 let LAST = null;
 const cellText = h => String(h).replace(/<span class="mk\b[^"]*"[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).replace(/\s+/g, ' ').trim();

@@ -59,7 +59,7 @@ function drawBell(){
       : html`<p class="muted bell-none">No notifications right now.</p>`}
     <div class="bell-foot">${hid > 0 && html`<button type="button" class="link" data-bellall>Show ${hid} hidden</button>`}<span class="grow"></span><button type="button" class="link" data-bellov title="Everything open, counted by topic, on the Overview">All that needs attention</button></div>`;
 }
-/* Where a notice leads: the device, the Table filtered, a part of the Overview, a tab, To check or a Settings tab. */
+/* Where a notice leads: the device, the Table filtered, a part of the Overview, a tab, Pending devices or a Settings tab. */
 function goNotice(g){
   for (const p of [$('#bellPop'), $('#barMore')]) if (p && p.matches(':popover-open')) p.hidePopover();
   if (g.device) openObj(g.device);

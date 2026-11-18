@@ -115,7 +115,7 @@ export function renderOverview(){
   const mtToday = todayDay(), mtDue = dueTasks(objs, mtToday), mtLate = mtDue.filter(x => x.days < 0);
   const mtRow = x => html`<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${x.o.id}">${rawHtml(dueChip(x.m, mtToday))}<span><b>${x.o.name}</b><small>${x.m.what} · ${everyText(x.m)}</small></span></button>${isAdmin() ? html`<button type="button" data-ovmtdone="${x.o.id}|${x.m.id}">Done…</button>` : ''}</div>`;
   const attention = [
-    [waiting, 'warn', 'Waiting in To check', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
+    [waiting, 'warn', 'Pending', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [mtLate.length, 'bad', 'Maintenance overdue', mtLate.slice(0, 3).map(x => `${x.o.name}: ${x.m.what}`).join(', ') + (mtLate.length > 3 ? '…' : ''), 'data-ovmt="late"'],
     [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
     [wSoon, 'warn', 'Warranty ends soon', `devices in use, within ${WARRANTY_SOON_DAYS} days`, 'data-ovw="soon"'],

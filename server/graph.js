@@ -502,9 +502,9 @@ export function graphType(s, d) {
 }
 /* Adds devices from the list of those Graph has and the inventory does not. Each gets the next code, its type from its
    platform, what Graph knows of it, and is kept up to date by Graph from then on. */
-/* A device Graph has not heard from for this many days (or never) is likely gone: it always waits in To check. */
+/* A device Graph has not heard from for this many days (or never) is likely gone: it always waits in Pending devices. */
 export const GRAPH_INTAKE_STALE_DAYS = 90;
-/* The devices Graph has and the inventory does not become devices: waiting in To check, or straight in when Settings
+/* The devices Graph has and the inventory does not become devices: pending, or straight in when Settings
    says so (one not heard from for long still waits). The list is used up. */
 export function intakeFromGraph(s, now = new Date()) {
   const list = s.graphUnmatched || [], direct = intakeOf(s, 'graph') === 'direct';
@@ -538,7 +538,7 @@ export function addFromGraph(s, ids, who, now = new Date(), { review = false } =
       src: { name: 'graph', ...(d.serial ? { serial: 'graph' } : {}), ...(d.model ? { model: 'graph' } : {}), ...(d.os ? { os: 'graph' } : {}) },
       ...(review ? { review: { src: 'graph', at } } : { added: now.toISOString() }) };
     s.objs.push(o);
-    (s.history[o.id] ??= []).unshift({ t: at, msg: review ? 'Found in Microsoft Entra or Intune: waiting in To check' : `Added from Microsoft Graph by ${who}` });
+    (s.history[o.id] ??= []).unshift({ t: at, msg: review ? 'Found in Microsoft Entra or Intune: pending' : `Added from Microsoft Graph by ${who}` });
     added.push(o.id);
   }
   const done = new Set(list.map(d => d.id));
@@ -549,7 +549,7 @@ export function addFromGraph(s, ids, who, now = new Date(), { review = false } =
 /* Windows Autopilot: what it says of a device it has registered (its group tag, the order number it was bought under,
    whether it is set up yet, when it last called in), kept as o.autopilot, matched by serial number. A device it has
    that the inventory does not is one bought and not set up yet: it is added by its serial number (as its name, until
-   Intune names it) and waits in To check, or goes straight in when Settings says so for Graph. */
+   Intune names it) and waits in Pending devices, or goes straight in when Settings says so for Graph. */
 export function applyAutopilot(s, list, now = new Date()) {
   const at = stamp(now), counts = { autopilot: 0, autopilotNew: 0 };
   const bySerial = new Map(s.objs.filter(o => o.serial).map(o => [low(o.serial), o]));
@@ -572,7 +572,7 @@ export function applyAutopilot(s, list, now = new Date()) {
       ...(model ? { model, src: { model: 'graph', serial: 'graph' } } : { src: { serial: 'graph' } }), autopilot: { ...info, seen: at },
       ...(wait ? { review: { src: 'graph', at } } : { added: now.toISOString() }) };
     s.objs.push(n); bySerial.set(low(serial), n); hit.add(n);
-    (s.history[id] ??= []).unshift({ t: at, msg: wait ? 'Registered in Windows Autopilot, not set up yet: waiting in To check' : 'Added from Windows Autopilot (Microsoft Graph)' });
+    (s.history[id] ??= []).unshift({ t: at, msg: wait ? 'Registered in Windows Autopilot, not set up yet: pending' : 'Added from Windows Autopilot (Microsoft Graph)' });
     counts.autopilotNew++;
   }
   /* A device taken out of Autopilot loses what Autopilot said. */
@@ -596,7 +596,7 @@ export function applyDefender(s, machines, now = new Date()) {
     for (const k of [low(m.computerDnsName), low(m.computerDnsName).split('.')[0]]) if (k && newer(byName.get(k), m)) byName.set(k, m);
   }
   let n = 0;
-  /* The devices a DNS-named one may be a second record of: in use, not excluded and not ignored in To check. */
+  /* The devices a DNS-named one may be a second record of: in use, not excluded and not ignored in Pending devices. */
   const names = new Set(s.objs.filter(o => o.status !== 'retired' && !o.excluded && !(o.review && o.review.ignored)).map(o => low(o.name)));
   for (const o of s.objs) {
     if (o.status === 'retired') continue;

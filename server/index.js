@@ -36,10 +36,10 @@ export function bootstrap(db, env, log = console.log) {
   { const cut = trimHistory(db); if (cut) log(`History: ${cut} device(s) had more than ${HISTORY_KEEP} lines; the oldest were removed.`); }
   const s = loadState(db);
   /* An upgrade that changes the saved data keeps what was there first, as a backup. */
-  /* Devices waiting in To check with nothing unclear go into the inventory (server/settle.js): the ones that waited from
+  /* Pending devices with nothing unclear go into the inventory (server/settle.js): the ones that waited from
      before new devices went straight in, and any whose question went away since the last sync. */
   const migrated = migrateState(s), settled = settleWaiting(s, stamp(new Date()));
-  if (settled) log(`To check: ${settled} waiting device(s) with nothing unclear were added to the inventory.`);
+  if (settled) log(`Pending devices: ${settled} waiting device(s) with nothing unclear were added to the inventory.`);
   if (migrated) { try { takeBackup(db, 'before upgrading the data'); } catch (e) { log(`Warning: no backup before the upgrade (${e.message}).`); } }
   else if (settled) autoBackup(db, 'before adding waiting devices with nothing unclear', { daily: true });
   if (migrated || settled) saveState(db, s);

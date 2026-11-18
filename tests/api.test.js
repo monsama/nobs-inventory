@@ -277,7 +277,7 @@ test('the log shows what happened, and a refused push is an error', async () => 
   } finally { await srv.close(); }
 });
 
-test('the type table in Settings decides the type of a Lansweeper name; IP-only devices always wait in To check', async () => {
+test('the type table in Settings decides the type of a Lansweeper name; IP-only devices always wait in Pending devices', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0,
     typeMap: { 'DECT base': 'sip', 'IOS': 'ios' }, skipIpOnly: true, intake: { lansweeper: 'direct' } };
@@ -290,9 +290,9 @@ test('the type table in Settings decides the type of a Lansweeper name; IP-only 
   assert.equal(s.objs.find(o => o.name === 'DB-1').type, 'sip');
   assert.equal(s.objs.find(o => o.name === 'IOS-1').type, 'ios');
   assert.equal(s.objs.find(o => o.name === 'DB-1').review, undefined, 'Lansweeper set to add directly');
-  assert.deepEqual(s.objs.find(o => o.name === '172.21.1.9').review.src, 'lansweeper', 'an IP-only device waits in To check all the same');
+  assert.deepEqual(s.objs.find(o => o.name === '172.21.1.9').review.src, 'lansweeper', 'an IP-only device waits in Pending devices all the same');
   assert.equal(s.objs.find(o => o.name === '172.21.1.10').review, undefined, 'an IP device with a serial number is added');
-  // by default a new device goes straight in, with the date it came; set to wait, it waits in To check
+  // by default a new device goes straight in, with the date it came; set to wait, it waits in Pending devices
   const d = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
   mergeRecords(d, recordsFromJson([{ name: 'PC-NEW', serial: 'S9', ref: 'p9' }]));
   assert.equal(d.objs[0].review, undefined, 'added straight in by default'); assert.ok(Date.parse(d.objs[0].added), 'the date it was added');

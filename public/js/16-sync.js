@@ -1,4 +1,4 @@
-/* The Sync button at the right of the tab bar, beside To check: runs a sync by hand (all at once, or one of them) and
+/* The Sync button at the right of the tab bar, beside Pending devices: runs a sync by hand (all at once, or one of them) and
    says when each last ran and how it went. Admins only; a source not set up or switched off is not offered. Lansweeper is run from
    here only through its API: a push comes from the script on the Lansweeper server, so for it only the last push shows. */
 import { evEl, $, esc, st, toast } from './01-core.js';
@@ -29,7 +29,7 @@ export function when(iso){
   const diff = Math.round((+today - +day) / 864e5);
   return diff === 0 ? `today ${hm}` : diff === 1 ? `yesterday ${hm}` : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${hm}`;
 }
-/* What a run brought, in a few words: "4 updated · 3 new in To check". */
+/* What a run brought, in a few words: "4 updated · 3 new in Pending devices". */
 export function summary(src, c){
   if (!c) return '';
   const parts = [];
@@ -37,9 +37,9 @@ export function summary(src, c){
   if (src === 'lansweeper' && c.created) parts.push(`${c.created - (c.review || 0)} added`);
   if (updated) parts.push(`${updated} updated`);
   if (c.added) parts.push(`${c.added} added`);
-  if (c.review) parts.push(`${c.review} new in To check`);
+  if (c.review) parts.push(`${c.review} new in Pending devices`);
   if (c.newFull || c.reviewFull) parts.push(`${(c.newFull || 0) + (c.reviewFull || 0)} new left out: no more than 5000 in one push`);
-  if (c.settled) parts.push(`${c.settled} from To check added (nothing unclear)`);
+  if (c.settled) parts.push(`${c.settled} from Pending devices added (nothing unclear)`);
   return parts.filter(p => !/^0 /.test(p)).join(' · ') || 'nothing new';
 }
 export function syncButtonHtml(){

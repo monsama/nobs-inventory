@@ -88,7 +88,7 @@ test('a device added from AD or Graph before its name had a source gets it from 
     { id: 'g', code: 'INV-2', type: 'pc', name: 'PC-G', status: 'active', loc: '' },
     { id: 'h', code: 'INV-3', type: 'pc', name: 'PC-H', status: 'active', loc: '' }],
     history: { a: [{ t: '02.11.2026 08:00', msg: 'Saved by Admin' }, { t: '01.11.2026 06:00', msg: 'Added from Active Directory by the sync' }],
-      g: [{ t: '01.11.2026 06:00', msg: 'Found in Microsoft Entra or Intune: waiting in To check' }], h: [{ t: '01.11.2026 06:00', msg: 'Added by Admin' }] } };
+      g: [{ t: '01.11.2026 06:00', msg: 'Found in Microsoft Entra or Intune: pending' }], h: [{ t: '01.11.2026 06:00', msg: 'Added by Admin' }] } };
   assert.equal(migrateState(s), true);
   assert.deepEqual(s.objs.map(o => o.src && o.src.name), ['ad', 'graph', undefined]);
   assert.equal(s.objs[0].src.os, 'ad', 'what it had stays');
