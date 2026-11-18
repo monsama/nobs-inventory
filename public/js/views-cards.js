@@ -142,7 +142,7 @@ export function renderCardsBody(){
     $('#view').innerHTML = pool.length
       ? hiddenHits() || (st.q.trim() ? html`<div class="empty">Nothing matches “${st.q.trim()}”. <button class="primary" id="newFromSearch">Create “${st.q.trim()}” as a new device</button></div>` : html`<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
       : st.scope === 'review' && REVIEW.some(o => !o.review.ignored) ? html`<div class="empty">None of the devices waiting match these filters. <button type="button" class="primary" data-ck-all>Show all waiting</button></div>`
-      : st.scope ? html`<div class="empty">${st.scope === 'ignored' ? 'No ignored devices.' : 'Nothing to check. New devices go straight into the inventory; the ones that need a decision (a possible duplicate, an address without a name, one not seen for long) wait here.'} <button type="button" data-fx-go="scope">Back to inventory</button></div>`
+      : st.scope ? html`<div class="empty empty-inbox"><b>${st.scope === 'ignored' ? 'No ignored devices' : 'No pending devices'}</b><span class="muted">${st.scope === 'ignored' ? 'Devices you ignore stay here, out of the inventory and every sync.' : 'New devices go straight into the inventory. Only those that need a decision wait here.'}</span></div>`
       : (SERVER.on && !st.meId ? html`<div class="empty">Sign in to see the inventory.</div>` : emptyHtml());
     const ca = $('[data-ck-all]'); if (ca) ca.onclick = () => { st.rvWhy = st.rvSrc = ''; st.type = null; view(); };
     const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); view(); };

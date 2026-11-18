@@ -2247,3 +2247,16 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .adloc-order{padding-top:8px}
 .adloc-will{color:var(--fg)}
 .adloc-ctl>.adloc-to{flex:0 1 auto}.adloc-ctl>.link{flex:none;width:auto}
+/* Sweep: the sticky group headers cover the cards scrolling under them; a picked card is tinted, so it does not look like
+   one that has the keyboard focus; hover a touch clearer in dark. */
+#view .grp>.grphdr{background:var(--canvas)}
+.card.picked{background:color-mix(in srgb,var(--accent) 9%,var(--card))}
+:root{--card-hover:light-dark(#f7faff,#262c34)}
+/* The last-seen line of a pending card is a line of text, not a control. */
+.card .cf.cf-seen>.chip:first-child{border-color:transparent;background:none}
+/* Pending, nothing left: a short centred message. */
+.empty.empty-inbox{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+/* Phone: the filter groups as an even grid of two columns, not ragged rows. */
+@media (max-width: 600px){ .fb-seg{display:grid;grid-template-columns:1fr 1fr;width:100%} .fb-seg>button{justify-content:space-between} }
+/* Phone: a ticked text's preview wraps under its text, in the text column. */
+@media (max-width:760px){ .lrow.adloc.pick .adloc-ctl{grid-column:2 / -1} .adloc-will{white-space:normal} }

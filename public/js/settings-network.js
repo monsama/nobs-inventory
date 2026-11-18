@@ -362,7 +362,7 @@ function bindAdLocs(root){
   };
   const bs = $('#adBulkSite'); if (bs) bs.onchange = () => { adSite = bs.value; renderSetLocs(); };
   const auto = $('#adLocAuto'); if (auto) auto.onchange = () => { st.adLocAuto = auto.value; queueServerSave(); toast(auto.value ? `AD's location texts become rooms in ${auto.value} at each AD sync` : 'Rooms from AD\'s location: off'); };
-  const ord = root.querySelector('[data-locorder]'); if (ord) ord.onclick = async () => { (await import('./settings-find.js')).openSetting('sources'); requestAnimationFrame(() => { const b = /** @type {HTMLElement|null} */ (document.querySelector('[data-dsedit="loc"]')); if (b){ b.scrollIntoView({ block: 'center' }); b.click(); } }); };
+  const ord = root.querySelector('[data-locorder]'); if (ord) ord.onclick = async () => { (await import('./settings-find.js')).openSetting('sources'); requestAnimationFrame(() => { const b = /** @type {HTMLElement|null} */ (document.querySelector('[data-dsedit="loc"]')); if (b){ b.click(); st.setTab = 'locations'; } }); };
   const oc = $('#locOffice'); if (oc) oc.onchange = () => { st.locFromOffice = oc.checked; queueServerSave(); toast(oc.checked ? 'Devices without a location take their user\'s office at the next sync' : 'The office of a user is no longer used'); };
   root.querySelectorAll('[data-admap]').forEach(sel => sel.onchange = () => {
     const t = list[+sel.dataset.admap].text, v = sel.value; if (!v) return;
