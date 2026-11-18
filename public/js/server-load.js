@@ -149,9 +149,10 @@ function keepServerCopy(d){
   SERVER.cseq = Number.isInteger(d.cseq) ? d.cseq : null;
 }
 /* false when it was held back (see above) and asked the server nothing. */
+/* Someone is in a field, or a dialog is open: what they type must not be redrawn away. */
+const heldBack = () => !!$('#mdl') || !!$('#objSaved.dirty') || !!(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName));
 export async function checkForChanges(){
-  if (!SERVER.base || SERVER.busy || $('#mdl')) return false;
-  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return false;
+  if (!SERVER.base || SERVER.busy || heldBack()) return false;
   const {puts, dels} = pendingChanges();
   /* Changes that could not be sent while the server was away are sent again here. */
   if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return false; }
@@ -164,6 +165,9 @@ export async function checkForChanges(){
   /* A save started while this was on its way: the answer may be older than the page's own change, which would then look
      like someone else's and reload (losing Undo). It is dropped; the next check asks again. */
   if (SERVER.busy || SERVER.saves !== saves) return false;
+  /* Asked before someone started typing (or opened a dialog) and answered after: dropped too, so nothing is redrawn under
+     their hands; the next check asks again from the same point. */
+  if (heldBack()) return false;
   if (d.delta){
     /* The page's own saves come back here too: the copy takes them, but only a record someone else wrote reloads. */
     const other = Object.keys(d.revs).some(k => (SERVER.revs[k] ?? 0) !== d.revs[k]);
