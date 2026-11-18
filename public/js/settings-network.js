@@ -305,11 +305,13 @@ function adLocsHtml(){
   const auto = html`<label class="adloc-auto">Rooms from AD's location<select id="adLocAuto" ${isAdmin() ? '' : 'disabled'} aria-label="Rooms from AD's location"><option value="">Off: I pick them here</option>${SITES.map(x => html`<option value="${x}" ${st.adLocAuto === x ? 'selected' : ''}>Made at each AD sync, in ${x}</option>`)}</select></label>`;
   const free = list.map((e, i) => [e, i]).filter(([e]) => !LOCS.some(l => lc(l) === lc(e.text)) && !locTarget(e.text));
   const picked = list.map((e, i) => i).filter(i => adPicked.has(lc(list[i].text)));
-  const bulk = !isAdmin() || !free.length ? '' : html`<div class="adloc-bulk"><label class="pchk"><input type="checkbox" id="adPickAll" ${picked.length && picked.length === free.length ? 'checked' : ''}> All ${free.length} not used yet</label><span class="grow"></span>${picked.length ? html`<span class="muted">${picked.length} ticked: as rooms in</span><select id="adBulkSite" aria-label="Site for the new rooms">${SITES.map(x => html`<option>${x}</option>`)}</select><button type="button" class="primary" id="adBulkGo" ${SITES.length ? '' : 'disabled'}>Create ${picked.length} ${picked.length === 1 ? 'room' : 'rooms'}</button>` : html`<span class="muted">Tick texts to make them rooms at once</span>`}</div>`;
+  const bulk = !isAdmin() || !free.length ? '' : html`<div class="adloc-bulk"><label class="pchk"><input type="checkbox" id="adPickAll" ${picked.length && picked.length === free.length ? 'checked' : ''}> All ${free.length} not used yet</label><span class="grow"></span>${picked.length ? html`<span class="muted">${picked.length} ticked, new rooms in</span><select id="adBulkSite" aria-label="Site for the new rooms">${SITES.map(x => html`<option ${x === bulkSite() ? 'selected' : ''}>${x}</option>`)}</select><button type="button" class="primary" id="adBulkGo" ${SITES.length ? '' : 'disabled'}>Create ${picked.length} ${picked.length === 1 ? 'room' : 'rooms'}</button>` : html`<span class="muted">Tick texts to make them rooms in one go, or pick a room for one with Use as…</span>`}</div>`;
   const row = (e, i) => {
     const direct = LOCS.find(l => lc(l) === lc(e.text)), to = locTarget(e.text);
     const tick = isAdmin() ? (!direct && !to ? html`<input type="checkbox" data-adpick="${i}" ${adPicked.has(lc(e.text)) ? 'checked' : ''} aria-label="Tick ${e.text}">` : html`<span></span>`) : '';
+    const will = !direct && !to && adPicked.has(lc(e.text)) && SITES.length ? roomName(bulkSite(), e.text) : '';
     const ctl = direct ? html`<span class="muted">Is a room here</span>`
+      : will ? html`<span class="adloc-to adloc-will" title="Made when you click Create rooms above">→ <b>${will}</b> <span class="muted">${LOCS.includes(will) ? 'existing room' : 'new room'}</span></span>`
       : to ? html`<span class="adloc-to">→ <b>${to}</b></span>${isAdmin() && html`<button type="button" class="link" data-adunmap="${i}">Remove</button>`}`
       : isAdmin() ? html`<select data-admap="${i}" aria-label="Use ${e.text} as"><option value="">Use as…</option>${LOCS.length > 0 && html`<optgroup label="An existing room">${LOCS.map(l => html`<option value="loc:${l}">${l}</option>`)}</optgroup>`}${SITES.length > 0 && html`<optgroup label="A new room, in the site">${SITES.map(x => html`<option value="site:${x}">${x} / ${e.text.includes(' / ') ? e.text.split(' / ').slice(1).join(' - ') : e.text}</option>`)}</optgroup>`}</select>` : html`<span class="muted">Not used</span>`;
     const tags = [...e.src].map(x => html`<span class="chip adloc-src">${SRC_TAG[x]}</span>`);
@@ -345,15 +347,19 @@ function useAdLocs(pairs, msg){
    use with Undo; devices keep the location they got. */
 /* The texts ticked to make rooms of at once, by their lower-case text (kept while the panel is drawn again). */
 const adPicked = new Set();
+/* The site the ticked texts become rooms in: the one picked last, else the first. */
+let adSite = '';
+const bulkSite = () => SITES.includes(adSite) ? adSite : SITES[0] || '';
 const roomName = (site, t) => cleanLoc(site + ' / ' + (t.includes(' / ') ? t.split(' / ').slice(1).join(' - ') : t).replace(/\//g, '-'));
 function bindAdLocs(root){
   const list = locTexts();
   root.querySelectorAll('[data-adpick]').forEach(cb => cb.onchange = () => { const k = lc(list[+cb.dataset.adpick].text); if (cb.checked) adPicked.add(k); else adPicked.delete(k); renderSetLocs(); });
   const all = $('#adPickAll'); if (all) all.onchange = () => { adPicked.clear(); if (all.checked) for (const e of list) if (!LOCS.some(l => lc(l) === lc(e.text)) && !locTarget(e.text)) adPicked.add(lc(e.text)); renderSetLocs(); };
   const go = $('#adBulkGo'); if (go) go.onclick = () => {
-    const site = $('#adBulkSite').value, pairs = list.filter(e => adPicked.has(lc(e.text))).map(e => [e.text, roomName(site, e.text)]).filter(([, r]) => r);
+    const site = bulkSite(), pairs = list.filter(e => adPicked.has(lc(e.text))).map(e => [e.text, roomName(site, e.text)]).filter(([, r]) => r);
     if (pairs.length) useAdLocs(pairs, `${pairs.length} ${pairs.length === 1 ? 'room' : 'rooms'} added in ${site}`);
   };
+  const bs = $('#adBulkSite'); if (bs) bs.onchange = () => { adSite = bs.value; renderSetLocs(); };
   const auto = $('#adLocAuto'); if (auto) auto.onchange = () => { st.adLocAuto = auto.value; queueServerSave(); toast(auto.value ? `AD's location texts become rooms in ${auto.value} at each AD sync` : 'Rooms from AD\'s location: off'); };
   const ord = root.querySelector('[data-locorder]'); if (ord) ord.onclick = async () => { (await import('./settings-find.js')).openSetting('sources'); requestAnimationFrame(() => { const b = /** @type {HTMLElement|null} */ (document.querySelector('[data-dsedit="loc"]')); if (b){ b.scrollIntoView({ block: 'center' }); b.click(); } }); };
   const oc = $('#locOffice'); if (oc) oc.onchange = () => { st.locFromOffice = oc.checked; queueServerSave(); toast(oc.checked ? 'Devices without a location take their user\'s office at the next sync' : 'The office of a user is no longer used'); };
