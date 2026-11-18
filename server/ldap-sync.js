@@ -8,6 +8,7 @@ import { ldapListComputers, ldapListUsers } from './ldap.js';
 import { fillField, mappedRoom, noteValue, officeLocations, pickOf } from './fill.js';
 import { stamp, typeFor } from './feed.js';
 import { settleWaiting } from './settle.js';
+import { roomFor } from '../public/js/room-name.js';
 import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
 import { exactKeys, loginCore, mergeSamePeople } from '../public/js/people-match.js';
 
@@ -192,12 +193,18 @@ export const adLocation = (s, text) => mappedRoom(s, text);
    becomes a room in that site (and the text is mapped to it), as AD's location is kept by hand there. Lansweeper's free
    text never does. At most 2000 locations in all. */
 export function autoRoom(s, text){
-  const site = s.adLocAuto, name = String(text || '').trim().replace(/\s*\/\s*/g, ' - ').replace(/\s+/g, ' ').slice(0, 120);
-  if (!site || !(s.sites || []).includes(site) || !name) return '';
-  const room = `${site} / ${name}`;
+  const site = s.adLocAuto, key = String(text || '').trim();
+  if (!site || !(s.sites || []).includes(site)) return '';
+  const made = roomFor(site, key);
+  if (!made) return '';
   s.locs ??= [];
+  /* A room of that name in another case is the same room. */
+  const room = s.locs.find(l => l.toLowerCase() === made.toLowerCase()) || made;
+  /* Within what a saved inventory may hold: 2000 locations, 1000 mapped texts. */
+  const map = s.locMap || {};
+  if (!(key in map) && Object.keys(map).length >= 1000) return '';
   if (!s.locs.includes(room)){ if (s.locs.length >= 2000) return ''; s.locs.push(room); }
-  s.locMap = { ...(s.locMap || {}), [String(text).trim()]: room };
+  s.locMap = { ...map, [key]: room };
   return room;
 }
 function adOf(c) {

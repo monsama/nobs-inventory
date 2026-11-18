@@ -24,6 +24,16 @@ test('set to a site: the room is made, mapped and filled in', () => {
 
 test('a slash in the text is no second level; an unknown site makes nothing', () => {
   const s = state({ adLocAuto: 'Main' });
-  assert.equal(autoRoom(s, 'Hall 2 / Bay 4'), 'Main / Hall 2 - Bay 4');
+  assert.equal(autoRoom(s, 'Hall 2 / Bay 4'), 'Main / Bay 4', 'as the page makes it: the room part');
+});
+
+test('the same room in another case is used; names stay within 200 characters; at most 1000 mapped texts', () => {
+  const s = state({ adLocAuto: 'Main' });
+  assert.equal(autoRoom(s, 'office'), 'Main / Office');
+  assert.deepEqual(s.locs, ['Main / Office']);
+  const long = 'S'.repeat(150), t = state({ adLocAuto: long, sites: [long] });
+  assert.ok(autoRoom(t, 'R'.repeat(150)).length <= 200);
+  const full = state({ adLocAuto: 'Main', locMap: Object.fromEntries(Array.from({ length: 1000 }, (_, i) => ['t' + i, 'Main / Office'])) });
+  assert.equal(autoRoom(full, 'One more'), '');
   assert.equal(autoRoom({ ...state(), adLocAuto: 'Gone' }, 'Presse 1'), '');
 });

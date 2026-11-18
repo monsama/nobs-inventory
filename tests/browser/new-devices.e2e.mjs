@@ -83,6 +83,14 @@ try {
   await p.waitForSelector('#cards .card[data-open="w1"]');
   assert.equal(await p.locator('#cards .card[data-open="w1"] .mk-new').count(), 1, 'New on a device added now');
   assert.equal(await p.locator('#cards .card[data-open="o1"] .mk-new').count(), 0, 'no New on an old one');
+  // opened, it is no news any more: not after going back, not after a reload
+  await p.click('#cards .card[data-open="w1"] .card-open');
+  await p.click('#tabsbar [data-tab=cards]');
+  await p.waitForSelector('#cards .card[data-open="w1"]');
+  await p.waitForTimeout(700);
+  assert.equal(await p.locator('#cards .card[data-open="w1"] .mk-new').count(), 0, 'no New once opened');
+  await p.reload(); await p.waitForSelector('#cards .card[data-open="w1"]');
+  assert.equal(await p.locator('#cards .card[data-open="w1"] .mk-new').count(), 0, 'still none after a reload');
   await p.click('#statList [data-newweek]');
   await until(p, async () => document.querySelectorAll('#cards .card').length === 3);
   assert.match(await p.textContent('#fbar'), /Added: in the last 7 days/);

@@ -256,7 +256,11 @@ export const isNewDevice = o => {
 /* The New mark is for news: each person sees it on a device until they open it, and for an hour at most after it was
    first shown to them (kept in this browser). "Added this week" on the left still lists them for the week. */
 const NEW_SHOWN_MS = 36e5;
+/* Per device: when New was first shown (a time), or when it was opened (that time, negative). */
 let newShown = null, newSave = /** @type {any} */ (0);
+/* Browser storage can be switched off (blocked site data): then New shows as the added date says. */
+let canStore = false;
+try { canStore = typeof localStorage !== 'undefined' && !!localStorage; } catch { canStore = false; }
 const shownMap = () => {
   if (!newShown){ try { newShown = JSON.parse(localStorage.getItem('ni-new-shown') || '{}') || {}; } catch { newShown = {}; } }
   return newShown;
@@ -271,16 +275,16 @@ const keepShown = () => {
   }, 500);
 };
 /* Opened: no New on it any more, for this person. */
-export const newSeen = id => { const m = shownMap(); if (m[id] !== -1){ m[id] = -1; keepShown(); } };
+export const newSeen = id => { if (!canStore) return; const m = shownMap(); if (!(m[id] < 0)){ m[id] = -Date.now(); keepShown(); } };
 const showNew = o => {
   if (!isNewDevice(o)) return false;
   const m = shownMap(), at = m[o.id];
-  if (at === -1) return false;
+  if (at < 0) return false;
   if (!at){ m[o.id] = Date.now(); keepShown(); return true; }
   return Date.now() - at < NEW_SHOWN_MS;
 };
 export const markHtml = (o, hand = true) => {
-  const isNew = typeof localStorage === 'undefined' ? isNewDevice(o) : showNew(o);
+  const isNew = canStore ? showNew(o) : isNewDevice(o);
   return (isNew ? '<span class="mk mk-new">New</span>' : '') + (hand ? handHtml(o) : '');
 };
 /* An object by its id, from an index of where each id sits in objs. A hit is checked against objs itself, so a list that
