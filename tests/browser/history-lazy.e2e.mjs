@@ -36,11 +36,13 @@ try {
 
   // A's page: its history is read and shown, and only then
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
+  await p.click('[data-otabgo="history"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('#histPanel .cnt');
   await until(p, () => document.querySelector('#histPanel .cnt').textContent.trim() === '2');
   assert.ok(asked.includes('/api/history/a'));
   assert.match(await p.textContent('#histPanel'), /Moved to HQ \/ Office/);
   // a field edited there: one more line, the two stored ones stay, nothing twice
+  await p.click('[data-otabgo="details"]');
   await p.fill('#f_a_purpose', 'Reception');
   await p.press('#f_a_purpose', 'Tab');
   await storedBy(() => loadState(db), s => (s.history.a || []).length === 3);

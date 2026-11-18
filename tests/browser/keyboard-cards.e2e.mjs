@@ -51,6 +51,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).st.tab === 'p2');
 
   // 2. The device page's source tabs: one stop for Tab, the arrow keys move
+  await p.click('[data-otabgo="sources"]');   // that part of the device page is a tab of its own
   const tabs = '#view [data-srctab]';
   await p.waitForSelector(tabs);
   {

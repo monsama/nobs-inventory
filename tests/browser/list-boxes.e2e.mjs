@@ -21,11 +21,13 @@ try {
   const pc = await p.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.objs.find(x => x.type === 'pc'); const sw = c.objs.find(x => x.type === 'switch');
     c.objs.find(x => x.type === 'server').supplier = 'Acme Distribution'; c.rels.push({ id: 'rx1', from: o.id, to: sw.id, kind: 'connected', port: 5, vlan: null });
     c.st.tab = o.id; const r = await import('/js/07-render.js'); r.queueServerSave(); r.render(); return o.id; });
+  await p.click('[data-otabgo="relations"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('.rportbox');
   await p.click('.rportbox .combo-arrow'); await p.waitForTimeout(200);
   assert.equal(await p.locator('.rportbox li').count(), 27, 'the free ports of the switch (28, one taken)');
   await p.locator('.rportbox li').nth(0).click(); await p.waitForTimeout(400);
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).rels.find(r => r.id === 'rx1').port), 1, 'the picked port was not saved');
+  await p.click('[data-otabgo="details"]');
   await p.click('#fmAll'); await p.waitForTimeout(300);
   const sup = `#f_${pc}_supplier`;
   await p.locator(sup).scrollIntoViewIfNeeded();

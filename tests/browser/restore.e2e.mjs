@@ -36,6 +36,7 @@ try {
   await p.waitForSelector('#f_p1_supplier');
   await p.fill('#f_p1_supplier', 'Beta'); await p.keyboard.press('Tab');
   await eventually(() => stored('p1').supplier === 'Beta');
+  await p.click('[data-otabgo="history"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('.hist li:first-child [data-hrestore]');
   assert.match(await p.textContent('.hist li:first-child'), /Supplier changed from Alpha to Beta by Administrator/);
   assert.equal(await p.locator('.hist li', { hasText: 'Relation' }).locator('[data-hrestore]').count(), 0, 'a relation is not a field edit');
@@ -52,8 +53,10 @@ try {
   assert.equal(await p.inputValue('#f_p1_supplier'), 'Beta', 'after Undo the page shows the value put back');
 
   // changed again since: asked first, with the value now and the one to set back
+  await p.click('[data-otabgo="details"]');
   await p.fill('#f_p1_supplier', 'Gamma'); await p.keyboard.press('Tab');
   await eventually(() => stored('p1').supplier === 'Gamma');
+  await p.click('[data-otabgo="history"]');
   await p.locator('.hist li', { hasText: 'Supplier changed from Alpha to Beta' }).locator('[data-hrestore]').click();
   await p.waitForSelector('#cfOk');
   assert.match(await p.textContent('#mdl'), /changed again after[\s\S]*Now: Gamma[\s\S]*Restore: Alpha/);

@@ -255,3 +255,9 @@ document.addEventListener('keydown', e => {
   const el = evEl(e);
   if (el.matches && el.matches('a.link:not([href])')){ e.preventDefault(); el.click(); }
 });
+
+/* Compact rows: lists and tables a little tighter, for more on the screen. Kept in this browser. */
+const denseOn = () => { try { return localStorage.getItem('ni-dense') === '1'; } catch { return false; } };
+const showDense = () => { document.body.classList.toggle('dense', denseOn()); const b = $('#denseBtn'); if (b) b.setAttribute('aria-pressed', String(denseOn())); };
+showDense();
+{ const b = $('#denseBtn'); if (b) b.addEventListener('click', () => { try { localStorage.setItem('ni-dense', denseOn() ? '0' : '1'); } catch { /* not kept */ } showDense(); }); }

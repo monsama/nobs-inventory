@@ -41,6 +41,7 @@ try {
 
   // Connect a PC to a switch port, and refuse a port that is taken.
   await openByName(p, 'ZH-NB-0201');
+  await p.click('[data-otabgo="relations"]');   // that part of the device page is a tab of its own
   await p.selectOption('#arKind', 'connected');
   await p.selectOption('#arTo', await idOf(p, 'SW-ZH-2OG-01'));
   await p.fill('#arPort', '7'); await p.click('#arAdd');
@@ -67,6 +68,7 @@ try {
   // Delete a relation from the object page.
   const before = await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].rels.length); });
   await openByName(p, 'ZH-NB-0201');
+  await p.click('[data-otabgo="relations"]');
   await p.locator('.relrow', { hasText: 'SW-ZH-2OG-01' }).locator('[data-delrel]').click();
   assert.equal(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].rels.length); }), before - 1, 'the relation was not removed');
 

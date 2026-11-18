@@ -148,7 +148,7 @@ export function renderOverview(){
       ${/* Needs attention is the list below, not a tile as well. */ ''}
       ${/* A tile with nothing to say is left out: no contracts or licences, no device with a price. */ ''}
       ${COSTS.contracts.length || COSTS.licences.length ? tile('Contracts and licences', year ? rawHtml(money(year)) : '-', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"') : ''}
-      ${priced ? tile('Value of devices in use', rawHtml(money(value)), `price known for ${compact(priced)} of ${compact(inUse.length)}`) : ''}
+      ${priced ? tile('Value of devices in use', rawHtml(money(value)), `price known for ${compact(priced)} of ${compact(inUse.length)}`, 'data-ovs="active"') : ''}
     </div>
     <div class="ov-cols">
       <div class="panelbox" id="ovAttention"><div class="hdr">Needs attention <span class="cnt">${attention.length || 'none'}</span></div>

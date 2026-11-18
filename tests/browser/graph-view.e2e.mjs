@@ -52,15 +52,18 @@ try {
 
   // the panel on a device
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
+  await p.click('[data-otabgo="sources"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   const panel = await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   for (const t of ['Entra joined', 'Joined to Microsoft Entra only', 'Managed', 'Compliant', 'Encrypted', 'Ana Muster', 'Windows 10.0.22631']) assert.ok(panel.includes(t), 'panel: ' + t);
   assert.match(panel.replace(/\s+/g, ' '), /Secure Boot ?Off · reported 30\.10\.2026/);
   if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:has-text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-panel.png') });
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('b'));
+  await p.click('[data-otabgo="sources"]');
   await p.waitForSelector('text=over 30 days ago');
   assert.match(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'), /Hybrid joined.*Not compliant.*Not encrypted/s);
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('c'));
+  await p.click('[data-otabgo="sources"]');
   await p.waitForSelector('text=Not found in Microsoft Entra or Intune');
   assert.match(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'), /joined to AD only/);
 
@@ -90,7 +93,7 @@ try {
   // how each device is joined: Entra, hybrid (Graph's ServerAd, once called Domain joined), AD only (from the LDAP sync)
   assert.deepEqual([await count('entra'), await count('hybrid'), await count('adonly')], ['2', '1', '1'], 'a device gone from Entra is not Entra joined');
   // duplicates in Entra, a device gone from it, and a record that fits two devices here, on the device
-  const graphText = async id => { await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id); await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))'); return p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'); };
+  const graphText = async id => { await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id); await p.click('[data-otabgo="sources"]'); await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))'); return p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'); };
   assert.match(await graphText('d'), /2 records in Entra.*Entra registered.*last heard of.*Delete old records/s);
   assert.match(await graphText('e'), /Gone.*Not in Entra or Intune any more since the sync of 26\.10\.2026/s);
   assert.match(await graphText('k1'), /Not matched.*named Kiosk.*INV-k2 kiosk.*distinct names/s);

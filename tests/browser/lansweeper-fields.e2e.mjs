@@ -103,6 +103,7 @@ try {
   await page.waitForSelector('[data-ovscan]');
   assert.match(await page.textContent('[data-ovscan]'), /1\s*Check by hand.*not scanned by Lansweeper for over 3 months/s);
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
+  await page.click('[data-otabgo="sources"]');   // that part of the device page is a tab of its own
   await page.waitForSelector('.lsbox');
   assert.match(await page.textContent('.lsbox'), /Status\s*Check by hand.*Last scanned.*has not scanned it for over three months/s);
   // one Lansweeper tries to scan but never has (known only from AD) is flagged too, past a week's grace; the page says
@@ -120,6 +121,7 @@ try {
 
   // disks as one bar per drive: how full it is and the space left; red from 90 % used
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').disk = "C: 20/237 GB; D: 1'812/1'863 GB"; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.click('[data-otabgo="details"]');
   await page.waitForSelector('.disks .disk');
   assert.equal(await page.locator('.disks .disk').count(), 2);
   assert.match(await page.textContent('.disks'), /C:\s*20 GB free of 237 GB.*D:\s*1.812 GB free of 1.863 GB/s);
@@ -170,6 +172,7 @@ try {
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').adGroups = ['GPO-Kiosk', 'SW-Office365']; c.byId('o2').adGroups = ['SW-Office365']; (await import('/js/02-views.js')).openObj('o1'); });
   // they are on the Active Directory tab of the Sources panel
   await page.waitForSelector('#view .obj');
+  await page.click('[data-otabgo="sources"]');
   if (await page.locator('[data-srctab=ad]').count()) await page.click('[data-srctab=ad]');
   await page.waitForSelector('[data-adg]');
   assert.deepEqual(await page.$$eval('[data-adg]', b => b.map(x => x.textContent)), ['GPO-Kiosk', 'SW-Office365']);
@@ -184,6 +187,7 @@ try {
   // column, and the Graph chip while Graph is not set up. The values are kept.
   const offView = async lsOn => page.evaluate(async on => { const c = await import('/js/01-core.js'); c.st.useLansweeper = on; c.byId('o1').boot = 'Shutdown 01.10.2026'; c.byId('o1').graph = { join: 'Entra joined', compliance: 'compliant' }; (await import('/js/02-views.js')).openObj('o1'); }, lsOn);
   await offView(true);
+  await page.click('[data-otabgo="details"]');
   await page.waitForSelector('#f_o1_os');
   assert.equal(await page.locator('label[for=f_o1_boot]').count(), 1, 'shown with Lansweeper on');
   await offView(false);

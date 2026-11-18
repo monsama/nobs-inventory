@@ -75,6 +75,7 @@ try {
   await p.click('#nOk');
   await until(p, async () => { const c = await import('/js/01-core.js'); const pc = c.byName('PC-OUT-1'); return !!pc && c.rels.some(r => r.from === pc.id && r.port === 'P02'); });
   // Its path: outlet, then the panel on P02, then the switch on port 6.
+  await p.click('[data-otabgo="relations"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('.netpath .ps-outlet');
   const path1 = (await p.textContent('.netpath')).replace(/\s+/g, ' ');
   const at = s => path1.indexOf(s);
@@ -131,6 +132,7 @@ try {
   assert.match(await v.textContent('#ppBox'), /2\.OG-R12-02[\s\S]*PC-OUT-1/);
   assert.equal(await v.locator('#ppName, #ppPatch, #ppImport, [data-ppedit]').count(), 0, 'no editing for a viewer');
   await open(v, 'PC-OUT-1');
+  await v.click('[data-otabgo="relations"]');
   await v.waitForSelector('.netpath .ps-outlet');
   assert.equal(await v.locator('#arOutlet').count(), 0);
 

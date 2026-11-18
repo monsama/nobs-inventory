@@ -47,6 +47,7 @@ try {
   // the server: where its fields came from, and its AD account
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('s1'));
   // the AD account has its own tab in the Sources panel (or its own panel when AD is the only source)
+  await p.click('[data-otabgo="sources"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('#view .panelbox:has(.hdr:has-text("Active Directory"))');
   if (await p.locator('[data-srctab=ad]').count()) { await p.click('[data-srctab=ad]'); assert.equal(await p.isVisible('#srcbody-ad'), true); }
   const form = await p.textContent('#view .panelbox:has(.hdr:has-text("Active Directory"))');
@@ -62,6 +63,7 @@ try {
   // a click on a source mark shows where the value is from (here only AD) and when; a click elsewhere or Escape closes it
   const osMark = p.locator('#f_s1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]');
   assert.match(await osMark.getAttribute('title'), /From the computer account in Active Directory/);
+  await p.click('[data-otabgo="details"]');
   await osMark.click();
   assert.match(await p.textContent('#fsrcPop'), new RegExp(`Automatic[\\s\\S]*Active Directory\\s*in use\\s*Windows Server 2019 Standard[\\s\\S]*last logon ${oldDay.replace(/\./g, '\\.')}`));
   await p.click('#objTitle');
@@ -102,6 +104,7 @@ try {
 
   // the phone: what Intune says of it
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('m1'));
+  await p.click('[data-otabgo="sources"]');
   await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   const panel = await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   for (const t of ['CategorySales phones', 'SupervisedYes', 'AutopilotGroup tag Sales · order PO-7 · enrolled', 'Phone number+41 79 123 45 67', 'IMEI351234567890123', 'Owned byCompany', 'Free storage32 GB']) assert.ok(panel.replace(/\s+/g, '').includes(t.replace(/\s+/g, '')), 'panel: ' + t);

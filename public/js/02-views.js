@@ -296,6 +296,20 @@ export function bindHiddenHits(){
   if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; view(); };
 }
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
+/* On a wide screen the filters can be a drawer too, or kept open beside the list (the choice is kept in this browser):
+   the list gets the room, the filters in force show as chips above it and as a number on the Filters button. */
+/* Not chosen yet: kept open on a screen with room for it (1280 px and wider), a drawer below that. */
+/* Worked out once when the page loads, so making the window a little narrower does not take the filters away. */
+const SIDE_DEFAULT = window.innerWidth >= 1280;
+export const sidePinned = () => { let v = null; try { v = localStorage.getItem('ni-side-pin'); } catch { /* not kept */ } return v === null ? SIDE_DEFAULT : v === '1'; };
+export function placeSide(){
+  document.body.classList.toggle('side-drawer', !sidePinned());
+  const pin = $('#sidePin'); if (pin) { pin.textContent = sidePinned() ? 'Hide' : 'Keep open'; pin.title = sidePinned() ? 'Show the filters only when Filters is pressed' : 'Keep the filters open beside the list'; }
+  const n = $('#sideN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; }
+}
+/* The Filters button says whether the drawer is open, however it closes (Escape, a tap beside it, a filter picked). */
+new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('aria-expanded', String(document.body.classList.contains('side-open'))); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+$('#sidePin').onclick = () => { try { localStorage.setItem('ni-side-pin', sidePinned() ? '0' : '1'); } catch { /* not kept */ } document.body.classList.remove('side-open'); placeSide(); };
 /* The filter drawer on a phone closes like a menu: Escape, or a tap beside it. */
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('side-open') && !$('#modalHost').childElementCount){ document.body.classList.remove('side-open'); $('#sideBtn').focus(); } });
 document.addEventListener('pointerdown', e => { if (!document.body.classList.contains('side-open')) return; const t = evEl(e); if (t.closest && !t.closest('#side, #sideBtn')) document.body.classList.remove('side-open'); }, true);

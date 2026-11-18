@@ -35,6 +35,7 @@ try {
 
   // A relation: the laptop is connected to the switch.
   await openByName(p, 'ZH-NB-0201');
+  await p.click('[data-otabgo="relations"]');   // that part of the device page is a tab of its own
   await p.selectOption('#arKind', 'connected');
   await p.selectOption('#arTo', await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SW-ZH-2OG-01').id); }));
   await p.fill('#arPort', '7'); await p.click('#arAdd');

@@ -194,6 +194,8 @@ function renderTray(){
 export let modalOpener = null;
 /* Leaving Settings, however it is closed, draws the view behind it again, so changes made there show at once. */
 export const closeModal = () => {
+  /* Settings closing: the address no longer names one of its pages (a dialog opened from Settings brings it back). */
+  if ($('#mdl #setPane') && /^#settings\//.test(location.hash)) try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* not kept */ }
   if (leaveCheck && leaveCheck() && $('#mdl') && !$('#mdl .leave-warn')){
     if ($('#mdl.minimized')) restoreModal();
     const foot = $('#mdl .mf'), note = document.createElement('p');
