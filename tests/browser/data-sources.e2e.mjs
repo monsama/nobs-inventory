@@ -214,6 +214,21 @@ try {
   assert.match(await p.textContent('#adLocs'), /→ Bern \/ Raum 3\.12/);
   await p.click('#toast .t-undo');
   await stored(st => !st.locs.includes('Bern / Raum 3.12') && !(st.locMap || {})['Raum 3.12'] && st.objs.every(o => !o.loc));
+  // the order the sources fill the location in, said over the list
+  assert.match(await p.textContent('#adLocs .adloc-order'), /Fills the location:/);
+  // ticked texts become rooms of a site at once, with one Undo
+  await p.check('#adPickAll');
+  await p.waitForSelector('#adBulkGo');
+  assert.match(await p.textContent('#adBulkGo'), /Create 2 rooms/);
+  await p.selectOption('#adBulkSite', 'Bern');
+  await p.click('#adBulkGo');
+  await stored(st => st.locs.includes('Bern / Raum 3.12') && st.locs.includes('Bern / Lager'));
+  await p.click('#toast .t-undo');
+  await stored(st => !st.locs.includes('Bern / Raum 3.12') && !st.locs.includes('Bern / Lager'));
+  // rooms from AD's location: off by default, a site when chosen
+  assert.equal(await p.inputValue('#adLocAuto'), '');
+  await p.selectOption('#adLocAuto', 'Bern');
+  await stored(st => st.adLocAuto === 'Bern');
   assert.deepEqual(errors, []);
   console.log('data sources: all checks passed');
 } finally { await browser.close(); server.close(); }

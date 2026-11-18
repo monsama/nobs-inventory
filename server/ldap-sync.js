@@ -95,7 +95,9 @@ export async function syncLdapUsers(db, config, { dryRun = false } = {}) {
   if (computerError) counts.computerError = computerError;
   else if (computers && computers.length) {
     const lens = historyLens(s);
+    const locsBefore = (s.locs || []).length;
     counts.computers = applyComputers(s, computers);
+    if ((s.locs || []).length > locsBefore){ counts.rooms = s.locs.length - locsBefore; counts.listChanged = true; }
     noteChanges(s, 'ad', lens);
     /* Devices without a location take their user's office, when Settings → Locations says so. */
     const office = officeLocations(s, stamp(new Date()));
@@ -154,7 +156,7 @@ export function applyComputers(s, computers, now = new Date()) {
     let changed = false;
     /* The account's description fills the purpose; its location only a location the inventory knows by that name, so a
        free text never makes a new one. What AD says of each is kept beside the field (o.vals), to pick from on the page. */
-    const loc = c && c.location && adLocation(s, c.location);
+    const loc = c && c.location && (adLocation(s, c.location) || autoRoom(s, c.location));
     /* The fields AD fills in: one list with Settings → Data sources (public/js/sync-map.js). */
     const from = { os: c && c.os, domain: c && c.domain, purpose: c && c.description, loc: loc || '' };
     const fields = Object.entries(AD_FILL).map(([k, label]) => [k, from[k], label]);
@@ -186,6 +188,18 @@ const low = v => String(v || '').trim().toLowerCase();
 /* The room an AD location text stands for: a room of that name, or the room it is mapped to (Settings → Locations).
    A text that names no room here gives none: free text never makes a location. */
 export const adLocation = (s, text) => mappedRoom(s, text);
+/* With Settings → Locations → "Rooms from AD's location" set to a site, a location text of AD that names no room yet
+   becomes a room in that site (and the text is mapped to it), as AD's location is kept by hand there. Lansweeper's free
+   text never does. At most 2000 locations in all. */
+export function autoRoom(s, text){
+  const site = s.adLocAuto, name = String(text || '').trim().replace(/\s*\/\s*/g, ' - ').replace(/\s+/g, ' ').slice(0, 120);
+  if (!site || !(s.sites || []).includes(site) || !name) return '';
+  const room = `${site} / ${name}`;
+  s.locs ??= [];
+  if (!s.locs.includes(room)){ if (s.locs.length >= 2000) return ''; s.locs.push(room); }
+  s.locMap = { ...(s.locMap || {}), [String(text).trim()]: room };
+  return room;
+}
 function adOf(c) {
   const ad = { ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.pwdSet ? { pwdSet: c.pwdSet } : {}), ...(c.managedBy ? { managedBy: c.managedBy } : {}),
     ...(c.location ? { location: c.location } : {}), ...(c.description ? { description: c.description } : {}), ...(c.services && c.services.length ? { services: c.services } : {}) };

@@ -168,6 +168,10 @@ A device page has **Links**: its web interface, a share with its files, a remote
 
 A device Lansweeper, Active Directory or Entra and Intune finds is added to the inventory straight away, with the date it came. It shows **New** until you open it, and for an hour at most after you first see it (each person, in their own browser); **Added this week** on the left lists them for the week. Only the ones that need a decision wait in **Pending devices**: a possible duplicate (the same serial number or name as a device you have, or a docking station's second record), an address without a name or serial number, or one no source has seen for 90 days. Each says why it waits. When the question goes away (the device is seen again, or it waited from before new devices went straight in), the next sync adds it, as of the day it was found; the sync result says how many. The inventory says how many wait, and of which types (also beside each type on the left); in Pending devices, **Add at once** takes in the clear ones of a type, with Undo. A source can be set to make every new device wait (Settings, its page, New devices).
 
+## Locations from the sources
+
+Settings → Locations lists what the sources call a device's location: AD's Location of a computer account, Lansweeper's building and location, and (if turned on) the office of a device's user. A text alone never becomes a location. Use one as a room, existing or new, or tick several and create them as rooms in a site at once (with Undo); the syncs then fill that room in on devices without a location. The line over the list says which sources fill the location and in what order; **Change order or leave a source out** opens it in Settings → Data sources. **Rooms from AD's location** (off by default) makes each AD location text a room of the site you pick at every AD sync, for when AD's Location is kept by hand; Lansweeper's free text never does.
+
 ## Device types from Lansweeper
 
 A device from Lansweeper gets its type in this order:

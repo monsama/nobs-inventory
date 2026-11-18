@@ -2231,3 +2231,14 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 @media (max-width: 600px){ .fb-inbox-t>.muted{display:none} }
 /* A pending device has no inventory code yet: when it was last seen fills the footer. */
 .card .cf.cf-seen>.chip:first-child{flex:1 1 auto;max-width:none;justify-content:center}
+/* Location texts: the order the sources fill it in, the options, and texts ticked to make rooms of at once. */
+.adloc-order{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.adloc-opts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 24px}
+.adloc-auto{display:inline-flex;align-items:center;gap:8px;width:auto}.adloc-auto select{width:auto;max-width:100%}
+.adloc-bulk{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--bd2)}.adloc-bulk .pchk{width:auto}.adloc-bulk select{width:auto}
+.lrow.adloc.pick{grid-template-columns:24px minmax(0,1fr) 170px 70px minmax(0,1.2fr)}
+@media (max-width:760px){.lrow.adloc.pick{grid-template-columns:24px minmax(0,1fr) 50px}.lrow.adloc.pick .adloc-tags,.lrow.adloc.pick.head>span:nth-child(3){display:none}}
+.lrow.adloc>input[type=checkbox]{width:16px;height:16px;margin:0;justify-self:center}
+@media (max-width:760px){.lrow.adloc.pick.head>span:nth-child(2){display:block}}
+.adloc-bulk{padding-left:12px;padding-right:12px}
+.adloc-order{padding-top:8px}
