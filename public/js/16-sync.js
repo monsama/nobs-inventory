@@ -38,6 +38,8 @@ export function summary(src, c){
   if (updated) parts.push(`${updated} updated`);
   if (c.added) parts.push(`${c.added} added`);
   if (c.review) parts.push(`${c.review} new in To check`);
+  if (c.newFull || c.reviewFull) parts.push(`${(c.newFull || 0) + (c.reviewFull || 0)} new left out: no more than 5000 in one push`);
+  if (c.settled) parts.push(`${c.settled} from To check added (nothing unclear)`);
   return parts.filter(p => !/^0 /.test(p)).join(' · ') || 'nothing new';
 }
 export function syncButtonHtml(){

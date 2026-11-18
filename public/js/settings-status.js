@@ -114,8 +114,8 @@ const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 export function previewText(src, c){
   if (!c) return '';
   const parts = src === 'ad'
-    ? [`${n(c.people || 0, 'person', 'people')} in the sign-in group`, c.created && `${c.created} new`, c.updated && `${c.updated} updated`, c.deactivated && `${c.deactivated} switched off`, c.computers && `${n(c.computers, 'device', 'devices')} matched by computer account`, c.review && `${c.review} new in To check`, c.added && `${c.added} added`]
-    : [c.matched !== undefined && `${n(c.matched, 'device', 'devices')} matched`, c.filled && `${n(c.filled, 'field', 'fields')} filled in`, c.added && `${c.added} added`, c.review && `${c.review} new in To check`, c.people && typeof c.people === 'object' && c.people.inEntra !== undefined && `${n(c.people.inEntra, 'person', 'people')} found in Entra`];
+    ? [`${n(c.people || 0, 'person', 'people')} in the sign-in group`, c.created && `${c.created} new`, c.updated && `${c.updated} updated`, c.deactivated && `${c.deactivated} switched off`, c.computers && `${n(c.computers, 'device', 'devices')} matched by computer account`, c.review && `${c.review} new in To check`, c.added && `${c.added} added`, c.settled && `${c.settled} from To check added`]
+    : [c.matched !== undefined && `${n(c.matched, 'device', 'devices')} matched`, c.filled && `${n(c.filled, 'field', 'fields')} filled in`, c.added && `${c.added} added`, c.review && `${c.review} new in To check`, c.settled && `${c.settled} from To check added`, c.people && typeof c.people === 'object' && c.people.inEntra !== undefined && `${n(c.people.inEntra, 'person', 'people')} found in Entra`];
   return `A sync now would bring: ${parts.filter(Boolean).join(' · ') || 'nothing new'}. Nothing was saved.`;
 }
 document.addEventListener('click', async e => {

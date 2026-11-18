@@ -18,6 +18,7 @@ import { bindSaveView, saveViewBtn } from './views-saved.js';
 import { remapTable } from './saved-views.js';
 import { bindPrintMenu, printMenuHtml } from './print-view.js';
 import { html, rawHtml } from './html.js';
+import { waitReason } from './15-review.js';
 /* ---------- table ---------- */
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
 export const TABLE_COLS = [
@@ -53,6 +54,7 @@ export const TABLE_COLS = [
   {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return String(html`<td>${s ? html`<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${s.at} by ${s.src}">${dayText(s.day)}</span> <span class="muted">· ${s.src}</span>` : ''}</td>`); }},
   {k:'ls', w:240, label:'Lansweeper', cell: o => String(html`<td>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o) || '-')}</td>`)},
   /* In To check only, and last, so the other columns keep their places: which sync found it, and which others know it. */
+  {k:'why', w:300, label:'Why it waits', cell: o => String(html`<td>${o.review && !o.review.ignored ? waitReason(o).text : ''}</td>`)},
   {k:'found', w:220, label:'Found by', cell: o => String(html`<td>${o.review ? [REVIEW_SRC[o.review.src] || o.review.src, ...(alsoIn(o).length ? [`also ${alsoIn(o).join(' · ')}`] : [])].join(' · ') : ''}</td>`)}
 ];
 /* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To check. */
@@ -70,7 +72,7 @@ export function tablePrintData(){
   const idx = relIndex(), cols = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
   return { head: cols.map(c => c.label), rows: filtered().map(o => cols.map(c => cellText(c.cell(o, idx)))) };
 }
-export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope));
+export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope) && (c.k !== 'why' || st.scope === 'review'));
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
 export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
@@ -147,7 +149,7 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${listCount(list.length, scopePool().length)}</span><span class="tbsep"></span>
-    ${rawHtml(columnsMenu())}${rawHtml(printMenuHtml())}${rawHtml(menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export', String(html`${SERVER.on ? html`<button type="button" id="xlsxShown">Excel<span class="muted">, the columns shown</span></button>` : ''}<button type="button" id="csvShown">CSV<span class="muted">, the columns shown</span></button><button type="button" id="csvBtn">CSV, all fields<span class="muted">, to import again</span></button>`), { id: 'csvMenu' }))}${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
+    ${rawHtml(columnsMenu())}${rawHtml(printMenuHtml())}${rawHtml(menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export', String(html`${SERVER.on ? html`<button type="button" id="xlsxShown">Excel<span class="muted">, the columns shown</span></button>` : ''}<button type="button" id="csvShown">CSV<span class="muted">, the columns shown</span></button><button type="button" id="csvBtn">CSV, all fields<span class="muted">, to import again</span></button>`), { id: 'csvMenu' }))}${isAdmin() && !st.scope ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };

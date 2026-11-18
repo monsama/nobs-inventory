@@ -244,7 +244,7 @@ export const handHtml = o => o.handAt && Date.parse(o.handAt) > SYNC.time ? '<sp
    first brought it. 0 when not known. */
 export const NEW_DAYS = 7;
 export const addedTime = o => Date.parse(o.added || '') || stampTime(o.feed && o.feed.created) || 0;
-export const addedRecently = o => { const t = addedTime(o); return !!t && Date.now() - t < NEW_DAYS * 864e5; };
+export const addedRecently = o => { const t = addedTime(o); const age = Date.now() - t; return !!t && age > -864e5 && age < NEW_DAYS * 864e5; };
 /* New on a card: added in the last week, after the first import (on the day the inventory was first filled every device
    is new, and saying so says nothing). */
 let firstAdded = 0;

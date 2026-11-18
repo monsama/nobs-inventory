@@ -17,6 +17,7 @@ export function graphSummary(c){
   return [`${c.records ?? devices} records in Entra and Intune for ${devices} devices: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.`,
     c.duplicates ? `${c.duplicates} duplicate record${c.duplicates === 1 ? '' : 's'}: the current one is used (filter Duplicates in Entra).` : '',
     c.review ? `${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in To check.` : '',
+    c.settled ? `${c.settled} from To check added (nothing unclear).` : '',
     c.added ? `${c.added} new ${c.added === 1 ? 'device' : 'devices'} added.` : '',
     c.ambiguous ? `${c.ambiguous} fit${c.ambiguous === 1 ? 's' : ''} more than one device here and ${c.ambiguous === 1 ? 'was' : 'were'} put on none: see below.` : '',
     c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : '',

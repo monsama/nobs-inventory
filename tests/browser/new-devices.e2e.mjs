@@ -55,7 +55,7 @@ try {
   const why = async id => (await p.textContent(`#cards .card[data-open="${id}"] .rv-why`)).trim();
   assert.match(await why('w6'), /Only an IP address/);
   assert.match(await why('w7'), /Possible duplicate: same serial number as OLD-NB-1/);
-  assert.match(await why('w1'), /Nothing unclear: it waits from before new devices were added automatically/);
+  assert.match(await why('w1'), /Nothing unclear: the next sync adds it to the inventory/);
   // filtered by why they wait
   const seg = async k => (await p.textContent(`#fbar [data-ckwhy="${k}"]`)).replace(/\s+/g, ' ').trim();
   assert.equal(await seg(''), 'All 7'); assert.equal(await seg('clear'), 'Nothing unclear 5'); assert.equal(await seg('dup'), 'Possible duplicate 1'); assert.equal(await seg('ip'), 'Address only 1');

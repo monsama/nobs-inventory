@@ -68,7 +68,7 @@ function renderNow({ save = true } = {}){
   renderFilterBar();
   fullTextTooltips();
   bindFullTextOnHover();
-  $('#stObjs').textContent = `${objs.length} ${objs.length === 1 ? 'device' : 'devices'}`;
+  $('#stObjs').textContent = `${objs.length} ${objs.length === 1 ? 'device' : 'devices'}${st.scope ? ' in the inventory' : ''}`;
   renderStatus();
   /* The scrollbar's width (the view keeps room for it): the bars above and below end where the view's content ends. */
   const vw = $('#view'), sbw = vw ? vw.offsetWidth - vw.clientWidth : 0;

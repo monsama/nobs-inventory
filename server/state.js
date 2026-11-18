@@ -416,7 +416,7 @@ function checkStateRules(s, size = true, newRels = null) {
     }
     if (o.graph !== undefined && (!o.graph || typeof o.graph !== 'object' || Array.isArray(o.graph))) bad(`${o.name}: the Microsoft Graph data is an object.`);
     /* When it came into the inventory (added by hand, by a sync, or taken from To check). */
-    if (o.added !== undefined && (typeof o.added !== 'string' || o.added.length > 40 || !Date.parse(o.added))) bad(`${o.name}: the date it was added is not a date.`);
+    if (o.added !== undefined && (typeof o.added !== 'string' || o.added.length > 40 || !Date.parse(o.added) || Date.parse(o.added) > Date.now() + 864e5)) bad(`${o.name}: the date it was added is not a date.`);
     if (o.reported !== undefined && (!o.reported || typeof o.reported !== 'object' || typeof o.reported.text !== 'string' || o.reported.text.length > 500 || typeof o.reported.by !== 'string' || o.reported.by.length > 120 || !Date.parse(o.reported.at)
       || (o.reported.done !== undefined && (!o.reported.done || typeof o.reported.done !== 'object' || !Date.parse(o.reported.done.at) || typeof o.reported.done.by !== 'string' || o.reported.done.by.length > 120 || (o.reported.done.note !== undefined && (typeof o.reported.done.note !== 'string' || o.reported.done.note.length > 500)))))) bad(`${o.name}: a reported problem has its text, who and when.`);
     /* Which fields a directory filled in (fill.js), and what AD says of the computer account. */
