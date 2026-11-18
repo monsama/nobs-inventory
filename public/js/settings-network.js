@@ -4,6 +4,7 @@ import { queueServerSave, render } from './07-render.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { html, rawHtml } from './html.js';
 import { fieldOrder, fieldMode } from './sync-map.js';
+import { roomFor } from './room-name.js';
 import { REVIEW, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
@@ -263,7 +264,7 @@ export function renderSetLocs(){
     st.stockRooms = next; queueServerSave(); toast(sel.value ? `Store room of ${sel.dataset.stock}: ${sel.value}` : `${sel.dataset.stock} has no store room`);
   });
   root.querySelectorAll('[data-si]').forEach(i => i.onchange = () => renameSite(SITES[+i.dataset.si], i.value));
-  root.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { SITES.splice(+b.dataset.sd, 1); toast('Site deleted'); renderSetLocs(); render(); });
+  root.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { if (st.adLocAuto === SITES[+b.dataset.sd]) st.adLocAuto = ''; SITES.splice(+b.dataset.sd, 1); toast('Site deleted'); renderSetLocs(); render(); });
   root.querySelectorAll('[data-lo]').forEach(i => i.onchange = () => { const old = LOCS[+i.dataset.lo]; renameLoc(old, siteOf(old) + ' / ' + i.value.trim()); });
   root.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => { LOCS.splice(+b.dataset.ld, 1); toast('Room deleted'); renderSetLocs(); render(); });
   const enter = (id, fn) => $(id).onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); fn(); } };
@@ -350,7 +351,7 @@ const adPicked = new Set();
 /* The site the ticked texts become rooms in: the one picked last, else the first. */
 let adSite = '';
 const bulkSite = () => SITES.includes(adSite) ? adSite : SITES[0] || '';
-const roomName = (site, t) => cleanLoc(site + ' / ' + (t.includes(' / ') ? t.split(' / ').slice(1).join(' - ') : t).replace(/\//g, '-'));
+const roomName = (site, t) => cleanLoc(roomFor(site, t));
 function bindAdLocs(root){
   const list = locTexts();
   root.querySelectorAll('[data-adpick]').forEach(cb => cb.onchange = () => { const k = lc(list[+cb.dataset.adpick].text); if (cb.checked) adPicked.add(k); else adPicked.delete(k); renderSetLocs(); });
@@ -410,6 +411,8 @@ export function renameSite(old, value){
   if (name === old) return;
   if (SITES.includes(name)){ toast(name + ' already exists.'); renderSetLocs(); return; }
   SITES[SITES.indexOf(old)] = name;
+  /* Rooms from AD's location follow the site to its new name. */
+  if (st.adLocAuto === old) st.adLocAuto = name;
   const move = l => (l === old || String(l || '').startsWith(old + ' / ')) ? name + String(l).slice(old.length) : l;
   LOCS.forEach((l, i) => { LOCS[i] = move(l); });
   objs.forEach(o => { if (o.loc) o.loc = move(o.loc); });
