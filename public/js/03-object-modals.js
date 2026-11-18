@@ -12,7 +12,7 @@ import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
-import { dayText, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
+import { dayText, agoText, lastSeenOf, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
@@ -307,8 +307,19 @@ export function renderObj(o){
     ${o.review ? html`<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : html`<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}</span>${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? html`<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${PLANS.find(p => p.id === o.planPos.plan).name}</button>` : ''}<div class="grow"></div><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + savedAt(o.handAt) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>${handBtn(o)}
     ${rawHtml(menuHtml('More', more))}`;
   const retiredBar = o.status === 'retired' && !o.review && edit ? html`<div class="rv-banner"><span>Retired: kept for the record. Nothing new is linked to it.</span><button type="button" id="bringBack" class="primary">Bring back to stock</button></div>` : '';
-  $('#view').innerHTML = html`${rawHtml(reviewBanner(o))}${twinBanner(o)}${retiredBar}<div class="obj${o.status === 'retired' ? ' is-retired' : ''}">
-    <div class="col">
+  /* The page: the key facts on top, then its parts as tabs. */
+  const srcHtml = sourcesPanel(o);
+  const seen = lastSeenOf(o), hostRel = rs.find(x => x.out && isAttached(x.r.kind));
+  const facts = [['User', o.user || (hostRel && hostRel.other.user) || '', o.user ? '' : hostRel && hostRel.other.user ? 'From ' + hostRel.other.name : ''],
+    ['Location', o.loc || (hostRel && hostRel.other.loc) || ''], ['IP', o.ip || ''], ['Last seen', seen ? agoText(seen.day) : '', seen ? `${seen.at} by ${seen.src}` : '']];
+  const TABS = [['details', 'Details', 0], ['relations', 'Relations', rs.length], ...(srcHtml ? [['sources', 'Sources', 0]] : []), ['history', 'History', 0]];
+  /* Another device opens on Details, as a new record does; the tab picked stays while this one is redrawn. */
+  if (st.objTabFor !== o.id){ st.objTab = 'details'; st.objTabFor = o.id; }
+  const tab = TABS.some(t => t[0] === st.objTab) ? st.objTab : 'details';
+  $('#view').innerHTML = html`${rawHtml(reviewBanner(o))}${twinBanner(o)}${retiredBar}<div class="obj otabbed${o.status === 'retired' ? ' is-retired' : ''}" data-otab="${tab}">
+    <div class="ofacts" aria-label="Key facts">${facts.map(([k, v, t]) => html`<span class="of"><small>${k}</small><span title="${t || v}">${v || '-'}</span></span>`)}</div>
+    <div class="otabs" role="tablist" aria-label="Parts of the device page">${TABS.map(([k, l, n]) => html`<button type="button" role="tab" class="otab${tab === k ? ' on' : ''}" data-otabgo="${k}" aria-selected="${String(tab === k)}" tabindex="${tab === k ? '0' : '-1'}">${l}${n ? html` <span class="cnt">${n}</span>` : ''}</button>`)}</div>
+    <section class="opane ogrid" data-pane="details"><div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row)}
         ${rawHtml(rackFields(o))}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? html`<label>Directory <button type="button" class="link colhelp" data-view data-colhelp title="What the colours mean" aria-label="What the colours mean">?</button></label><div class="ctlrow">${rawHtml(joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page'))}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
@@ -316,11 +327,11 @@ export function renderObj(o){
         ${edit || o.notes ? html`<label for="objNotes">Notes</label><div class="ctlrow entries">${rawHtml(notesHtml(o, edit))}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${nEmpty ? html`<span></span><div><button type="button" class="link fm-reveal" id="fmAll" data-view aria-expanded="${String(allF)}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
         ${nHidden ? html`<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" data-view aria-expanded="${String(reveal)}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
-      ${rawHtml(sourcesPanel(o))}
-    </div>
-    <div class="col">
+    </div><div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${extras(o)}
+    </div></section>
+    <section class="opane ogrid" data-pane="relations"><div class="col">
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
         <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.r.kind === 'connected' && outletOf(byId(x.r.to), x.r.port) ? html`<span class="chip" title="${outletLabel({...outletOf(byId(x.r.to), x.r.port), panel: byId(x.r.to), port: x.r.port})}">Outlet ${outletOf(byId(x.r.to), x.r.port).name}</span>` : ''}${x.r.lag == null && PORT_KINDS.includes(x.r.kind) && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`${rawHtml(comboHtml(String(html`<input id="rp_${x.r.id}" class="rport mono" data-rport="${x.r.id}" data-combo="port" data-port-to="${x.r.to}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}: type one, or pick a free port">`), 'rp_' + x.r.id).replace('<div class="combo">', '<div class="combo rportbox">'))}<span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">${isAdmin() ? 'No relations yet.' : 'No relations.'}</p>`}</div>
         ${edit ? html`<div class="rel-open"${st.relAdd ? ' hidden' : ''}><button type="button" class="link" id="arOpen">+ Add a relation</button></div>` : ''}
@@ -331,11 +342,20 @@ export function renderObj(o){
       ${chain.length > 1 ? html`<details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? html` <span class="cnt">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : html` <span class="cnt">none</span>`}</summary>
         ${chain.length > 1 ? netPath : html`<div class="chain"><span class="muted">This device does not hang off anything.</span></div>`}
       </details>` : ''}
-      ${rawHtml(timelinePanel(o))}
-      ${rawHtml(historyPanel(o))}
-    </div></div>`;
+    </div></section>
+    ${srcHtml ? html`<section class="opane" data-pane="sources">${rawHtml(srcHtml)}</section>` : ''}
+    <section class="opane ogrid" data-pane="history"><div class="col">${rawHtml(timelinePanel(o))}</div><div class="col">${rawHtml(historyPanel(o))}</div></section>
+    </div>`;
 
   /* From here on: the controls of the page are wired. */
+  /* The tabs: a click or the arrow keys pick one. */
+  { const bar = $('#view .otabs'), go = k => { st.objTab = k; const ob = $('#view .obj'); if (ob) ob.dataset.otab = k;
+      bar.querySelectorAll('[data-otabgo]').forEach(b => { const on = b.dataset.otabgo === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; }); };
+    if (bar){ bar.querySelectorAll('[data-otabgo]').forEach(b => b.addEventListener('click', () => go(b.dataset.otabgo)));
+      bar.addEventListener('keydown', e => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+        const bs = [...bar.querySelectorAll('[data-otabgo]')], i = bs.indexOf(/** @type {any} */ (document.activeElement)); if (i < 0) return;
+        const n = e.key === 'Home' ? 0 : e.key === 'End' ? bs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : bs.length - 1)) % bs.length;
+        e.preventDefault(); go(bs[n].dataset.otabgo); bs[n].focus(); }); } }
   /* + Add a relation opens the form, and it stays open on every device until the page is reloaded. */
   { const ob = $('#arOpen'); if (ob) ob.onclick = () => { st.relAdd = true; ob.parentElement.hidden = true; for (const id of ['arRow', 'arOutletRow']){ const r = document.getElementById(id); if (r) r.hidden = false; } const k = $('#arKind'); if (k) k.focus(); }; }
   /* Hide: an empty panel goes back to the Add line. */

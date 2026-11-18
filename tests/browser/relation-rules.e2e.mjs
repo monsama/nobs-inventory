@@ -39,6 +39,7 @@ try {
 
   // its page: no port box for an attachment, and only the kinds a monitor can have are offered
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('m1'));
+  await p.click('[data-otabgo="relations"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('#arKind');
   assert.equal(await p.locator('[data-rport]').count(), 0, 'a port is asked for an attachment');
   const kinds = await p.$$eval('#arKind option', os => os.map(o => o.value));

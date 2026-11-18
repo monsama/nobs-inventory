@@ -191,7 +191,8 @@ try {
   // a value set by hand: counted on its row, opened as a list, given back to the sources (with Undo)
   saveState(db, { ...loadState(db), objs: loadState(db).objs.map(o => o.id === 'e' ? { ...o, os: 'Typed', src: { os: 'hand' } } : o) });
   await p.reload(); await until(p, async () => !!(await import('/js/01-core.js')).st.meId);
-  await p.click('#setBtn'); await openSetTab(p, 'sources'); await openAdv();
+  /* Settings was open on reload: it opens again where it was (the address names its page). */
+  if (!(await p.locator('#setPane').count())) await p.click('#setBtn'); await openSetTab(p, 'sources'); await openAdv();
   await p.click('[data-dshand=os]');
   await p.waitForSelector('[data-handback]');
   assert.match(await p.textContent('body'), /Set by hand: Operating system/);

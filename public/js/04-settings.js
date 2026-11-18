@@ -54,6 +54,7 @@ export function openSettings(){
   bindSetFind();
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;
+
   renderSetPane();
   /* Opened on a tab: that tab has the focus and is in view (on a phone the row of tabs scrolls). */
   const at = $('#setTabs .tab.active');
@@ -98,6 +99,10 @@ let typeAdvOpen = false;
 /* After an Undo, an open Settings tab is drawn again, so it shows the value put back. */
 document.addEventListener('ni:undone', () => { if (document.getElementById('setPane')) renderSetPane(); });
 export function renderSetPane(){
+  /* A page that is not one (an old link, a typed address) shows the first one. */
+  if (st.setTab !== 'about' && !SET_TABS.some(([k]) => k === st.setTab)) st.setTab = SET_TABS[0][0];
+  /* The address names the page of Settings that is open (#settings/types), so it can be linked and reloaded. */
+  try { history.replaceState(history.state, '', location.pathname + location.search + '#settings/' + encodeURIComponent(st.setTab)); } catch { /* not kept */ }
   const grp = setGroupOf(st.setTab);
   $$('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   $$('#setTabs [data-sg]').forEach(b => b.classList.toggle('active', b.dataset.sg === grp));

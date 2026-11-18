@@ -34,6 +34,7 @@ const open = async (user, pw) => {
   await p.fill('#lgUser', user); await p.fill('#lgPw', pw); await p.click('#lgOk');
   await until(p, async () => !!(await import('/js/01-core.js')).st.meId);
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n1'));
+  await p.click('[data-otabgo="history"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('#tlPanel');
   return p;
 };
@@ -53,6 +54,7 @@ try {
   assert.deepEqual(all.find(e => e[0] === 'user'), ['user', 'tl-ok', 'Handed out to Anna Muster']);
   assert.equal(await p.getAttribute('#tlMore', 'aria-expanded'), 'true');
   // a field edited here joins it at once: the location, now the newest past event
+  await p.click('[data-otabgo="details"]');
   await p.selectOption('#f_n1_loc', 'Bern / 1').catch(async () => { await p.fill('#f_n1_loc', 'Bern / 1'); });
   await p.keyboard.press('Tab');
   await until(p, () => [...document.querySelectorAll('#tlPanel .tl-ev')].some(e => e.dataset.tl === 'move' && /Moved to Bern \/ 1/.test(e.textContent)));
@@ -61,6 +63,7 @@ try {
   // every change, with Restore, is under All changes: folded at first, so the Timeline is not said twice; opened, it stays open
   assert.match(await p.textContent('#histPanel > summary'), /All changes\s*\d+/);
   assert.equal(await p.evaluate(() => document.querySelector('#histPanel').open), false, 'the changes are open beside the Timeline');
+  await p.click('[data-otabgo="history"]');
   await p.click('#histPanel > summary');
   await until(p, () => localStorage.getItem('ni-hist-open') === '1');
 

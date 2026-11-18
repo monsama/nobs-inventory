@@ -29,6 +29,7 @@ try {
 
   // the PC on port 3 of the 24 + 4 switch (naming 1/)
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.rels.push({ id: 'rPC', from: 'o2', to: 'o1', kind: 'connected', port: 3, vlan: null }); (await import('/js/02-views.js')).openObj('o2'); });
+  await p.click('[data-otabgo="relations"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('[data-rport="rPC"]');
   const setPort = async v => { await p.fill('[data-rport="rPC"]', v); await p.dispatchEvent('[data-rport="rPC"]', 'change'); };
   await setPort('26'); await until(p, async () => (await import('/js/01-core.js')).rels.find(r => r.id === 'rPC').port === 26);   /* an SFP port */

@@ -37,8 +37,8 @@ try {
       document.querySelectorAll('button').forEach(b => { if (!shown(b)) return; if (b.scrollWidth > b.clientWidth + 1) problems.push('button text cut off: ' + label(b)); });
       // 2. Buttons that sit in one row line up: the same height.
       const rows = new Map();
-      /* A row is buttons side by side in one container: buttons of the sidebar and of the cards that happen to start at the same height are not one row. */
-      document.querySelectorAll('button').forEach(b => { if (!shown(b) || b.closest('.tbchunk,.mf')) return; const key = Math.round(b.getBoundingClientRect().top) + '|' + (b.closest('#side') ? 'side' : b.closest('#mdl') ? 'dialog' : 'main'); (rows.get(key) || rows.set(key, []).get(key)).push(b); });
+      /* A row is buttons side by side in one container: buttons of the sidebar (or of the Settings menu on the left) and of the cards that happen to start at the same height are not one row. */
+      document.querySelectorAll('button').forEach(b => { if (!shown(b) || b.closest('.tbchunk,.mf')) return; const key = Math.round(b.getBoundingClientRect().top) + '|' + (b.closest('#side') ? 'side' : b.closest('#setTabs') ? 'setmenu' : b.closest('#mdl') ? 'dialog' : 'main'); (rows.get(key) || rows.set(key, []).get(key)).push(b); });
       rows.forEach(list => { if (list.length < 2) return; const hs = list.map(b => Math.round(b.getBoundingClientRect().height)); if (Math.max(...hs) - Math.min(...hs) > 4) problems.push('buttons in one row differ in height: ' + list.map(label).join(' | ')); });
       // 3. Fields in a form share one left edge and one height.
       document.querySelectorAll('.form').forEach(f => {

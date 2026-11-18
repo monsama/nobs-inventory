@@ -449,7 +449,7 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
  .card button.cardtick::before{content:"";position:absolute;left:10px;top:10px;width:16px;height:16px;box-sizing:border-box;border:1.5px solid var(--bd);border-radius:4px;background:var(--bg)}
  .card.picked button.cardtick{background:transparent}.card.picked button.cardtick::before{background:var(--accent);border-color:var(--accent)}
  .card.picked button.cardtick::after{left:15.5px;top:12.5px}}
-.card .ch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2)}
+
 .card .ch>.chip{align-self:flex-start;margin-top:-1px}
 
 .tico svg.cu{fill:currentColor;stroke:none}
@@ -457,7 +457,7 @@ svg.cu{fill:currentColor;stroke:none}
 .tico.sm{width:20px;height:20px}.tico.sm svg{width:12px;height:12px}
 .card .nm{font-family:var(--mono);font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card .model{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card .hd{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+
 .kv{display:grid;grid-template-columns:72px 1fr;gap:2px 8px;padding:6px 10px;font-size:12px;margin:0}
 .kv dt{color:var(--muted)} .kv dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kv dd.none{color:var(--muted)}
@@ -473,7 +473,7 @@ svg.cu{fill:currentColor;stroke:none}
 .rels .r .t{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rels .r .p{color:var(--muted);font-family:var(--mono);flex:none}
 .rels .none{color:var(--muted);font-style:italic}
-.card .cf .grow{flex:1}
+
 .card .cf .code{font-family:var(--mono);flex:none}
 /* The Lansweeper status (Synced, Check by hand, Stale…) is one width wherever it shows, so cards and rows line up;
    a longer label ends in … and is whole in its tooltip. */
@@ -901,7 +901,7 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 /* Edited by hand: a quiet outlined word in the muted colour; its title says what it means. */
 .mk-hand{border:1px solid var(--bd);color:var(--muted);font-weight:500;line-height:14px;flex:none}
 .card .cf .mk-hand{margin-left:0}
-.card .nmrow{display:flex;align-items:center;min-width:0}
+
 .card .nmrow .mk{flex:none}
 .port.grp{box-shadow:inset 0 -4px 0 var(--g)}
 .port.grp.lag{border-style:dashed}
@@ -1350,7 +1350,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 /* Cards sit one step forward from the list behind them; hovered, a faint tint and a stronger border say they open. */
 #view:has(#cards, .grp .card){background:var(--canvas)}
 .card:hover{background:var(--card-hover);border-color:var(--card-bd-hover);box-shadow:0 2px 8px light-dark(rgba(16,24,40,.08),rgba(0,0,0,.35))}
-.card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;min-height:29px;box-sizing:border-box;border-top:1px solid var(--bd2);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted);white-space:nowrap;background:transparent}
+
 /* Section headers: no grey bar; the panel's own background, a plain title and a thin line under it. Panels keep their
    titles in normal case; the sidebar's group names stay small capitals, as quiet labels. */
 .hdr{padding:4px 12px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:var(--bar);flex:none;background:transparent;border-bottom-color:var(--bd2);color:var(--fg)}
@@ -1474,7 +1474,7 @@ button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--dange
 .pl-acount{margin-left:6px;padding:0 6px;border-radius:9px;background:color-mix(in srgb,currentColor 18%,transparent);font-size:11px;font-weight:600}
 /* On a phone the status bar keeps the counts and the save state; the Lansweeper time does not fit beside them. */
 @media (max-width:640px){#stSync{display:none!important}}
-.card .cf .chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+
 .card .cf>.muted,.card .cf>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
 
 /* Full check 3: errors look like errors; one style per kind of thing; boxes of a set one size; nothing cut off hard. */
@@ -1586,7 +1586,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .card.picked{outline:2px solid var(--accent);outline-offset:-1px}
 .card.picked .cardtick{background:var(--accent);border-color:var(--accent)}
 .card.picked .cardtick::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.card .ch{padding-right:34px}
+
 .pick-n{white-space:nowrap}
 
 /* Directory segments that cannot be known (Graph not set up) keep a visible outline, also on a picked card in light mode. */
@@ -1761,8 +1761,7 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .ct-person{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel2)}
 .ct-person > span{flex:1;min-width:0}.ct-person small{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
 #ctAddContact{width:100%}
-/* Card footer: the "Seen" chip takes the room up to the relations on the right, so its text shows in full. */
-.card .cf .chip.lsst.seen{flex:0 1 auto;max-width:none;justify-content:flex-start}
+
 .card .cf .grow:last-child{display:none}
 .notes-box{width:100%;min-height:64px;resize:vertical;font:inherit;line-height:1.45}
 /* Relations: beside a port box the VLAN has a slot of its own, so the port boxes line up with or without one. */
@@ -2246,8 +2245,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .fbar .fb-back .i{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .tab-review .i{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;margin-right:5px;vertical-align:-3px}
 @media (max-width: 600px){ .fb-inbox-t>.muted{display:none} }
-/* A pending device has no inventory code yet: when it was last seen fills the footer. */
-.card .cf.cf-seen>.chip:first-child{flex:1 1 auto;max-width:none;justify-content:center}
+
 /* Location texts: the order the sources fill it in, the options, and texts ticked to make rooms of at once. */
 .adloc-order{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
 .adloc-opts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 24px}
@@ -2279,9 +2277,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .sort-dir .i{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 #clearF[hidden]{display:none}
 .fbar .fb-x{min-width:28px;padding:0 8px;font-size:16px;line-height:1;color:var(--muted)}
-/* Calmer cards: a line with no value steps back (its label and dash dimmed), so the eye lands on the values; names in
-   the normal font (codes, addresses and serials keep the monospaced one). */
-.card .kv dt.none,.card .kv dd.none{color:var(--muted)}.card .kv dd.none{font-weight:400}
+.card .kv dd.none{font-weight:400}
 .card .nm{font-family:inherit;font-size:14px;letter-spacing:.005em}
 /* A field set by hand (the pencil): only on hover or focus of its row, so the form is not dotted with pencils; the
    sources' marks (Lansweeper, AD, Intune) and a picked source stay visible. On a touch screen it stays. */
@@ -2293,7 +2289,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .rel-open,.acc-open{padding:6px 12px 8px}.entries-box .acc-open{padding:4px 0 0}
 #arRow[hidden],#arOutletRow[hidden],#accRow[hidden],.rel-open[hidden],.acc-open[hidden]{display:none}
 .readonly .obj :is(.acc-open,.rel-open){display:none}
-.card .kv .via{color:var(--muted);font-size:11px;margin-left:4px}
+
 @media (max-width:760px){ #barMoreBtn{width:32px;padding:0} #barMoreBtn>svg{display:inline} .bar-who{display:none} }
 /* ---------- the device list (List view): one row per device, headings that sort, groups as bands ---------- */
 #cards.lst{display:block;gap:0;margin:12px 16px 16px;padding:0;background:var(--card);border:1px solid var(--card-bd);border-radius:var(--r-m);overflow:clip;
@@ -2344,7 +2340,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .lrow .rv-also{color:var(--muted)}
 .card.lrow.stale .nm{color:var(--muted)}
 .tp-card #cards.lst{margin:0}
-.tp-card .card.lrow{pointer-events:none}
+
 @media screen and (max-width:760px){
   #cards.lst{margin:8px}
   .lst .lhead{display:none}
@@ -2427,3 +2423,92 @@ table.grid:is(.ips,.prns,.sw,.contracts) th{height:32px;font-size:12px;font-weig
 table.grid:is(.ips,.prns,.sw,.contracts) td{height:36px;border-right:0;border-bottom:1px solid var(--bd);vertical-align:middle}
 table.grid:is(.ips,.prns,.sw,.contracts) tbody tr:last-child td{border-bottom:0}
 table.grid:is(.ips,.prns,.sw,.contracts) tbody tr:hover td{background:var(--card-hover)}
+/* ---------- the device page: key facts on top, its parts as tabs ---------- */
+.obj.otabbed{display:block;padding:0}
+.obj.otabbed .ofacts{display:flex;flex-wrap:wrap;gap:6px 28px;padding:12px var(--gutter) 10px;border-bottom:1px solid var(--bd2)}
+.obj.otabbed .of{display:flex;flex-direction:column;gap:2px;min-width:0;max-width:280px}
+.obj.otabbed .of small{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.obj.otabbed .of>span{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.obj.otabbed .otabs{display:flex;gap:2px;padding:0 var(--gutter);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:4;background:var(--bg)}
+.obj.otabbed .otab{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 12px;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.obj.otabbed .otab:hover{color:var(--fg)}
+.obj.otabbed .otab.on{color:var(--fg);font-weight:600;border-bottom-color:var(--accent)}
+.obj.otabbed .otab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:4px}
+.obj.otabbed .otab .cnt{font-size:11px;font-weight:500;color:var(--muted);background:var(--hover);border-radius:9px;padding:0 6px;line-height:16px}
+.obj.otabbed .opane{display:none;padding:var(--gutter)}
+.obj.otabbed .ogrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:var(--gap);align-items:start}
+.obj.otabbed .opane>.col{display:flex;flex-direction:column;gap:var(--gap);min-width:0}
+.obj.otabbed .opane>.col:empty{display:none}
+.obj.otabbed[data-otab="details"] [data-pane="details"],.obj.otabbed[data-otab="relations"] [data-pane="relations"],
+.obj.otabbed[data-otab="sources"] [data-pane="sources"],.obj.otabbed[data-otab="history"] [data-pane="history"]{display:grid}
+.obj.otabbed [data-pane="sources"]{max-width:980px}
+@media (max-width:760px){ .obj.otabbed .ogrid{grid-template-columns:minmax(0,1fr)} .obj.otabbed .otabs{overflow-x:auto} .obj.otabbed .ofacts{gap:6px 18px} }
+/* Filters as a drawer on a wide screen too (unless kept open): the Filters button in the bar opens them over the list. */
+#sideBtn .side-lbl,#sideBtn .side-n{display:none}
+.side-pinrow{display:none}
+@media (min-width:821px){
+  body.side-drawer:not(.noside) #sideBtn{display:inline-flex;width:auto;padding:0 10px;gap:6px}
+  body.side-drawer #sideBtn .side-lbl{display:inline}
+  body.side-drawer #sideBtn .side-n:not([hidden]){display:inline-flex;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--accent);color:#fff;font-size:11px;font-weight:600;align-items:center;justify-content:center}
+  body.side-drawer #side{position:absolute;inset:0 auto 0 0;z-index:20;box-shadow:var(--shadow);display:none}
+  body.side-drawer.side-open #side{display:flex}
+  .side-pinrow{display:flex;justify-content:flex-end;padding:6px 10px 0}
+}
+/* The bar for the selected devices floats over the bottom of the list, where the eye goes after picking rows, and
+   does not push the list down. The message at the bottom moves above it while it is there. */
+#toolbar .pickrow{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(40px + env(safe-area-inset-bottom, 0px));z-index:30;display:flex;align-items:center;gap:6px;flex-wrap:nowrap;max-width:calc(100vw - 32px);padding:6px 8px 6px 14px;background:var(--panel);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 28px light-dark(rgba(16,24,40,.18),rgba(0,0,0,.5));overflow-x:auto;white-space:nowrap}
+#toolbar .pickrow .pick-n{margin-right:6px}
+body:has(#toolbar .pickrow) #toast{bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
+@media screen and (max-width:760px){ #toolbar .pickrow{left:8px;right:8px;transform:none;max-width:none;bottom:calc(38px + env(safe-area-inset-bottom, 0px))} }
+body:has(#toolbar .pickrow) #view{padding-bottom:72px}
+/* Quick edit: a pencil over the end of the row on hover (or keyboard focus), and its small box. */
+.card.lrow{position:relative}
+.lrow .qedit-btn{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:28px;height:28px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--bd);background:var(--panel);opacity:0;transition:opacity .1s}
+.lrow:hover .qedit-btn,.lrow .qedit-btn:focus-visible{opacity:1}
+.lrow .qedit-btn .i{width:14px;height:14px}
+@media (hover:none){ .lrow .qedit-btn{display:none} }
+.lst-compact .qedit-btn{display:none}
+.qedit{position:fixed;margin:0;width:320px;padding:10px 12px;gap:8px}
+.qedit .qe-h{font-weight:600;padding-bottom:4px;border-bottom:1px solid var(--bd2)}
+.qedit .qe-row{display:grid;grid-template-columns:70px minmax(0,1fr);gap:6px 8px;align-items:center;font-size:13px}
+.qedit .qe-row>span:first-child{color:var(--muted);font-size:12px}
+.qedit .qe-row select{width:100%}
+.qedit .qe-row button{grid-column:2;justify-self:start}
+.qedit .qe-user{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Settings as a page of its own on a wide screen: the whole window, its sections in a menu on the left (the groups,
+   then the pages of the open group under them), the page beside it. */
+@media screen and (min-width:1200px){
+  .modal .box.settings{width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;border-radius:0;display:grid;grid-template-columns:232px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+  .modal .box.settings>.mh{grid-column:1/-1}
+  .modal .box.settings>#setTabs{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:2px;padding:10px 8px;border-right:1px solid var(--bd);overflow:auto;background:var(--panel)}
+  .modal .box.settings>#setPane{grid-column:2;grid-row:2;min-height:0;overflow:auto}
+  .modal .box.settings>.mf{grid-column:1/-1;grid-row:3}
+  .box.settings #setTabs .settabs{flex-direction:column;align-items:stretch;gap:2px;padding:0;border:0;overflow:visible;background:none}
+  .box.settings #setTabs .settabs.setsub:not([hidden]){margin:2px 0 8px 10px;padding-left:8px;border-left:2px solid var(--bd)}
+  .box.settings #setTabs .tab{justify-content:flex-start;text-align:left;width:100%;min-height:32px;border-radius:6px;padding:0 10px;border:0}
+  .box.settings #setTabs .settabs.setsub .tab{min-height:28px;font-size:13px}
+  .box.settings #setTabs .set-find{order:-1;margin:0 0 8px;align-self:stretch}
+  .box.settings #setTabs .set-find input{width:100%}
+  .box.settings #setTabs .set-find-list{left:0;right:auto}
+}
+#barMore #denseBtn::after{content:"Compact rows";margin-left:8px}
+#barMore #denseBtn[aria-pressed="true"]::after{content:"Compact rows ✓"}
+#barMore #denseBtn{display:inline-flex}
+body.dense .card.lrow{min-height:29px}
+body.dense .lst .lhead{height:28px}
+body.dense .lst .lgrp{height:26px}
+body.dense .lrow .rv-act{height:22px}
+body.dense table.grid td{height:28px;padding-top:2px;padding-bottom:2px}
+body.dense table.grid:is(.ips,.prns,.sw,.contracts) th{height:28px}
+.tp-card .card.lrow{pointer-events:none}
+/* In the left menu a group's pages sit right under the group (the two rows of tabs become one list). */
+@media screen and (min-width:1200px){
+  .box.settings #setTabs>.settabs:not(.setsub){display:contents}
+  .box.settings #setTabs .set-find{order:0}
+  .box.settings #setTabs [data-st="locations"]{order:10}
+  .box.settings #setTabs [data-sg="users"]{order:20}.box.settings #setTabs [data-sub="users"]{order:21}
+  .box.settings #setTabs [data-st="types"]{order:30}
+  .box.settings #setTabs [data-sg="vlans"]{order:40}.box.settings #setTabs [data-sub="vlans"]{order:41}
+  .box.settings #setTabs [data-sg="sources"]{order:50}.box.settings #setTabs [data-sub="sources"]{order:51}
+  .box.settings #setTabs [data-sg="maintenance"],.box.settings #setTabs [data-st="maintenance"]{order:60}.box.settings #setTabs [data-sub="maintenance"]{order:61}
+}

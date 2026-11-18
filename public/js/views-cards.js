@@ -11,6 +11,7 @@ import { pickBar, bindScopeActs, pickedInPool, bindPickBar } from './views-bulk.
 import { bindSaveView, saveViewBtn } from './views-saved.js';
 import { bindPrintMenu, printMenuHtml } from './print-view.js';
 import { html, rawHtml } from './html.js';
+import { quickEditBtn } from './quick-edit.js';
 /* ---------- cards ---------- */
 /* Network and attached relations are counted apart: a PC with a monitor is not a PC with more network links. */
 export function relSummary(rs){
@@ -153,7 +154,7 @@ export function cardHtml(o, idx, join = showJoin()){
       : html`<button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>`;
     return String(html`<article class="card lrow${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${`${o.name}: pending`}">${head}<span class="c-src rv-from" title="${alsoIn(o).length ? 'Also in ' + alsoIn(o).join(', ') : ''}">${REVIEW_SRC[o.review.src] || o.review.src}${alsoIn(o).length ? html`<span class="rv-also"> +${alsoIn(o).length}</span>` : ''}</span><span class="c-chips rv-chips">${why ? html`<span class="rv-why" title="${why}">${why}</span>` : ''}${chipsCell(chips)}</span>${seenCell(o)}<span class="rv-acts">${acts}${o.review.ignored || !isAdmin() ? '' : html`<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button>`}</span></article>`);
   }
-  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? dl : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}</article>`);
+  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? dl : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}${rawHtml(quickEditBtn(o))}</article>`);
 }
 /* On a device waiting in Pending devices: the other sources that know it. */
 export const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);

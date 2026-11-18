@@ -11,7 +11,7 @@ import { renderOverview } from './10-overview.js';
 import { renderMine, renderStocktake } from './22-stocktake.js';
 import { renderIps } from './views-ips.js';
 import { renderPrinters } from './views-printers.js';
-import { FIXED_TABS, closeObjTab, enterCheck, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
+import { FIXED_TABS, placeSide, closeObjTab, enterCheck, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
@@ -46,7 +46,7 @@ function renderNow({ save = true } = {}){
   /* The sidebar filters the inventory: the views that are no list of devices (Overview, Contracts, …) and Pending devices, a
      list of its own with its filters over it, are shown without it. */
   const noSide = NO_SIDE.includes(st.tab) || !!st.scope;
-  document.body.classList.toggle('noside', noSide);
+  document.body.classList.toggle('noside', noSide); placeSide();
   if (noSide) document.body.classList.remove('side-open');
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();

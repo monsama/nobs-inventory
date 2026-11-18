@@ -4,7 +4,7 @@ import { REVIEW, setAppVersion, SYNC } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, APP_VERSION, HISTORY, LOCS, VLANS, PW_MIN, objs, rels, st, toast } from './01-core.js';
 import { html } from './html.js';
-import { me, ownOnly, pushDate } from './04-settings.js';
+import { me, ownOnly, pushDate, isAdmin, openSettings, SET_TABS } from './04-settings.js';
 import { openObjs } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
 import { render } from './07-render.js';
@@ -59,6 +59,9 @@ async function loadFromServer(user){
   render();
   restoreOffline();
   openLinked();
+  /* An address with #settings/<page> (a link to a page of Settings): Settings opens there. */
+  const m = /^#settings\/([\w-]+)$/.exec(location.hash);
+  if (m && isAdmin() && SET_TABS.some(([k]) => k === m[1])){ st.setTab = m[1]; openSettings(); }
 }
 /* An address with ?o=INV-0001 (the link in a reported problem's e-mail): that device opens. */
 function openLinked(){

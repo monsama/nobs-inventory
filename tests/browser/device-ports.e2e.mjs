@@ -94,6 +94,7 @@ try {
   await p.click('#clearF');
   // The relation dropdown explains the kind it has chosen, and each option has its explanation as a tooltip.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
+  await p.click('[data-otabgo="relations"]');   // that part of the device page is a tab of its own
   await p.waitForSelector('#arKind');
   await p.selectOption('#arKind', 'connected');
   assert.match(await p.getAttribute('#arKind', 'title'), /port of a switch, router, firewall or patch panel/, 'the connected tooltip');
@@ -103,6 +104,7 @@ try {
   assert.equal(await p.locator('#arKind option[value=hosted]').count(), 0, 'a router is not offered "runs on"');
   // A field saves when it is left, without the Save button.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
+  await p.click('[data-otabgo="details"]');
   await p.waitForSelector('[data-k=model]');
   await p.fill('[data-k=model]', 'RTR-2000'); await p.press('[data-k=model]', 'Tab');
   for (let i = 0; i < 150 && !(loadState(db).objs.find(o => o.id === 'rt1') || {}).model; i++) await new Promise(r => setTimeout(r, 100));
@@ -110,6 +112,7 @@ try {
   // A switch with no port count: attaching to it shows a hint, and the connection can still be made.
   await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.objs.push({ id: 'sw0', code: 'INV-9002', type: 'switch', name: 'SW-NOPORTS', status: 'active', loc: core.objs[0].loc, ovr: {}, feed: null }); });
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('o2'); });
+  await p.click('[data-otabgo="relations"]');
   await p.waitForSelector('#arKind');
   await p.selectOption('#arKind', 'connected');
   await p.selectOption('#arTo', 'sw0');
@@ -149,6 +152,7 @@ try {
     core.objs.push({ id: 'lagB', code: 'INV-9102', type: 'switch', name: 'LAG-B', status: 'active', loc, ports: 24, sfp: 4, pfx: '1/', ovr: {}, feed: null, portGroups: [{ name: 'Peer', from: 25, to: 26, lag: true }] });
     const views = await import('/js/02-views.js'); views.openObj('lagA');
   });
+  await p.click('[data-otabgo="relations"]');
   await p.waitForSelector('#arKind');
   await p.selectOption('#arKind', 'uplink');
   await p.selectOption('#arTo', 'lagB');
@@ -190,6 +194,8 @@ try {
     core.rels.push({ id: 'oldlink', from: 'old1', to: 'o1', kind: 'connected', port: 9, vlan: null });
     const views = await import('/js/02-views.js'); views.openObj('o3');
   });
+  await until(p, async () => (await import('/js/01-core.js')).st.objTabFor === 'o3');   // its page is drawn before its tab is picked
+  await p.click('[data-otabgo="relations"]');
   await p.waitForSelector('#arKind');
   await p.selectOption('#arKind', 'connected'); await p.selectOption('#arTo', 'o1'); await p.fill('#arPort', '9'); await p.click('#arAdd');
   await until(p, async () => (await import('/js/01-core.js')).rels.some(r => r.from === 'o3' && r.to === 'o1' && r.port === 9));
