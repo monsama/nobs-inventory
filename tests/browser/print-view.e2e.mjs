@@ -35,9 +35,9 @@ try {
     return w;
   };
   const cards = await open('cards');
-  assert.deepEqual(await cards.$$eval('.pv-cards .card .nm', ns => ns.map(n => n.textContent.trim())), pcs, 'the cards printed are the ones shown');
+  assert.deepEqual(await cards.$$eval('.pv-list .card .nm', ns => ns.map(n => n.textContent.trim())), pcs, 'the rows printed are the ones shown');
   assert.match(await cards.textContent('.pv-head p'), new RegExp(`${pcs.length} devices · Type: PC`));
-  assert.equal(await cards.locator('.pv-cards .card button:visible').count(), 0, 'buttons are printed');
+  assert.equal(await cards.locator('.pv-list .card button:visible').count(), 0, 'buttons are printed');
   if (process.env.NI_SHOTS) await cards.screenshot({ path: path.join(process.env.NI_SHOTS, 'print-cards.png'), fullPage: true });
   await cards.close();
   // as a table, from the Table: its columns, its rows

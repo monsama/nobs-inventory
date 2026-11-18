@@ -24,6 +24,7 @@ const HIST_KEY = 'ni-hist-open';
 const histOpen = () => { try { return localStorage.getItem(HIST_KEY) === '1'; } catch { return false; } };
 export function historyPanel(o){
   const list = HISTORY[o.id] || [];
+  if (!list.length) return String(html`<details class="panelbox fold" id="histPanel" hidden></details>`);
   const btn = (h, i) => canRestore(o, h) ? html`<button type="button" class="link hist-restore" data-hrestore="${i}" title="Set ${labelOf(h)} back to ${shown(h.f, h.from)}">Restore</button>` : '';
   /* The Timeline above tells the device's life; this is every change, with Restore: folded until opened (remembered). */
   return String(html`<details class="panelbox fold" id="histPanel" ${list.length && histOpen() ? 'open' : ''}><summary class="hdr">All changes <span class="cnt">${list.length || 'none'}</span></summary>${list.length ? html`<ul class="hist">${list.map((h, i) => html`<li><time>${h.t}</time><span>${h.msg}</span>${btn(h, i)}</li>`)}</ul>` : html`<div class="chain"><span class="muted">No changes recorded yet.</span></div>`}</details>`);

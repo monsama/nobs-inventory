@@ -1,5 +1,5 @@
-/* Browser test of the cards' Sort by: by name both ways, newest added first, devices without a value last, the choice
-   kept after a reload; and the fifth line of every card, its description. */
+/* Browser test of the List's headings: sort by name both ways and back, by user with devices without one last, the
+   choice kept after a reload; a monitor shows its PC's user and location; the description is in the name's title. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
@@ -15,10 +15,11 @@ bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const s0 = loadState(db);
 const dev = (id, name, added, more = {}) => ({ id, code: 'INV-' + id, type: 'pc', name, status: 'active', loc: '', ovr: {}, feed: null, added, ...more });
 saveState(db, { ...s0, objs: [
-  dev('3', 'PC-10', '2026-03-01T08:00:00.000Z', { purpose: 'Front desk', warranty: '2027-01-01' }),
+  dev('3', 'PC-10', '2026-03-01T08:00:00.000Z', { purpose: 'Front desk', warranty: '2027-01-01', user: 'Alex Example', loc: 'HQ / Office' }),
   dev('1', 'PC-2', '2026-05-01T08:00:00.000Z', { warranty: '2026-12-01' }),
   dev('2', 'PC-1', '2026-01-01T08:00:00.000Z'),
-], rels: [], history: {} });
+  { id: 'm', code: 'INV-m', type: 'monitor', name: 'MON-1', status: 'active', loc: '', ovr: {}, feed: null, added: '2026-02-01T08:00:00.000Z' },
+], rels: [{ id: 'r1', from: 'm', to: '3', kind: 'attached' }], history: {} });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -31,46 +32,40 @@ try {
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await p.waitForSelector('#cards .card');
-  const order = () => p.evaluate(() => [...document.querySelectorAll('#cards .card')].map(c => c.querySelector('.nm').textContent.trim()));
+  const order = () => p.evaluate(() => [...document.querySelectorAll('#cards .card')].map(c => c.querySelector('.nm').textContent.trim()).filter(n => n !== 'MON-1'));
 
-  // by name: numbers in names in their order, then turned round
-  await p.selectOption('#cardSort', 'name');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-1');
+  // a monitor: the user and location of the PC it is attached to, marked; no warranty anywhere
+  const mon = await p.textContent('#cards .card[data-open="m"]');
+  assert.match(mon, /Alex Example/); assert.match(mon, /HQ \/ Office/); assert.match(mon, /via PC-10/);
+  assert.doesNotMatch(mon, /Warranty/);
+  assert.doesNotMatch(await p.textContent('#cards .card[data-open="1"]'), /Warranty/, 'no warranty on a PC');
+
+  // by name: numbers in names in their order, then turned round, then back to the list's own order
+  await p.click('[data-csort="name"]');
+  await until(p, () => document.querySelector('#cards .card:not([data-open="m"]) .nm').textContent.trim() === 'PC-1');
   assert.deepEqual(await order(), ['PC-1', 'PC-2', 'PC-10']);
-  assert.match(await p.textContent('#cardDir'), /A to Z/);
-  await p.click('#cardDir');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-10');
+  assert.match(await p.getAttribute('[data-csort="name"]', 'aria-label'), /ascending/);
+  await p.click('[data-csort="name"]');
+  await until(p, () => document.querySelector('#cards .card:not([data-open="m"]) .nm').textContent.trim() === 'PC-10');
   assert.deepEqual(await order(), ['PC-10', 'PC-2', 'PC-1']);
-  assert.match(await p.textContent('#cardDir'), /Z to A/);
+  assert.match(await p.getAttribute('[data-csort="name"]', 'aria-label'), /descending/);
+  await p.click('[data-csort="name"]');
+  await until(p, () => !document.querySelector('.lh-sort.on'));
 
-  // date added starts with the newest
-  await p.selectOption('#cardSort', 'added');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-2');
-  assert.deepEqual(await order(), ['PC-2', 'PC-10', 'PC-1']);
-  assert.match(await p.textContent('#cardDir'), /Newest first/);
-
-  // warranty end: the one without goes last, both ways
-  await p.selectOption('#cardSort', 'warranty');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-2');
-  assert.deepEqual(await order(), ['PC-2', 'PC-10', 'PC-1']);
-  await p.click('#cardDir');
-  await until(p, () => document.querySelector('#cards .card .nm').textContent.trim() === 'PC-10');
-  assert.deepEqual(await order(), ['PC-10', 'PC-2', 'PC-1']);
+  // by user: the one with a user first, those without last
+  await p.click('[data-csort="user"]');
+  await until(p, () => document.querySelector('#cards .card:not([data-open="m"]) .nm').textContent.trim() === 'PC-10');
+  assert.equal((await order())[0], 'PC-10');
 
   // kept in this browser
   await p.reload(); await p.waitForSelector('#cards .card');
-  assert.equal(await p.inputValue('#cardSort'), 'warranty');
-  assert.deepEqual(await order(), ['PC-10', 'PC-2', 'PC-1']);
+  assert.equal(await p.getAttribute('[data-csort="user"]', 'class'), 'lh-sort on');
+  assert.equal((await order())[0], 'PC-10');
 
-  // the fifth line of every card: its description
-  const lines = await p.evaluate(() => [...document.querySelectorAll('#cards .card[data-open="3"] .card-open dt, #cards .card[data-open="3"] .kv .k')].map(e => e.textContent.trim()));
-  const text = await p.textContent('#cards .card[data-open="3"]');
-  assert.match(text, /Description\s*Front desk/, 'the description shows: ' + lines.join(','));
-  assert.match(await p.textContent('#cards .card[data-open="1"]'), /Description\s*-/, 'a dash where there is none');
-
-  // back to the default order
-  await p.selectOption('#cardSort', '');
-  await until(p, () => !document.querySelector('#cardDir'));
+  // the description is the name's title, not a line of its own
+  assert.match(await p.getAttribute('#cards .card[data-open="3"] .card-open', 'title'), /Front desk/);
+  await p.click('[data-csort="user"]'); await p.click('[data-csort="user"]');
+  await until(p, () => !document.querySelector('.lh-sort.on'));
   assert.deepEqual(errors, [], 'no page errors');
   console.log('card sort: all checks passed');
 } finally { await browser.close(); server.close(); }

@@ -33,6 +33,8 @@ export function feedPanel(o){
   const dl = (/** @type {string | import('./html.js').Html} */ extra = '') => html`<dl class="lsbox"><dt>Status</dt><dd>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o))}</dd>
     ${o.feed ? lsDates(o) : ''}
     <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one device has</dd>${extra}</dl>`;
+  /* A device Lansweeper has never reported says nothing here: the panel would only repeat "Not in Lansweeper". */
+  if (!o.feed && !o.detached) return '';
   if (!o.feed){
     const note = o.detached ? 'Detached: the sync leaves this device alone and its fields are yours. Attach it to let the sync fill it in again.'
       : 'Entered by hand. The next sync links it when its serial number or unique name matches a Lansweeper record.';

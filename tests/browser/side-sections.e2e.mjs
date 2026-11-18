@@ -21,8 +21,10 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   const order = () => p.$$eval('#side>.sidesec', l => l.filter(s => s.offsetHeight > 0).map(s => s.dataset.sec));
   assert.deepEqual((await order()).slice(0, 3), ['types', 'locs', 'status']);
-  // fold Types: its list goes, its header stays; Clear filters does not fold it
+  // fold Types: its list goes, its header stays; Clear filters (shown only while filtering) does not fold it
+  await p.click('#typeList [data-type]:not([data-type=""])'); await p.waitForSelector('[data-sec="types"] #clearF:not([hidden])');
   await p.click('[data-sec="types"] #clearF');
+  assert.equal(await p.isHidden('[data-sec="types"] #clearF'), true, 'Clear filters still shows with no filter');
   assert.equal(await p.isVisible('#typeList'), true, 'Clear filters folded the section');
   await p.click('[data-sec="types"]>.hdr .sec-t');
   assert.equal(await p.isVisible('#typeList'), false, 'the section did not fold');

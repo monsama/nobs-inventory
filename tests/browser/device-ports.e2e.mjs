@@ -21,7 +21,7 @@ try {
   const p = await (await browser.newContext({ viewport: { width: 1300, height: 900 } })).newPage();
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
-  await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
+  await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await p.waitForSelector('#setBtn'); await p.evaluate(async () => { (await import('/js/01-core.js')).st.relAdd = true; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   // A router with 8 ports and a PC on its port 2.
   await p.evaluate(async () => {

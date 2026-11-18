@@ -75,7 +75,7 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
    login). A name, or only the part of an e-mail before the @, is not enough: those stay suggestions under
    Settings → Users → Duplicates. */
 export const exactKeys = u => new Set([u.login, u.entra && u.entra.upn, lsLoginName(u), ...(u.aliases || []).filter(a => !/\s/.test(a))].map(loginCore).filter(k => k.length >= 2));
-/* A person Lansweeper made before 0.9.28 has its login as its name and no login ("ljucav"): that name is the login. */
+/* A person Lansweeper made before 0.9.28 has its login as its name and no login ("examplea"): that name is the login. */
 export const lsLoginName = u => u && u.source === 'lansweeper' && !u.login && /^[\p{L}\p{N}_.@'\\-]{2,64}$/u.test(String(u.name || '').trim()) ? String(u.name).trim() : '';
 /* Merges the records that share an exact key, after each sync: the directory's record is kept (keepOf), and only records
    a sync made (Lansweeper, Entra) are merged into another, never two directory accounts, an account someone signs in with

@@ -25,6 +25,8 @@ const TONE = { ok: 'fine', warn: 'needs a look', bad: 'a problem', gone: 'retire
 export function timelinePanel(o){
   const list = timelineOf(o, { history: HISTORY[o.id] || [], contracts: contractsOf(o), life: st.lifecycle || {} });
   const all = ALL.has(o.id), shown = all ? list : list.slice(0, SHORT);
+  /* Nothing to tell yet: no panel, only its place, for when the history arrives (refreshHistory). */
+  if (!list.length) return '<details class="panelbox fold" id="tlPanel" hidden></details>';
   const row = e => `<li class="tl-ev${e.tone ? ' tl-' + e.tone : ''}${e.future ? ' tl-future' : ''}" data-tl="${e.kind}"><span class="tl-ico"${e.tone ? ` title="${TONE[e.tone]}"` : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[e.kind] || ICON.status}</svg></span><time>${esc(e.when)}</time><span class="tl-text">${esc(e.text)}${e.future ? ' <span class="muted">· to come</span>' : ''}</span></li>`;
   return `<details class="panelbox fold" id="tlPanel" ${list.length ? 'open' : ''}><summary class="hdr">Timeline${list.length ? ` <span class="cnt">${list.length}</span>` : ' <span class="cnt">none</span>'}</summary>
     ${list.length ? `<ol class="tl" aria-label="The device's life, newest first">${shown.map(row).join('')}</ol>${list.length > SHORT ? `<div class="tl-foot"><button type="button" class="link" id="tlMore" data-view aria-expanded="${all}">${all ? 'Show fewer' : `Show all (${list.length})`}</button></div>` : ''}`

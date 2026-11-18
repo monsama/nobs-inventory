@@ -23,15 +23,16 @@ try {
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await p.click('#barMoreBtn');
   assert.equal(await p.isVisible('#signOutBtn'), true, 'there is no Sign out button of its own');
   await p.click('#whoBtn');
   await p.waitForSelector('#acFirst');
-  await p.fill('#acFirst', 'Viktor'); await p.fill('#acLast', 'Ljuca'); await p.fill('#acDept', 'IT');
+  await p.fill('#acFirst', 'Alex'); await p.fill('#acLast', 'Example'); await p.fill('#acDept', 'IT');
   await p.click('#acSave');
-  await p.waitForFunction(() => /Viktor Ljuca/.test(document.querySelector('#whoBtn').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => /Alex Example/.test(document.querySelector('#whoBtn').textContent), null, { timeout: 5000 });
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/04-settings.js')]); return (__mods[0].USERS.find(u => u.login === 'admin').dept); }), 'IT', 'the department was not saved');
   // Password: a wrong current password is refused and nothing changes.
-  await p.click('#whoBtn'); await p.waitForSelector('#acPw');
+  await p.click('#barMoreBtn'); await p.click('#whoBtn'); await p.waitForSelector('#acPw');
   await p.fill('#acCur', 'wrong-pass'); await p.fill('#acNew', 'newpass12345'); await p.fill('#acNew2', 'newpass12345');
   await p.click('#acPw');
   await p.waitForFunction(() => /not right/.test(document.querySelector('#acErr').textContent), null, { timeout: 5000 });
@@ -42,7 +43,7 @@ try {
   await p.waitForFunction(() => document.querySelector('#acPw') === null, null, { timeout: 5000 });
   const signIn = await p.evaluate(async () => (await fetch('api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({login:'admin', password:'newpass12345'})})).status);
   assert.equal(signIn, 200, 'the new password does not sign in');
-  await p.click('#signOutBtn');
+  await p.click('#barMoreBtn'); await p.click('#signOutBtn');
   await p.waitForSelector('#lgUser', { timeout: 10000 });
   assert.deepEqual(errors, [], 'page errors');
   console.log('account: all checks passed');

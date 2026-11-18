@@ -1,8 +1,8 @@
 /* Settings → Device types: the types as a list, and the one picked beside it: its name, colour and icon (uploaded icons
-   cleaned to shapes) with a preview of its card, the five lines of that card, the fields its page has, and Delete. */
+   cleaned to shapes) with a preview of its row in the list, the list's Detail column for it, the fields its page has, and Delete. */
 import { typeFieldsOf, canAddPorts, fieldKind } from './17-fields.js';
-import { cardLines, CARD_FIELDS, resetFilters } from './02-views.js';
-import { cardHtml } from './views-cards.js';
+import { CARD_FIELDS, resetFilters } from './02-views.js';
+import { cardHtml, listHead, detailOf, DETAIL_DEFAULTS } from './views-cards.js';
 import { renderSetModels } from './settings-feed.js';
 import { applyRole, isAdmin } from './04-settings.js';
 import { closeModal } from './19-modal.js';
@@ -77,7 +77,7 @@ function renderTypeDetail(){
   const named = Object.keys(st.typeMap || {}).find(x => st.typeMap[x] === type);
   const lock = BUILTIN.includes(type) ? 'A built-in type stays.' : n ? `${n} ${n === 1 ? 'device has' : 'devices have'} this type: give them another first.` : waiting ? `${waiting} ${waiting === 1 ? 'record' : 'records'} in Pending devices ${waiting === 1 ? 'has' : 'have'} this type: decide on them first.` : rule >= 0 ? `Type rule ${rule + 1} leads to it (Data sources → Lansweeper).` : named ? `The Lansweeper type name “${named}” leads to it (Data sources → Lansweeper).` : '';
   box.innerHTML = html`<div class="tp-head"><span class="tp-tile" style="--tc:${tcol(type)}">${rawHtml(tico(type, 'tico'))}</span><div class="tp-title"><h3>${t.label}</h3><span class="muted">${n ? `${n} ${n === 1 ? 'device' : 'devices'}` : 'No devices yet'} · ${BUILTIN.includes(type) ? 'built in' : 'your own'}</span></div>${n ? html`<button type="button" id="tpShow" data-view>Show the ${n === 1 ? 'device' : `${n} devices`}</button>` : ''}</div>
-    <div class="panelbox"><div class="hdr">Look and card</div>
+    <div class="panelbox"><div class="hdr">Look and list</div>
       <div class="tp-look"><div class="tp-form">
         <label>Name<input data-tl="${type}" value="${t.label}" maxlength="60"></label>
         <label>Short name<input data-ts="${type}" value="${t.short}" maxlength="60" title="Where room is short: the relations map, the plan"></label>
@@ -104,21 +104,22 @@ function renderTypeDetail(){
   bindTypeLook(box, type);
   applyRole();
 }
-/* A card of the type as the Cards view draws it: one of its devices, or an example when it has none. */
+/* A row of the type as the List draws it, under the list's headings: one of its devices, or an example when it has none. */
 function previewCard(type){
   const t = TYPES[type], real = devicesOf(type).find(o => o.status !== 'retired');
   const o = real || { id: 'tp-preview', code: 'INV-0001', type, name: (t.short || t.label).toUpperCase().replace(/\s+/g, '-') + '-01', status: 'active' };
-  try { return cardHtml(o, relIndex()); } catch { return ''; }
+  try { return `<div id="tpList" class="lst lst-compact">${listHead(false, false)}${cardHtml(o, relIndex(), false)}</div>`; } catch { return ''; }
 }
-/* The five lines a card shows for this type. Every card of the type shows the same five, so cards line up. */
+/* The Detail column of the list for this type: the one column that depends on the type (the OS, the model...). */
 export function renderCardLines(box, type){
-  const lay = FIELD_LAYOUT[type] || {}, cur = cardLines(type), own = Array.isArray(lay.card) && lay.card.length;
+  const lay = FIELD_LAYOUT[type] || {}, cur = detailOf(type), own = typeof lay.detail === 'string' && !!lay.detail;
   const choices = [...Object.entries(CARD_FIELDS).map(([k, [l]]) => [k, l]), ...(TYPE_FIELDS[type] || []).map(f => ['custom.' + f.key, f.label])];
-  box.insertAdjacentHTML('beforeend', String(html`<div class="tf-sub"><div class="tf-sh">The five lines on every ${TYPES[type].label} card</div>
-    <div class="cardlines">${cur.map((k, i) => html`<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => html`<option value="${v}" ${v === k ? 'selected' : ''}>${l}</option>`)}</select></label>`)}
-      <button id="clReset" ${own ? '' : 'disabled'}>Back to the default</button></div></div>`));
-  const save = card => { const next = {...lay}; if (card) next.card = card; else delete next.card; FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderTypeDetail(); };
-  box.querySelectorAll('[data-cl]').forEach(sel => sel.onchange = () => { const next = [...cur]; next[+sel.dataset.cl] = sel.value; save(next); });
+  box.insertAdjacentHTML('beforeend', String(html`<div class="tf-sub"><div class="tf-sh">The Detail column of the list for ${TYPES[type].label}</div>
+    <div class="cardlines"><label>Detail<select data-cl="0" aria-label="Detail column">${choices.map(([v, l]) => html`<option value="${v}" ${v === cur ? 'selected' : ''}>${l}</option>`)}</select></label>
+      <button id="clReset" ${own ? '' : 'disabled'} title="${'Back to ' + (CARD_FIELDS[DETAIL_DEFAULTS[type] || 'model'] || ['the default'])[0]}">Back to the default</button></div>
+    <p class="note">The other columns are the same for every type: Name, User, Location, IP and Last seen.</p></div>`));
+  const save = detail => { const next = {...lay}; delete next.card; if (detail) next.detail = detail; else delete next.detail; FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderTypeDetail(); };
+  const sel = box.querySelector('[data-cl]'); if (sel) sel.onchange = () => save(sel.value === (DETAIL_DEFAULTS[type] || 'model') ? null : sel.value);
   $('#clReset').onclick = () => save(null);
 }
 /* Every field of a type in one list, in the order its object page shows them: the built-in ones and the type's own.
@@ -145,7 +146,7 @@ export function renderBuiltinFields(box, type){
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 + all.indexOf(f) : i; };
   const ordered = [...all].sort((a, b) => at(a) - at(b));
   const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderTypeDetail(); };
-  const put = patch => save({order: ordered.map(f => f[0]), hidden: [...hiddenOf(type)], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch});
+  const put = patch => save({order: ordered.map(f => f[0]), hidden: [...hiddenOf(type)], labels: {...(lay.labels || {})}, ...(lay.detail ? {detail: lay.detail} : {}), ...patch});
   const valueOf = (o, k) => k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
   const filled = k => ofType.filter(o => { const v = valueOf(o, k); return v != null && v !== '' && v !== 0 && !(Array.isArray(v) && !v.length); }).length;
   const tl = TYPES[type].label;

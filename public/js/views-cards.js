@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { REVIEW, addedTime, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, COMPLIANCE, isAttached, markHtml, handHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
+import { REVIEW, addedTime, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
 import { SERVER, view } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -22,8 +22,9 @@ const mono = v => v ? String(html`<span class="mono">${String(v)}</span>`) : '';
 export const CARD_FIELDS = {
   ip: ['IP', o => mono(o.ip)],
   mac: ['MAC', o => mono(o.mac)],
-  user: ['User', o => esc(o.user || '')],
-  loc: ['Location', o => esc((o.loc || '').replace(' / ', ' · '))],
+  /* A device attached to another (a monitor to its PC) with no user or location of its own shows the host's, marked so. */
+  user: ['User', (o, idx) => o.user ? esc(o.user) : viaHost(o, idx, h => h.user)],
+  loc: ['Location', (o, idx) => o.loc ? esc(o.loc.replace(' / ', ' · ')) : viaHost(o, idx, h => h.loc && h.loc.replace(' / ', ' · '))],
   warranty: ['Warranty', o => { const w = warrantyState(o); return w ? String(html`<span class="wty ${w}">${w === 'ended' ? 'ended ' : 'ends '}${dayText(o.warranty)}</span>`) : ''; }],
   serial: ['Serial', o => mono(o.serial)],
   os: ['OS', o => esc(o.os || '')],
@@ -41,26 +42,19 @@ export const CARD_FIELDS = {
   /* On a card (a button) a link cannot be clicked: the line names the links, the device page opens them. */
   urls: ['Links', o => esc((o.urls || []).map(l => l.label || linkKind(l.url)).join(' · '))],
 };
-/* Every card shows five lines, the same five for every device of a type (the fifth its description), so cards are the same height and a value sits
-   in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
-export const CARD_DEFAULTS = {
-  pc: ['ip', 'user', 'loc', 'warranty'], notebook: ['ip', 'user', 'loc', 'warranty'], camera: ['ip', 'model', 'loc', 'serial'], bmc: ['ip', 'fw', 'loc', 'serial'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'user'],
-  accesspoint: ['ip', 'ssid', 'loc', 'serial'], sip: ['ext', 'ip', 'user', 'loc'], pbx: ['ip', 'fw', 'loc', 'serial'],
-  monitor: ['serial', 'user', 'loc', 'warranty'], switch: ['ip', 'ports', 'loc', 'fw'], printer: ['ip', 'serial', 'loc', 'warranty'],
-  patch: ['ports', 'loc', 'serial', 'model'], router: ['ip', 'ports', 'loc', 'fw'], firewall: ['ip', 'ports', 'loc', 'fw'],
-  modem: ['ip', 'loc', 'serial', 'model'], storage: ['ip', 'cap', 'loc', 'warranty'], android: ['user', 'os', 'serial', 'loc'],
-  ios: ['user', 'os', 'serial', 'loc'], mobile: ['user', 'os', 'serial', 'loc'], plc: ['ip', 'fw', 'loc', 'serial'],
-  rack: ['loc', 'units', 'serial', 'model'], other: ['ip', 'user', 'loc', 'serial'],
+/* The device o is attached to (attached to: a monitor to its PC), when it is one; the host a virtual machine runs on. */
+const hostOf = (o, idx) => { const x = relsOf(o, idx).find(y => y.out && isAttached(y.r.kind)); return x && x.other; };
+const runsOn = (o, idx) => { const x = relsOf(o, idx).find(y => y.out && y.r.kind === 'hosted'); return x && x.other; };
+const viaHost = (o, idx, f) => { const h = hostOf(o, idx), v = h && f(h); return v ? String(html`${v} <span class="via" title="From ${h.name}, the device it is attached to">via ${h.name}</span>`) : ''; };
+/* The list's Detail column: the one column whose content depends on the type, so the other columns mean the same on
+   every row (Name, User, Location, IP, Last seen). The OS on computers and phones, the model on the rest. Settings ->
+   Device types can change it per type (FIELD_LAYOUT[type].detail). */
+export const DETAIL_DEFAULTS = {
+  pc: 'os', notebook: 'os', server: 'os', vm: 'os', android: 'os', ios: 'os', mobile: 'os',
+  storage: 'cap', rack: 'units',
 };
-export const CARD_LINES = 5;
-export const cardLines = type => {
-  const set = (FIELD_LAYOUT[type] || {}).card;
-  const base = Array.isArray(set) && set.length ? set : CARD_DEFAULTS[type] || CARD_DEFAULTS.other;
-  /* Lines chosen before there were five keep their four; the fifth is the description, unless one of them is already. */
-  const fifth = base.length < CARD_LINES && !base.includes('purpose') ? ['purpose'] : [];
-  return [...base, ...fifth, '', '', '', '', ''].slice(0, CARD_LINES);
-};
-/* A line's label and value: a built-in line, or a field the type has (custom.<key>). An empty slot is a blank line. */
+export const detailOf = type => { const d = (FIELD_LAYOUT[type] || {}).detail; return typeof d === 'string' && d ? d : DETAIL_DEFAULTS[type] || 'model'; };
+/* A field's label and value: a built-in one (CARD_FIELDS), or a field the type has (custom.<key>). '' when the device has none. */
 export function cardLine(o, key, idx){
   if (key.startsWith('custom.')){
     const f = (TYPE_FIELDS[o.type] || []).find(x => x.key === key.slice(7)), v = (o.custom || {})[key.slice(7)];
@@ -69,62 +63,104 @@ export function cardLine(o, key, idx){
   const c = CARD_FIELDS[key];
   return c ? [c[0], c[1](o, idx)] : ['', ''];
 }
-/* idx: the relations index of the view drawing many cards (relIndex), so each card does not go through every relation. */
-/* Whether the cards show AD, Entra and Intune (joinBadges). Kept in this browser: it is how this person likes to look. */
+/* Whether the list shows AD, Entra and Intune (joinBadges) as a column of its own: off unless this person turns it on
+   (it is on every computer's page anyway, under Directory). Kept in this browser. */
 export const joinCardsAvailable = () => SYNC.graph || objs.some(o => o.inAd);
-/* On unless this person turned it off: a computer's place in AD, Entra and Intune is what one looks for first. */
-let cardJoin = true;
-try { cardJoin = localStorage.getItem('ni-card-join') !== '0'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
+let cardJoin = false;
+try { cardJoin = localStorage.getItem('ni-card-join') === '1'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 export const showJoin = () => cardJoin && joinCardsAvailable();
-/* The card's status: excluded or detached from Lansweeper says so; else when the device was last seen and by whom
-   (Lansweeper, AD, Intune, Entra or Defender, whichever saw it last); else Lansweeper's own state. */
-const cardSeen = o => {
-  if (o.excluded || o.detached) return syncChip(o);
-  /* Every card says the same thing the same way: when it was last seen (amber when long ago), or that it never was.
-     Lansweeper's "check by hand" is the hint on a date it gave. */
-  const s = lastSeenOf(o);
-  if (s) return scanOld(o) && s.src === 'Lansweeper' ? seenChip(o).replace(/title="[^"]*"/, () => String(html`title="Lansweeper last scanned it on ${dayText(s.day)}. Check by hand that it is still there and in use."`)) : seenChip(o);
-  if (o.review || o.feed || o.inAd || o.graph) return `<span class="chip warn lsst seen" title="${scanOld(o) ? 'Lansweeper has tried to scan it but never has. Check by hand that it is there.' : 'No source has a date it was last seen.'}">Never seen</span>`;
-  return (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o);
-};
-/* One device's card as HTML text: name, model, status, its type's lines, the join marks when join is on, the Pending devices
-   actions and chips, and a footer with code, last seen and relations. idx: the relation index (relIndex). */
-/* In the footer, Intune's word on the device only when something is wrong (not compliant, grace period, conflict):
-   how it is joined is in the directory status row, shown or hidden by its switch, not squeezed in here. */
+/* Intune's word on the device only when something is wrong (not compliant, grace period, conflict). */
 const graphProblem = o => {
   if (!SYNC.graph || !o.graph || o.graph.gone) return '';
   const c = COMPLIANCE[o.graph.compliance];
   return c && c[0] !== 'ok' ? String(html`<span class="chip ${c[0]}" title="Intune: ${c[1]}">${c[1]}</span>`) : '';
 };
-export function cardHtml(o, idx, join = showJoin()){
-  const rs = relsOf(o, idx);
-  const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
-  const s = STATUS[o.status];
-  const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
-  /* The card is a group, not one button: its name opens the device (a click anywhere on it does too), the tick in its
-     corner selects it, and the review actions are buttons of their own, so a screen reader names each for what it does. */
-  return String(html`<article class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${o.review ? `${o.name}: pending` : o.name}"><button type="button" class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button>
-    <div class="ch">${rawHtml(tico(o.type))}<div class="hd"><span class="nmrow"><button type="button" class="nm card-open" data-open="${o.id}">${o.name}</button>${rawHtml(markHtml(o, false))}</span><span class="model">${o.model}</span></div>
-      ${o.status !== 'active' ? html`<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
-    <dl class="kv">${lines.map(([k,v]) => html`<dt>${k || rawHtml('&nbsp;')}</dt><dd${v ? '' : html` class="none"`}>${v ? rawHtml(v) : k ? '-' : rawHtml('&nbsp;')}</dd>`)}</dl>
-    ${join ? rawHtml(joinBadges(o)) : ''}
-    ${o.review ? reviewChips(o, stale) : twinOf(o) ? html`<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? html`<div class="rv-chips">${twinsChip(o)}</div>` : ''}
-    ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts">${mergeTarget(o)
-      ? html`<button type="button" class="rv-act yes" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</button><button type="button" class="rv-act" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory as a device of its own">Accept</button>`
-      : html`<button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>`}<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button></span>` : ''}
-    <div class="cf${o.review ? ' cf-seen' : ''}">${o.review ? '' : html`<span class="code">${o.code}</span>`}${rawHtml(cardSeen(o))}${rawHtml(handHtml(o))}${join && GRAPH_TYPES.includes(o.type) ? '' : rawHtml(graphProblem(o))}<span class="grow"></span>${relSummary(rs)}</div>
-  </article>`);
+/* Last seen, as a few words: today, yesterday, 12 days ago, or the date; amber after 30 days, "Never" for a device a
+   source knows but none has a date for. The title says when exactly and which source. */
+const seenCell = o => {
+  const s = lastSeenOf(o);
+  if (s){
+    const when = s.days === 0 ? 'today' : s.days === 1 ? 'yesterday' : s.days < 31 ? s.days + ' days ago' : dayText(s.day);
+    const hint = scanOld(o) && s.src === 'Lansweeper' ? `Lansweeper last scanned it on ${dayText(s.day)}. Check by hand that it is still there and in use.` : `Last seen ${s.at} by ${s.src}`;
+    return html`<span class="seen lsst${s.days > GRAPH_STALE_DAYS ? ' warn' : ''}" title="${hint}">${when}</span>`;
+  }
+  if (o.review || o.feed || o.inAd || o.graph) return html`<span class="seen lsst warn" title="${scanOld(o) ? 'Lansweeper has tried to scan it but never has. Check by hand that it is there.' : 'No source has a date it was last seen.'}">Never</span>`;
+  return html`<span class="seen lsst"></span>`;
+};
+/* At most two chips on a row, then +N with the rest in its title: what needs a look first (amber), then the rest. */
+const MAX_CHIPS = 2;
+const chipsCell = list => {
+  const shown = list.slice(0, MAX_CHIPS), rest = list.slice(MAX_CHIPS);
+  const text = h => String(h).replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+  return rawHtml(shown.join('') + (rest.length ? String(html`<span class="chip more" title="${rest.map(text).join(' · ')}">+${rest.length}</span>`) : ''));
+};
+/* Who has it: the user; else, on a device attached to another (a monitor), the host's user; else the responsible
+   (a server, a switch: shared devices have one), in grey. */
+const userCell = (o, idx) => {
+  if (o.user) return html`<span class="c-user">${o.user}</span>`;
+  const h = hostOf(o, idx);
+  if (h && h.user) return html`<span class="c-user" title="From ${h.name}, the device it is attached to">${h.user}</span>`;
+  const r = respText(o);
+  return html`<span class="c-user resp" title="${r ? 'Responsible' : ''}">${r}</span>`;
+};
+/* Where it is: its location; else its host's (a monitor on a PC, marked in the chips); a virtual machine "on" its host. */
+const locCell = (o, idx) => {
+  if (o.loc) return html`<span class="c-loc" title="${o.loc}">${o.loc}</span>`;
+  const h = hostOf(o, idx);
+  if (h && h.loc) return html`<span class="c-loc" title="${h.loc}, from ${h.name}">${h.loc}</span>`;
+  const r = runsOn(o, idx);
+  return r ? html`<span class="c-loc sub">on ${r.name}</span>` : html`<span class="c-loc"></span>`;
+};
+/* The chips of an inventory row, in order of what needs a look. */
+function rowChips(o, idx){
+  const out = [], s = STATUS[o.status];
+  if (o.excluded || o.detached) out.push(syncChip(o));
+  if (twinOf(o)) out.push(String(twinChip(o))); else if (twinsOf(o).length) out.push(String(twinsChip(o)));
+  const gp = graphProblem(o); if (gp) out.push(gp);
+  if (warrantyState(o) === 'ended') out.push(String(html`<span class="chip warn wty ended" title="The warranty ended on ${dayText(o.warranty)}">Warranty ended</span>`));
+  if (o.status !== 'active' && s) out.push(String(html`<span class="chip ${s.cls}">${s.label}</span>`));
+  const h = hostOf(o, idx); if (h && ((!o.user && h.user) || (!o.loc && h.loc))) out.push(String(html`<span class="chip via" title="User and location come from ${h.name}, the device it is attached to">via ${h.name}</span>`));
+  if ((['switch', 'patch', 'router', 'firewall'].includes(o.type) || hasPorts(o)) && (+o.ports || +o.sfp)){ const pt = cardLine(o, 'ports', idx)[1]; if (pt) out.push(String(html`<span class="chip">${pt}</span>`)); }
+  if (o.handAt && Date.parse(o.handAt) > SYNC.time) out.push(handHtml(o));
+  return out;
 }
-/* On a device waiting in Pending devices: which sync found it, Old when no source has seen it for long (left out of Accept
-   all), the other sources that know it, and the device it is most likely a second record of. */
+/* The headings of the list: each sorts by its column, a second click turns the order. [key, label, sort key]. */
+/* [sort key, label, the class of the column's cells]: a heading and its cells share the class, so a column left out on a
+   narrow screen goes with its heading. */
+const HEADS = [['name', 'Name', 'c-name'], ['user', 'User', 'c-user'], ['loc', 'Location', 'c-loc'], ['ip', 'IP', 'c-ip'], ['detail', 'Detail', 'c-det'], ['', '', 'c-chips'], ['seen', 'Last seen', 'seen']];
+const PEND_HEADS = [['name', 'Name', 'c-name'], ['user', 'User', 'c-user'], ['loc', 'Location', 'c-loc'], ['ip', 'IP', 'c-ip'], ['src', 'Found by', 'c-src'], ['', 'Why it waits', 'c-chips'], ['seen', 'Last seen', 'seen'], ['', '', 'rv-acts']];
+export function listHead(pend = false, join = showJoin()){
+  const cell = ([k, l, c]) => k ? html`<span class="${c}"><button type="button" class="lh-sort${cardSort.k === k ? ' on' : ''}" data-csort="${k}" title="Sort by ${l.toLowerCase()}" aria-label="${`Sort by ${l.toLowerCase()}` + (cardSort.k === k ? (cardSort.dir === 1 ? ', now ascending' : ', now descending') : '')}">${l}${cardSort.k === k ? rawHtml(sortIcon(cardSort.dir)) : ''}</button></span>` : html`<span class="${c}">${l}</span>`;
+  const picking = !!(st.bulk && st.bulk.size);
+  return html`<div class="lhead"><span><button type="button" class="cardtick all${picking ? ' some' : ''}" data-pickall="1" title="Select every device shown" aria-label="Select every device shown"></button></span><span></span>${(pend ? PEND_HEADS : join ? [...HEADS.slice(0, 5), ['', 'Directory', 'c-dir'], ...HEADS.slice(5)] : HEADS).map(cell)}</div>`;
+}
+/* One device as a row of the list, as HTML text: tick, type, name with its inventory number, user, location, IP, the
+   type's detail, chips and last seen. A device waiting in Pending devices shows which source found it, why it waits
+   and the actions instead of the detail. idx: the relation index (relIndex). */
+export function cardHtml(o, idx, join = showJoin()){
+  const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
+  const t = TYPES[o.type] || { label: o.type };
+  const [dl, dv] = cardLine(o, detailOf(o.type), idx);
+  const tip = [o.purpose, o.serial && 'Serial number ' + o.serial, o.model && o.model].filter(Boolean).join(' · ');
+  const name = html`<span class="c-name"><button type="button" class="nm card-open" data-open="${o.id}" title="${tip || 'Open ' + o.name}">${o.name}</button>${rawHtml(markHtml(o, false))}${o.code && !o.review ? html`<small class="code">${o.code}</small>` : ''}</span>`;
+  const head = html`<button type="button" class="cardtick" title="Select (Shift + click selects a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button><span class="c-ico" title="${t.label}">${rawHtml(tico(o.type))}</span>${name}${userCell(o, idx)}${locCell(o, idx)}<span class="c-ip mono">${o.ip || ''}</span>`;
+  if (o.review){
+    const why = !o.review.ignored && waitReason(o).text;
+    const chips = [stale ? String(html`<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>`) : '',
+      twinOf(o) ? String(twinChip(o)) : mergeTarget(o) ? String(html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="A device of this name or serial number is in the inventory: accepting this one adds a second.${isAdmin() ? ' Click to resolve.' : ''}">Already in inventory: ${mergeTarget(o).name}</span>`) : ''].filter(Boolean);
+    const acts = o.review.ignored || !isAdmin() ? '' : mergeTarget(o)
+      ? html`<button type="button" class="rv-act yes" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</button><button type="button" class="rv-act" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory as a device of its own">Accept</button>`
+      : html`<button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>`;
+    return String(html`<article class="card lrow${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${`${o.name}: pending`}">${head}<span class="c-src rv-from" title="${alsoIn(o).length ? 'Also in ' + alsoIn(o).join(', ') : ''}">${REVIEW_SRC[o.review.src] || o.review.src}${alsoIn(o).length ? html`<span class="rv-also"> +${alsoIn(o).length}</span>` : ''}</span><span class="c-chips rv-chips">${why ? html`<span class="rv-why" title="${why}">${why}</span>` : ''}${chipsCell(chips)}</span>${seenCell(o)}<span class="rv-acts">${acts}${o.review.ignored || !isAdmin() ? '' : html`<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button>`}</span></article>`);
+  }
+  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? dl : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}</article>`);
+}
+/* On a device waiting in Pending devices: the other sources that know it. */
 export const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
-/* Where it came from is a quiet line of text (the directory bar above already shows each source); only what needs a
-   look (Old, a likely second record) is a coloured chip, at the end of the line. */
-const reviewChips = (o, stale) => html`${!o.review.ignored && waitReason(o).text ? html`<div class="rv-why" title="Why it waits">${waitReason(o).text}</div>` : ''}<div class="rv-chips"><span class="rv-from">Found by <b>${REVIEW_SRC[o.review.src] || o.review.src}</b>${alsoIn(o).length ? html`<span class="rv-also" title="Other sources that know this device: one the directory knows is most likely real"> · also in ${alsoIn(o).join(', ')}</span>` : ''}</span>${stale ? html`<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? twinChip(o) : mergeTarget(o) ? html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="A device of this name or serial number is in the inventory: accepting this one adds a second.${isAdmin() ? ' Click to resolve.' : ''}">Already in inventory: ${mergeTarget(o).name}</span>` : ''}</div>`;
-/* On the card of a probable second record: which device it most likely is; a click opens Resolve (15-review.js). */
-/* On the card of the device itself: its probable second records, so it is seen from both sides. */
-const twinsChip = o => { const l = twinsOf(o); return html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${l.map(x => x.id).join(',')}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${l.map(x => x.name).join(', ')}.${isAdmin() ? ' Click to resolve.' : ''}">${l.length === 1 ? html`Also as ${l[0].name}` : `${l.length} possible duplicates`}</span>`; };
-const twinChip = o => html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="Probably a second record of ${twinOf(o).name}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${isAdmin() ? ' Click to resolve it.' : ''}">Probably ${twinOf(o).name}</span>`;
+/* On the row of a probable second record: which device it most likely is; a click opens Resolve (15-review.js). */
+/* On the row of the device itself: its probable second records, so it is seen from both sides. */
+const twinsChip = o => { const l = twinsOf(o); return html`<span class="chip rv-twin"${isAdmin() ? html` data-resolve="${l.map(x => x.id).join(',')}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${l.map(x => x.name).join(', ')}.${isAdmin() ? ' Click to resolve.' : ''}">${l.length === 1 ? html`Also as ${l[0].name}` : `${l.length} possible duplicates`}</span>`; };
+const twinChip = o => html`<span class="chip rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="Probably a second record of ${twinOf(o).name}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${isAdmin() ? ' Click to resolve it.' : ''}">Probably ${twinOf(o).name}</span>`;
 /* Sort by, for the cards: [label, value of a card, direction it starts in]. Default keeps the list's own order (the
    inventory as kept; pending devices the most recently seen first). Cards without a value go last, either way. Kept per
    browser, like the other view choices here. */
@@ -138,7 +174,17 @@ const CARD_SORTS = {
   user: ['User', o => o.user || null, 1],
   warranty: ['Warranty end', o => /^\d{4}-\d{2}-\d{2}$/.test(o.warranty || '') ? o.warranty : null, 1],
   code: ['Inventory code', o => o.code || null, 1],
+  /* An address sorts by its numbers: 10.0.0.9 before 10.0.0.10. */
+  ip: ['IP', o => /^\d{1,3}(\.\d{1,3}){3}$/.test(o.ip || '') ? o.ip.split('.').reduce((n, x) => n * 256 + +x, 0) : null, 1],
+  detail: ['Detail', o => String(cardLine(o, detailOf(o.type))[1] || '').replace(/<[^>]*>/g, '') || null, 1],
+  src: ['Found by', o => o.review ? REVIEW_SRC[o.review.src] || o.review.src : null, 1],
 };
+/* A heading sorts by its column; the same heading again turns the order, a third time back to the list's own order. */
+export function sortBy(k){
+  if (!(k in CARD_SORTS)) return;
+  cardSort = cardSort.k !== k ? { k, dir: CARD_SORTS[k][2] } : cardSort.dir === CARD_SORTS[k][2] ? { k, dir: -cardSort.dir } : { k: '', dir: 1 };
+  keepSort();
+}
 let cardSort = { k: '', dir: 1 };
 try { const v = JSON.parse(localStorage.getItem('ni-card-sort') || 'null'); if (v && v.k in CARD_SORTS && (v.dir === 1 || v.dir === -1)) cardSort = v; } catch { /* not kept */ }
 const keepSort = () => { try { localStorage.setItem('ni-card-sort', JSON.stringify(cardSort)); } catch { /* not kept */ } };
@@ -155,27 +201,23 @@ export function sortCards(list){
   });
 }
 const sortIcon = dir => dir === 1 ? '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>' : '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>';
-const dirLabel = (k, dir) => k === 'added' || k === 'seen' || k === 'warranty' ? (dir === 1 ? 'Oldest first' : 'Newest first') : (dir === 1 ? 'A to Z' : 'Z to A');
 /* How many cards or table rows are drawn before "Show all". */
 export const SHOW_FIRST = 500;
-/* Draws the Cards toolbar (count, Group by, the join marks, Save view, the pick bar) and the cards, in one list or in
-   groups that fold. The first SHOW_FIRST are drawn, the rest after Show all. An empty list says why. */
+/* Draws the List toolbar (count, Group by, Save view, Print, the pick bar) and the list: a heading row that sorts, then
+   the rows, in one run or in groups that fold. The first SHOW_FIRST are drawn, the rest after Show all. An empty list says why. */
 export function renderCardsBody(){
   let list = sortCards(filtered());
   const pool = scopePool();
   $('#toolbar').innerHTML = html`<span class="muted">${listCount(list.length, pool.length)}</span><span class="tbsep"></span>
     <span class="tb-grp"><label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select></span>
-    <span class="tb-grp tb-sort"><label class="muted" for="cardSort">Sort by</label><select id="cardSort">${Object.entries(CARD_SORTS).map(([k, [l]]) => html`<option value="${k}" ${cardSort.k === k ? 'selected' : ''}>${l}</option>`)}</select>${cardSort.k ? html`<button type="button" id="cardDir" class="sort-dir" title="${dirLabel(cardSort.k, cardSort.dir)}: click to turn" aria-label="Sort order: ${dirLabel(cardSort.k, cardSort.dir)}">${rawHtml(sortIcon(cardSort.dir))}<span>${dirLabel(cardSort.k, cardSort.dir)}</span></button>` : ''}</span>
     ${st.cardsGroup !== 'none' ? html`<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>` : ''}
-    ${joinCardsAvailable() ? html`<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Show directory status</label>` : ''}
+    ${joinCardsAvailable() && !st.scope ? html`<span class="tbsep"></span><label class="pchk" title="A column that shows whether computers and phones are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Directory status</label>` : ''}
     ${saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(saveViewBtn())}` : ''}${list.length ? html`<span class="tbsep"></span>${rawHtml(printMenuHtml())}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;
   bindScopeActs(list); bindSaveView(); bindPrintMenu();
-  $('#grp').value = st.cardsGroup;
-  $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
-  $('#cardSort').onchange = e => { const k = e.target.value; cardSort = { k, dir: CARD_SORTS[k][2] }; keepSort(); renderCards(); $('#cardSort').focus(); };
-  const cd = $('#cardDir'); if (cd) cd.onclick = () => { cardSort = { ...cardSort, dir: -cardSort.dir }; keepSort(); renderCards(); const again = $('#cardDir'); if (again) again.focus(); };
   const cj = $('#cardJoin');
   if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
+  $('#grp').value = st.cardsGroup;
+  $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
   if (!list.length){
     $('#view').innerHTML = pool.length
       ? hiddenHits() || (st.q.trim() ? html`<div class="empty">Nothing matches “${st.q.trim()}”. <button class="primary" id="newFromSearch">Create “${st.q.trim()}” as a new device</button></div>` : html`<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
@@ -189,25 +231,29 @@ export function renderCardsBody(){
     bindHiddenHits();
     return;
   }
-  const idx = relIndex(), join = showJoin(), card = o => cardHtml(o, idx, join);
-  /* Thousands of cards take long to draw: the first ones are drawn, the rest on request. A search or a filter narrows it. */
+  const pend = !!st.scope, join = !pend && showJoin(), idx = relIndex(), card = o => cardHtml(o, idx, join);
+  /* Thousands of rows take long to draw: the first ones are drawn, the rest on request. A search or a filter narrows it. */
   const cut = !st.cardsAll && list.length > SHOW_FIRST + 100;
   const more = cut ? html`<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length}. Search or filter to narrow them down.</span><button id="cardsAll">Show all ${list.length}</button></div>` : '';
-  const bindMore = () => { const b = $('#cardsAll'); if (b) b.onclick = () => { st.cardsAll = true; renderCards(); }; };
   if (cut) list = list.slice(0, SHOW_FIRST);
-  if (st.cardsGroup === 'none'){ $('#view').innerHTML = html`<div id="cards">${list.map(o => rawHtml(card(o)))}</div>${more}`; bindMore(); return; }
-  const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc || 'No location';
-  /* The group of devices without a user or location comes last. */
-  const none = g => g === 'No user' || g === 'No location';
-  const groups = [...new Set(list.map(key))].sort((a, b) => none(a) ? 1 : none(b) ? -1 : a.localeCompare(b));
-  st.groupsClosed ??= {};
-  $('#view').innerHTML = groups.map(g => {
-    const closed = !!st.groupsClosed[st.cardsGroup + ':' + g], items = list.filter(o => key(o) === g);
-    return html`<section class="grp${closed ? ' collapsed' : ''}"><div class="hdr sechdr grphdr" role="button" tabindex="0" aria-expanded="${String(!closed)}" data-grp="${g}" style="position:sticky;top:0;z-index:2">${g} <span class="muted">${items.length}</span></div><div id="cards">${items.map(o => rawHtml(card(o)))}</div></section>`;
-  }).join('') + more;
-  bindMore();
+  let rows;
+  if (st.cardsGroup === 'none') rows = list.map(o => card(o)).join('');
+  else {
+    const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc || 'No location';
+    /* The group of devices without a user or location comes last. */
+    const none = g => g === 'No user' || g === 'No location';
+    const groups = [...new Set(list.map(key))].sort((a, b) => none(a) ? 1 : none(b) ? -1 : a.localeCompare(b));
+    st.groupsClosed ??= {};
+    rows = groups.map(g => {
+      const closed = !!st.groupsClosed[st.cardsGroup + ':' + g], items = list.filter(o => key(o) === g);
+      return String(html`<div class="lgrp grphdr${closed ? ' collapsed' : ''}" role="button" tabindex="0" aria-expanded="${String(!closed)}" data-grp="${g}">${g} <span class="muted">${items.length}</span></div>`) + (closed ? '' : items.map(o => card(o)).join(''));
+    }).join('');
+  }
+  $('#view').innerHTML = html`<div id="cards" class="lst${pend ? ' pend' : ''}${join ? ' join' : ''}${st.bulk && st.bulk.size ? ' picking' : ''}" aria-label="${pend ? 'Pending devices' : 'Devices'}">${listHead(pend, join)}${rawHtml(rows)}</div>${more}`;
+  const b = $('#cardsAll'); if (b) b.onclick = () => { st.cardsAll = true; renderCards(); };
+  $('#view').querySelectorAll('[data-csort]').forEach(h => h.addEventListener('click', e => { e.stopPropagation(); sortBy(h.dataset.csort); renderCards(); const again = $(`#view [data-csort="${h.dataset.csort}"]`); if (again) again.focus(); }));
   $('#view').querySelectorAll('.grphdr').forEach(h => {
-    const toggle = () => { const k = st.cardsGroup + ':' + h.dataset.grp; st.groupsClosed[k] = !st.groupsClosed[k]; renderCards(); };
+    const toggle = () => { const k = st.cardsGroup + ':' + h.dataset.grp; st.groupsClosed[k] = !st.groupsClosed[k]; renderCards(); const again = $(`#view .grphdr[data-grp="${CSS.escape(h.dataset.grp)}"]`); if (again) again.focus(); };
     h.addEventListener('click', toggle);
     h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
   });
@@ -233,6 +279,15 @@ document.addEventListener('click', e => {
   e.preventDefault(); e.stopImmediatePropagation();
   resolveModal(c.dataset.resolve.split(',').map(byId).filter(Boolean));
 }, true);
+/* Up and down arrows move between the rows of the list (to each row's name, which Enter opens). */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const row = evEl(e).closest && evEl(e).closest('#view .lrow'); if (!row || e.altKey || e.ctrlKey || e.metaKey) return;
+  const rows = [...$('#view').querySelectorAll('.lrow')], i = rows.indexOf(row), next = rows[i + (e.key === 'ArrowDown' ? 1 : -1)];
+  if (!next) return;
+  e.preventDefault();
+  const b = next.querySelector('.card-open'); if (b) { b.focus(); next.scrollIntoView({ block: 'nearest' }); }
+});
 /* When the search matches a person or a place, those come first as buttons. */
 export function addSearchHits(){
   const q = st.q.trim().toLowerCase(); if (!q) return;

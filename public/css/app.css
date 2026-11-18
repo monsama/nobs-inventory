@@ -569,7 +569,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .gs-why>p{margin:4px 0 0}
 /* overview */
 .ov{display:flex;flex-direction:column;gap:var(--gap);padding:var(--gap) var(--gutter);width:100%;box-sizing:border-box}   /* on the toolbar's gutter */
-.ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.ov-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .ct-sum{padding:12px 12px 0}
 /* contacts: one card per person, the company's own first, then each IT partner */
 /* Under a long list drawn in part: how many are shown, and a way to show them all. */
@@ -1223,8 +1223,22 @@ table.grid a.rowopen:hover{text-decoration:underline}
 }
 /* On a phone the top bar is one row: menu, logo, search, New, More and Settings. The account, sign-out, light / dark and
    the coffee link open from More, so the page keeps its height for the inventory. */
-#barMoreBtn{display:none}
-#barMore{display:contents}
+/* The account menu: name and role, light or dark, coffee, sign out, behind one button (the name on a desktop, ⋯ on a
+   phone); the bell and Settings stay in the bar. */
+#bar{anchor-name:--bar}
+#barMoreBtn{display:inline-flex;align-items:center;gap:6px;width:auto;padding:0 10px}
+#barMoreBtn>svg{display:none}
+.bar-who{white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.bar-who::after{content:"";display:inline-block;width:6px;height:6px;margin-left:8px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:translateY(-3px) rotate(45deg)}
+#barMore{display:none;position:fixed;inset:auto;position-anchor:--bar;position-area:bottom span-left;margin:4px 8px 0 0;color:var(--fg);flex-direction:column;align-items:stretch;gap:2px;min-width:220px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
+#barMore:popover-open{display:flex}
+#barMore>*{justify-content:flex-start;width:100%;height:32px;padding:0 10px;border-color:transparent;background:transparent;color:var(--fg);font-weight:400}
+#barMore>*:hover{background:var(--hover)}
+#barMore #coffeeBtn{display:inline-flex}
+#barMore #themeBtn::after{content:"Light / dark";margin-left:8px}
+#barMore #coffeeBtn::after{content:"Buy me a coffee";margin-left:8px}
+#barMore #whoBtn{font-weight:600;height:auto;min-height:36px;border-radius:var(--r-m) var(--r-m) 0 0;border-bottom:1px solid var(--bd);margin-bottom:2px}
+#barMore #signOutBtn{gap:8px}
 /* The bell: a count in red (a problem among them) or amber; its list says what and leads there. */
 #bellBtn{position:relative}
 .bell-n{position:absolute;top:-4px;right:-6px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;font-size:11px;font-weight:700;line-height:17px;text-align:center;color:#fff;background:var(--warnbtn);box-shadow:0 0 0 2px var(--panel)}
@@ -2263,3 +2277,141 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 /* Cards: Sort by and the direction it runs in, beside Group by. */
 .sort-dir{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .sort-dir .i{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#clearF[hidden]{display:none}
+.fbar .fb-x{min-width:28px;padding:0 8px;font-size:16px;line-height:1;color:var(--muted)}
+/* Calmer cards: a line with no value steps back (its label and dash dimmed), so the eye lands on the values; names in
+   the normal font (codes, addresses and serials keep the monospaced one). */
+.card .kv dt.none,.card .kv dd.none{color:var(--muted)}.card .kv dd.none{font-weight:400}
+.card .nm{font-family:inherit;font-size:14px;letter-spacing:.005em}
+/* A field set by hand (the pencil): only on hover or focus of its row, so the form is not dotted with pencils; the
+   sources' marks (Lansweeper, AD, Intune) and a picked source stay visible. On a touch screen it stays. */
+@media (hover:hover){
+  .obj .form .ctlrow>.fsrc[data-src="hand"]:not(.fsrc-picked):not(.fsrc-multi){opacity:0;transition:opacity .12s}
+  .obj .form .ctlrow:is(:hover,:focus-within)>.fsrc[data-src="hand"]{opacity:1}
+}
+/* "+ Add a relation", "+ Add an attachment": the forms open from a link, in the panel's padding. */
+.rel-open,.acc-open{padding:6px 12px 8px}.entries-box .acc-open{padding:4px 0 0}
+#arRow[hidden],#arOutletRow[hidden],#accRow[hidden],.rel-open[hidden],.acc-open[hidden]{display:none}
+.readonly .obj :is(.acc-open,.rel-open){display:none}
+.card .kv .via{color:var(--muted);font-size:11px;margin-left:4px}
+@media (max-width:760px){ #barMoreBtn{width:32px;padding:0} #barMoreBtn>svg{display:inline} .bar-who{display:none} }
+/* ---------- the device list (List view): one row per device, headings that sort, groups as bands ---------- */
+#cards.lst{display:block;gap:0;margin:12px 16px 16px;padding:0;background:var(--card);border:1px solid var(--card-bd);border-radius:var(--r-m);overflow:clip;
+  --cols:16px 18px minmax(150px,1.15fr) minmax(110px,.9fr) minmax(150px,1.35fr) 104px minmax(100px,1fr) minmax(0,170px) 84px}
+#cards.lst.pend{--cols:16px 18px minmax(150px,1.1fr) minmax(100px,.8fr) minmax(130px,1.1fr) 104px 104px minmax(150px,1.6fr) 84px 168px}
+#view:has(#cards.lst){background:var(--canvas)}
+.lst .lhead,.lst .lrow{display:grid;grid-template-columns:var(--cols);gap:12px;align-items:center;padding:0 14px}
+.lst .lhead{position:sticky;top:0;z-index:3;height:32px;background:var(--card);border-bottom:1px solid var(--bd);font-size:12px;font-weight:600;color:var(--muted)}
+.lst .lhead>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lst .lhead:has(+.lgrp){border-bottom:0}
+.lst .lh-sort{all:unset;display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:inherit;max-width:100%;border-radius:4px}
+.lst .lh-sort:hover,.lst .lh-sort.on{color:var(--fg)}
+.lst .lh-sort:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lst .lh-sort .i{width:13px;height:13px}
+.lst .lgrp{display:flex;align-items:center;gap:6px;height:30px;padding:0 14px;border-top:1px solid var(--bd);background:var(--canvas);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);cursor:pointer;user-select:none}
+.lst .lgrp::before{content:"";width:0;height:0;border:4px solid transparent;border-top-color:currentColor;margin-top:4px}
+.lst .lgrp.collapsed::before{border-top-color:transparent;border-left-color:currentColor;margin:0 0 0 3px}
+.lst .lgrp:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.lst .lgrp .muted{letter-spacing:0}
+.card.lrow{display:grid;flex-direction:initial;border:0;border-top:1px solid var(--bd);border-radius:0;box-shadow:none;background:transparent;min-height:36px;height:auto;content-visibility:visible;contain-intrinsic-size:none;font-size:13px;transition:background-color .1s;outline:0}
+.lst .lhead+.lrow{border-top:0}
+.card.lrow:hover{background:var(--card-hover);box-shadow:none;border-color:var(--bd)}
+.card.lrow.picked{outline:0;background:color-mix(in srgb,var(--accent) 9%,var(--card))}
+.card.lrow:has(.card-open:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
+.lrow>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lst .cardtick{position:relative;top:auto;right:auto;width:16px;height:16px;padding:0;min-height:0;opacity:0;border:1.5px solid var(--bd);border-radius:4px;background:var(--bg)}
+.lrow:hover .cardtick,.lst.picking .cardtick,.lst .cardtick:focus-visible,.lst .lhead .cardtick{opacity:1}
+@media (hover:none){.lst .cardtick{opacity:.6}}
+.lst .lhead .cardtick.some::after{content:"";position:absolute;left:3px;right:3px;top:6px;height:2px;background:var(--accent)}
+.lrow.picked .cardtick{background:var(--accent);border-color:var(--accent)}
+.lrow.picked .cardtick::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.lrow .c-ico{display:flex;color:var(--muted)}
+.lrow .c-ico .tico{width:18px;height:18px}
+.lrow .c-name{display:flex;align-items:baseline;gap:8px}
+.lrow .nm{font-family:inherit;font-weight:600;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
+.lrow .c-name .mk{flex:none;align-self:center}
+.lrow .c-name .code{flex:none;font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400}
+.lrow .c-ip{font-size:12px}
+.lrow .c-user.resp,.lrow .c-det,.lrow .c-src,.lrow .sub{color:var(--muted)}
+.lrow .c-chips{display:flex;gap:6px;align-items:center}
+.lrow .c-chips .chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .c-chips .chip.more{flex:none}
+.lrow .c-chips .rv-why{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.lrow .seen{text-align:right;font-size:12px;color:var(--muted);display:block;background:none;border:0;padding:0}
+.lrow .seen.warn{color:light-dark(#9a5b00,#f0b45a)}
+.lrow .rv-acts{display:flex;gap:4px;padding:0;border:0;overflow:visible}
+.lrow .rv-act{height:24px;padding:0 8px;font-size:12px}
+.lrow .rv-also{color:var(--muted)}
+.card.lrow.stale .nm{color:var(--muted)}
+.tp-card #cards.lst{margin:0}
+.tp-card .card.lrow{pointer-events:none}
+@media (max-width:760px){
+  #cards.lst{margin:8px}
+  .lst .lhead{display:none}
+  .lst .lrow,#cards.lst.pend .lrow{grid-template-columns:16px 18px minmax(0,1fr) auto;grid-template-areas:"t i n s" ". . u u" ". . l l" ". . c c";row-gap:1px;padding:7px 12px}
+  .lrow .cardtick{grid-area:t}.lrow .c-ico{grid-area:i}.lrow .c-name{grid-area:n}.lrow .seen{grid-area:s}
+  .lrow .c-user{grid-area:u}.lrow .c-loc{grid-area:l;color:var(--muted)}.lrow .c-user:empty,.lrow .c-loc:empty{display:none}
+  .lrow .c-ip,.lrow .c-det,.lrow .c-src{display:none}
+  .lrow .c-chips{grid-area:c}.lrow .c-chips:empty{display:none}
+  .lrow .rv-acts{grid-column:3/5}
+  .lst .cardtick{opacity:.6}
+}
+/* The list's chips are quiet (grey) unless they need a look; the name wins over the inventory number for room. */
+.lrow .c-chips .chip:not(.warn):not(.bad):not(.err):not(.danger){background:var(--hover);color:var(--muted);border-color:transparent;font-weight:500}
+.lrow .c-name .code{flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.lst button.cardtick{position:relative;top:auto;right:auto;width:16px;height:16px;padding:0;margin:0;min-height:0}
+.lst button.cardtick::before{content:none}
+.lst button.card-open{min-height:0;margin:0}
+@media (max-width:760px){
+  .lst .lrow .c-name{display:flex}
+  .lst button.cardtick{width:16px;height:16px;border:1.5px solid var(--bd);background:var(--bg)}
+  .lst .lrow.picked button.cardtick{background:var(--accent);border-color:var(--accent)}
+  .lst .lrow.picked button.cardtick::after{left:4px;top:1px}
+  .card.lrow{min-height:0}
+}
+.lrow .c-chips,.lrow .c-chips.rv-chips{flex-wrap:nowrap;padding:0;overflow:hidden}
+.lrow .rv-acts{justify-content:flex-end}
+#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) minmax(110px,.9fr) minmax(150px,1.3fr) 104px minmax(100px,1fr) 150px minmax(0,150px) 84px}
+.lrow .c-dir .jbar{padding:0;border:0;gap:3px;flex-wrap:nowrap;background:none}
+.lrow .c-dir .jb{font-size:10.5px;padding:1px 5px;min-height:0}
+.lrow .c-dir .jb small{display:none}
+@media (max-width:760px){
+  .lst .lrow,#cards.lst.pend .lrow,#cards.lst.join .lrow{grid-template-columns:24px 18px minmax(0,1fr) auto}
+  .lst button.cardtick{width:36px;height:36px;margin:-10px;border:0;background:transparent;opacity:1}
+  .lst button.cardtick::before{content:"";position:absolute;left:10px;top:10px;width:16px;height:16px;box-sizing:border-box;border:1.5px solid var(--bd);border-radius:4px;background:var(--bg)}
+  .lst .lrow.picked button.cardtick{background:transparent}
+  .lst .lrow.picked button.cardtick::before{background:var(--accent);border-color:var(--accent)}
+  .lst .lrow.picked button.cardtick::after{left:15.5px;top:12.5px}
+  .lrow .c-dir{display:none}
+  .lst .lhead .cardtick{display:none}
+}
+@media (max-width:760px){ .lst button.card-open{min-height:36px;margin:-9px 0;display:flex;align-items:center;justify-content:flex-start;text-align:left} }
+/* A narrow list leaves out what matters least, heading and cells together: first IP and Found by, then Detail and the
+   Directory column. The list is its own container, so this follows its width, not the window's. */
+#cards.lst{container:devlist/inline-size}
+.lst .lhead>.c-chips,.lst .lhead>.seen{display:block}
+.lst .lhead>.seen{text-align:right}
+@media (min-width:761px){ @container devlist (max-width:980px){
+  .lst:not(.pend) .lhead,.lst:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) minmax(90px,.9fr) minmax(110px,1.3fr) minmax(80px,.9fr) minmax(0,150px) 76px}
+  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) minmax(90px,.9fr) minmax(110px,1.3fr) minmax(80px,.9fr) 140px minmax(0,130px) 76px}
+  .lst:not(.pend) .c-ip{display:none}
+  .lst.pend .lhead,.lst.pend .lrow{grid-template-columns:16px 18px minmax(120px,1.1fr) minmax(90px,.8fr) minmax(110px,1fr) minmax(140px,1.5fr) 76px 168px}
+  .lst.pend .c-ip,.lst.pend .c-src{display:none}
+} }
+@media (min-width:761px){ @container devlist (max-width:760px){
+  .lst:not(.pend) .lhead,.lst:not(.pend) .lrow,.lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(110px,1.2fr) minmax(80px,.9fr) minmax(100px,1.2fr) minmax(0,130px) 76px}
+  .lst:not(.pend) .c-det,.lst .c-dir{display:none}
+  .lst.pend .lhead,.lst.pend .lrow{grid-template-columns:16px 18px minmax(110px,1.1fr) minmax(90px,1fr) minmax(120px,1.4fr) 76px 168px}
+  .lst.pend .c-loc{display:none}
+} }
+/* A list in a narrow box (the row preview in Settings -> Device types): one device in two or three short lines, as on a phone. */
+.lst.lst-compact{background:var(--card);border:1px solid var(--card-bd);border-radius:var(--r-m);overflow:clip}
+.lst-compact .lhead{display:none}
+.lst-compact .lrow{display:grid;grid-template-columns:18px minmax(0,1fr) auto;grid-template-areas:"i n s" ". u u" ". l l" ". d d" ". c c";row-gap:2px;column-gap:10px;padding:8px 12px;border-top:0}
+.lst-compact .cardtick,.lst-compact .c-ip:empty,.lst-compact .c-det:empty{display:none}
+.lst-compact .c-ico{grid-area:i}.lst-compact .c-name{grid-area:n}.lst-compact .seen{grid-area:s}
+.lst-compact .c-user{grid-area:u}.lst-compact .c-loc{grid-area:l;color:var(--muted)}.lst-compact .c-ip{grid-area:d}.lst-compact .c-det{grid-area:d;justify-self:end}
+.lst-compact .c-chips{grid-area:c}
+.lst-compact .c-user:empty,.lst-compact .c-loc:empty,.lst-compact .c-chips:empty{display:none}
+.tf-sub>.note{margin:0;padding:0 12px 12px}
+.cardlines:has(>[data-cl]:only-of-type),.cardlines:has(label:only-of-type){grid-template-columns:minmax(0,260px) auto;justify-content:start}

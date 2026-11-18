@@ -30,7 +30,9 @@ const server = await new Promise(r => { const x = createApp({ db }).listen(0, '1
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
 try {
-  const p = await (await browser.newContext({ viewport: { width: 1400, height: 1000 } })).newPage();
+  const pctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await pctx.addInitScript(() => { try { localStorage.setItem('ni-card-join', '1'); } catch { /* none */ } });
+  const p = await pctx.newPage();
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
@@ -42,16 +44,16 @@ try {
   if (process.env.NI_SHOTS) await p.locator('#cards').screenshot({ path: path.join(process.env.NI_SHOTS, 'defender-cards.png') });
 
   // the cards: four marks, Defender's state, and when each was seen last, by whom
-  const card = id => p.textContent(`.card[data-open=${id}]`);
+  const card = async id => (await p.textContent(`.card[data-open=${id}]`)) + ' ' + ((await p.getAttribute(`.card[data-open=${id}] .seen`, 'title')) || '');
   assert.equal(await p.locator(".card[data-open=a] .jb").count(), 4);
   assert.equal(await p.getAttribute('.card[data-open=a] .jb:nth-child(4)', 'class'), 'jb on ok');
-  assert.match(await card('a'), /Seen today · Defender/, 'Defender saw it last');
+  assert.match(await card('a'), /today.*by Defender/, 'Defender saw it last');
   assert.equal(await p.getAttribute('.card[data-open=b] .jb:nth-child(4)', 'class'), 'jb on bad', 'high risk is red');
   assert.match(await p.getAttribute('.card[data-open=b] .jb:nth-child(3)', 'class'), /\bno\b/, 'Defender alone is not Intune');
-  assert.match(await card('b'), /Seen \d{2}\.\d{2}\.\d{4} · Entra/);
+  assert.match(await card('b'), /\d{2}\.\d{2}\.\d{4}.*by Entra/);
   assert.match(await p.getAttribute('.card[data-open=b] .lsst', 'class'), /warn/, 'over 30 days: amber');
   assert.match(await p.getAttribute('.card[data-open=c] .jb:nth-child(4)', 'class'), /\bno\b/, 'not onboarded');
-  assert.ok(!/Seen/.test(await card('c')), 'a device no source has seen says nothing');
+  assert.ok(!/Last seen|Never/.test(await card('c')), 'a device no source has seen says nothing');
 
   // the table: Last seen sorts by its date
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); });

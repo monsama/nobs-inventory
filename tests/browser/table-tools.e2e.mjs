@@ -25,9 +25,9 @@ try {
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
 
   await p.click('#setBtn'); await openSetTab(p, 'about');
-  await p.waitForSelector('.btnlike[href*="buymeacoffee"]');
-  assert.equal(await p.evaluate(() => !!document.querySelector('.btnlike[href*="buymeacoffee"] svg')), true, 'the coffee button has no icon');
-  assert.equal(await p.evaluate(() => getComputedStyle(document.querySelector('.btnlike[href*="buymeacoffee"]')).textDecorationLine), 'none', 'the coffee button is underlined');
+  await p.waitForSelector('.btnlike:not(#coffeeBtn)[href*="buymeacoffee"]');
+  assert.equal(await p.evaluate(() => !!document.querySelector('.btnlike:not(#coffeeBtn)[href*="buymeacoffee"] svg')), true, 'the coffee button has no icon');
+  assert.equal(await p.evaluate(() => getComputedStyle(document.querySelector('.btnlike:not(#coffeeBtn)[href*="buymeacoffee"]')).textDecorationLine), 'none', 'the coffee button is underlined');
   await p.click('#setClose');
 
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = 'table'; __mods[1].render(); });

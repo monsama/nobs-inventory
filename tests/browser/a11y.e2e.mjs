@@ -65,7 +65,7 @@ try {
     ['software with licences', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'), r = await import('/js/07-render.js'); c.st.tab = 'sw'; r.render(); }); }],
     ['licence dialog', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'); (await import('/js/09-costs.js')).licenceModal(c.COSTS.licences[0]); }); }],
     ['entry sheet dialog', async () => { await p.evaluate(async () => { const s = await import('/js/04-settings.js'); (await import('/js/08-sheets.js')).sheetModal(s.me()); }); await p.waitForSelector('#sheetMake'); }],
-    ['account dialog', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); __mods[0].closeModal(); }); await p.click('#whoBtn'); await p.waitForSelector('#acFirst'); }],
+    ['account dialog', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); __mods[0].closeModal(); }); await p.click('#barMoreBtn'); await p.click('#whoBtn'); await p.waitForSelector('#acFirst'); }],
   ];
   for (const theme of ['light', 'dark']) {
     await p.evaluate(t => { document.documentElement.dataset.theme = t; }, theme);

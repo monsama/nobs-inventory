@@ -45,7 +45,7 @@ try {
   assert.match(await page.textContent('[data-warranty=ended]'), /1$/);
   await page.click('[data-warranty=soon]');
   assert.deepEqual(await page.locator('.card .nm').allTextContents(), ['PC-SOON'], 'the filter shows the device whose warranty ends soon');
-  assert.match(await page.textContent('.card'), /Warranty\s*ends/);
+  assert.doesNotMatch(await page.textContent('.card'), /Warranty/, 'cards no longer show the warranty');
   if (shots) await page.locator('#side').screenshot({ path: path.join(shots, 'side-warranty.png') });
   await page.click('[data-warranty=soon]');
 
@@ -90,8 +90,8 @@ try {
     core.st.tab = 'cards'; (await import('/js/07-render.js')).render();
   });
   await page.waitForSelector('.card[data-open=o1]');
-  // the card says when, in amber, like every card; the hint to check it by hand is on the date
-  assert.match(await page.textContent('.card[data-open=o1] .seen'), /Seen \d\d\.\d\d\.\d{4} · Lansweeper/);
+  // the row says when, in amber, like every row; the hint to check it by hand is on the date
+  assert.match(await page.textContent('.card[data-open=o1] .seen'), /^\d\d\.\d\d\.\d{4}$/);
   assert.match(await page.getAttribute('.card[data-open=o1] .seen', 'class'), /warn/);
   assert.match(await page.getAttribute('.card[data-open=o1] .seen', 'title'), /Check by hand/);
   assert.doesNotMatch(await page.getAttribute('.card[data-open=o2] .seen', 'title'), /Check by hand/);

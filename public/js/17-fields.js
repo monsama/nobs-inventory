@@ -32,8 +32,10 @@ export const canAddPorts = type => !NO_NET_TYPES.includes(type) && !(FIELDS[type
 /* Accessories of a PC (headset, dock, keyboard…): each has a name, a kind and an optional serial number. */
 export function accessoriesHtml(o){
   const list = (o.accessories || []).map((a, i) => html`<div class="entry"><div class="entry-head"><b>${a.name}</b>${a.kind ? html` <span class="chip">${a.kind}</span>` : ''}${a.serial ? html` <span class="mono muted">${a.serial}</span>` : ''}${a.mac ? html` <span class="mono muted" title="MAC address">${a.mac}</span>` : ''}${a.seenAs ? html` <span class="muted" title="Lansweeper sees it as this record">as ${a.seenAs}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${a.name}" title="Remove">×</button></div></div>`);
-  return String(html`<div class="entries-box">${list.length ? list : html`<p class="note">No attachments yet.</p>`}
-    <div class="addrel entry-add"><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment"><button id="accAdd">Add</button></div></div>`);
+  /* The form opens from + Add an attachment, so an empty device does not show three empty fields. */
+  return String(html`<div class="entries-box">${list}
+    <div class="acc-open"><button type="button" class="link" id="accOpen">+ Add an attachment</button></div>
+    <div class="addrel entry-add" id="accRow" hidden><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment"><button id="accAdd">Add</button></div></div>`);
 }
 /* Notes: one text box per device, saved when it is left. */
 export function notesHtml(o, edit){

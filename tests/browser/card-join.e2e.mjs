@@ -1,4 +1,4 @@
-/* Browser test of the AD · Entra · Intune marks on the cards, and of fixes from the 0.9.28 review: amounts as people
+/* Browser test of the AD · Entra · Intune marks in the list, and of fixes from the 0.9.28 review: amounts as people
    type them, a column drop that is not a column, keyboard sorting, the type a rule still names, and the toast read out. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
@@ -36,9 +36,13 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card');
 
-  // on by default: the computers get the three marks and the printer none; unticked they go, and the choice is kept
-  assert.ok(await page.isChecked('#cardJoin'));
+  // off by default (a quiet list); ticked, a Directory column: the computers get the three marks and the printer none;
+  // unticked they go, and the choice is kept
+  assert.equal(await page.isChecked('#cardJoin'), false);
+  assert.equal(await page.locator('.card .jbar').count(), 0);
+  await page.check('#cardJoin');
   assert.equal(await page.locator('.card .jbar').count(), 4);
+  assert.match(await page.textContent('#cards .lhead'), /Directory/);
   await page.uncheck('#cardJoin');
   assert.equal(await page.locator('.card .jbar').count(), 0);
   await page.reload(); await page.waitForSelector('.card');

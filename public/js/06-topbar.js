@@ -2,7 +2,7 @@ import { evEl, $$, $, COSTS, REVIEW, UNDO, objs, rels, st } from './01-core.js';
 import { newObjModal } from './05-new-object.js';
 import { isAdmin, me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render.js';
-import { openObj, resetFilters } from './02-views.js';
+import { colFiltered, openObj, resetFilters } from './02-views.js';
 import { SOURCES, sources } from './16-sync.js';
 import { hideNotice, notices, shownNotices } from './notices.js';
 import { html } from './html.js';
@@ -13,6 +13,8 @@ import { html } from './html.js';
 $('#newBtn').onclick = () => newObjModal({type: st.type || null, loc: st.loc && st.loc.includes(' / ') ? st.loc : null});
 $('#whoBtn').onclick = () => (me() ? accountModal() : loginModal());
 $('#signOutBtn').onclick = () => signOut();
+/* A choice in the account menu closes it. */
+$('#barMore').addEventListener('click', e => { const m = $('#barMore'); if (e.target.closest('button, a') && m.matches(':popover-open')) m.hidePopover(); });
 $('#setBtn').onclick = openSettings;
 $('#themeBtn').onclick = () => {
   const root = document.documentElement;
@@ -52,7 +54,7 @@ function drawBell(){
   const say = n ? `${n} ${n === 1 ? 'notification' : 'notifications'}` : 'No notifications';
   badge.textContent = n > 99 ? '99+' : String(n); badge.hidden = !n; badge.className = `bell-n ${worst}`;
   btn.setAttribute('aria-label', say); btn.title = say;
-  const more = $('#barMoreBtn'); if (more){ more.classList.toggle('has-n', !!n); more.classList.toggle('bad', worst === 'bad'); }
+
   const hid = NOTICES.length - n;
   pop.innerHTML = html`<div class="bell-hdr"><b>Notifications</b><span class="muted">${n || 'none'}</span></div>
     ${n ? html`<div class="bell-list">${shown.map(x => html`<div class="bell-item ${x.sev}"><button type="button" class="bell-go" data-bell="${x.id}"><span class="dot ${x.sev}" aria-hidden="true"></span><span class="bell-t"><b>${x.title}</b><small>${x.text}</small></span></button><button type="button" class="icon bell-x" data-bellhide="${x.id}" title="Hide until it changes" aria-label="${`Hide until it changes: ${x.title}`}">×</button></div>`)}</div>`
@@ -203,7 +205,7 @@ export function setupTable(t){
       if (th.querySelector('input')){ fr.appendChild(c); return; }   /* the select-all column has nothing to filter */
       const inp = document.createElement('input');
       inp.placeholder = 'filter'; inp.dataset.fci = String(i); inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
-      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!redrawFromData(t, i)) applyView(t); });
+      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!redrawFromData(t, i)) applyView(t); if (colFiltered()) $('#clearF').hidden = false; });
       c.appendChild(inp); fr.appendChild(c);
     });
     head.parentNode.appendChild(fr);
