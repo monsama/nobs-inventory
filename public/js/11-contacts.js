@@ -157,9 +157,17 @@ function moveContactsModal(list){
   const go = () => {
     const co = box.value.trim(); if (!co){ toast('Give the company a name.'); box.focus(); return; }
     const was = list.map(c => [c.id, c.kind, c.company]);
+    /* An internal contact moved out is no longer anyone's internal responsible: those devices lose them, as when one
+       contact changes kind, with a history line each; Undo gives it back. */
+    const leaving = new Set(list.filter(c => c.kind === 'internal').map(c => c.id));
+    const resp = objs.filter(o => leaving.has(o.respIn)).map(o => [o.id, o.respIn]);
+    for (const [id, cid] of resp){ const o = byId(id), c = contactOf(cid); if (!o) continue; Reflect.deleteProperty(o, 'respIn'); hist(o, now(), `Responsible ${c ? c.name : ''} removed (now external, ${co}) by ${who()}`); }
     for (const c of list) Object.assign(c, { kind: 'external', company: co });
     closeModal(); (st.cnSel || new Set()).clear(); queueServerSave(); render();
-    toastUndo(`${list.length} moved to ${co}`, () => { for (const [id, kind, company] of was){ const c = contactOf(id); if (!c) continue; c.kind = kind; if (company) c.company = company; else Reflect.deleteProperty(c, 'company'); } queueServerSave(); render(); }, { anyEpoch: true });
+    toastUndo(`${list.length} moved to ${co}`, () => {
+      for (const [id, kind, company] of was){ const c = contactOf(id); if (!c) continue; c.kind = kind; if (company) c.company = company; else Reflect.deleteProperty(c, 'company'); }
+      for (const [id, cid] of resp){ const o = byId(id); if (o && !o.respIn && contactOf(cid)){ o.respIn = cid; hist(o, now(), `Responsible back (move undone) by ${who()}`); } }
+      queueServerSave(); render(); }, { anyEpoch: true });
   };
   $('#mvOk').onclick = go;
   box.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); go(); } };

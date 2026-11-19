@@ -10,7 +10,7 @@ import { closeModal, confirmModal, modal } from './19-modal.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
 /* Suppliers for a contract and for a device: the companies in Contacts, the contracts' suppliers and the devices'. */
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier), ...objs.map(o => typeof o.supplier === 'string' ? o.supplier.trim() : '')].filter(Boolean))].sort((a, b) => a.localeCompare(b));
-import { queueServerSave, render } from './07-render.js';
+import { SW, queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
 import { bindListViews, listViewsMenuHtml } from './views-saved.js';
@@ -96,7 +96,7 @@ export function renderContracts(){
   }
   /* Admins tick contracts to delete several at once (one Undo); the ticks hold only for contracts still listed. */
   const admin = isAdmin(), sel = st.ctSel = new Set([...(st.ctSel || [])].filter(id => rows.some(r => r.c.id === id)));
-  const selBar = admin && sel.size ? html`<div class="selbar" role="region" aria-label="Selected contracts"><b>${sel.size} selected</b><button type="button" data-ctbulk="del" class="danger-text">Delete ${sel.size}…</button><button type="button" data-ctbulk="clear">Clear</button></div>` : '';
+  const selBar = admin && sel.size ? html`<div class="selbar" role="region" aria-label="Selected contracts"><b>${sel.size} selected</b><button type="button" data-ctbulk="edit">Change…</button><button type="button" data-ctbulk="del" class="danger-text">Delete ${sel.size}…</button><button type="button" data-ctbulk="clear">Clear</button></div>` : '';
   $('#view').innerHTML = html`${costSummary(all)}${selBar}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
       ${admin ? html`<th class="selcol"><input type="checkbox" data-ctall aria-label="Select every contract listed" ${rows.length && rows.every(r => sel.has(r.c.id)) ? 'checked' : ''}></th>` : ''}<th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Notice by</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
     ${rows.length ? rows.map(({ c }) => html`<tr${sel.has(c.id) ? html` class="picked"` : ''}>${admin ? html`<td class="selcol"><input type="checkbox" data-ctsel="${c.id}" aria-label="${`Select ${c.name}`}" ${sel.has(c.id) ? 'checked' : ''}></td>` : ''}<td title="${c.name}"><button class="link" data-contract="${c.id}"><b>${markHtml(c.name, words)}</b></button>${c.ref ? html` <span class="mono muted">${markHtml(c.ref, words)}</span>` : ''}</td>
@@ -116,6 +116,7 @@ export function renderContracts(){
   v.querySelectorAll('[data-ctbulk]').forEach(b => b.onclick = () => {
     if (/** @type {HTMLElement} */ (b).dataset.ctbulk === 'clear'){ sel.clear(); renderContracts(); return; }
     const list = COSTS.contracts.filter(c => sel.has(c.id));
+    if (/** @type {HTMLElement} */ (b).dataset.ctbulk === 'edit'){ bulkChangeModal('contract', list, () => sel.clear()); return; }
     confirmModal(`Delete ${list.length} ${list.length === 1 ? 'contract' : 'contracts'}`, html`Delete ${list.map(c => c.name).slice(0, 6).join(', ')}${list.length > 6 ? ` and ${list.length - 6} more` : ''}? The devices they cover are not touched. One Undo brings them back.`, 'Delete', () => {
       const was = [...COSTS.contracts];
       COSTS.contracts = COSTS.contracts.filter(c => !sel.has(c.id)); sel.clear(); queueServerSave(); render();
@@ -251,7 +252,8 @@ export function licenceMark(l){
   const u = licenceUse(l, objs);
   return String(html`<span class="lic-mark${u.over ? ' over' : ''}" title="Counted by the licence ${l.name}: ${u.used} of ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'} used${u.over ? `, ${u.used - l.seats} over` : ''}">Licence</span>`);
 }
-export const licencesOver = () => COSTS.licences.filter(l => licenceUse(l, objs).over);
+/* None while the software is still being read (server-load.js): the Overview is drawn again once it is there. */
+export const licencesOver = () => !SW.loaded ? [] : COSTS.licences.filter(l => licenceUse(l, objs).over);
 /* The licences that count a package, for its row in the Software view. */
 export const licencesFor = pkg => COSTS.licences.filter(l => pkg.toLowerCase().includes(String(l.name).trim().toLowerCase()));
 
@@ -273,16 +275,19 @@ function deleteLicence(l){
 /* The Licences box over the Software tab, as HTML: each licence with its seats used, a bar, its cost and end. New
    licence is for admins. */
 export function licencesPanel(){
+  /* Admins tick licences to change their end or cost period, or delete them, several at once (one Undo). */
+  const admin = isAdmin(), lsel = st.licSel = new Set([...(st.licSel || [])].filter(id => COSTS.licences.some(l => l.id === id)));
   const rows = COSTS.licences.map(l => {
     const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
-    return html`<tr><td><button class="link" data-lic="${l.id}"><b>${l.name}</b></button></td>
+    return html`<tr${lsel.has(l.id) ? html` class="picked"` : ''}>${admin ? html`<td class="selcol"><input type="checkbox" data-licsel="${l.id}" aria-label="${`Select ${l.name}`}" ${lsel.has(l.id) ? 'checked' : ''}></td>` : ''}<td><button class="link" data-lic="${l.id}"><b>${l.name}</b></button></td>
       <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
       <td class="num">${l.cost > 0 ? html`${rawHtml(money(l.cost))} <span class="muted">${PERIODS[l.per || 'year']}</span>` : ''}</td><td>${l.end ? dayText(l.end) : ''}</td><td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-lic="${l.id}"`), l.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-licdel="${l.id}"`), l.name)) : ''}</span></td></tr>`;
   });
   const over = licencesOver().length;
   return String(html`<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length} ${COSTS.licences.length === 1 ? 'licence' : 'licences'}${over ? `, ${over} over-used` : ''}</span></div>
     <p class="note">A licence counts the devices, not retired, with software whose name holds the licence's name. “Office Suite” counts every package named so, whatever its version.</p>
-    ${rows.length ? html`<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:44px"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th><th aria-label="Edit"></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    ${admin && lsel.size ? html`<div class="selbar lic-selbar" role="region" aria-label="Selected licences"><b>${lsel.size} selected</b><button type="button" data-licbulk="edit">Change…</button><button type="button" data-licbulk="del" class="danger-text">Delete ${lsel.size}…</button><button type="button" data-licbulk="clear">Clear</button></div>` : ''}
+    ${rows.length ? html`<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup>${admin ? html`<col style="width:34px">` : ''}<col style="width:30%"><col style="width:16%"><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:44px"></colgroup><thead><tr>${admin ? html`<th class="selcol"><input type="checkbox" data-licall aria-label="Select every licence" ${COSTS.licences.length && COSTS.licences.every(l => lsel.has(l.id)) ? 'checked' : ''}></th>` : ''}<th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th><th aria-label="Edit"></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
     ${isAdmin() ? html`<div class="addrel"><span class="grow"></span><button id="licNew" class="primary">New licence</button></div>` : ''}</div>`);
 }
 export function bindLicences(){
@@ -290,6 +295,52 @@ export function bindLicences(){
   $('#view').querySelectorAll('[data-lic]').forEach(b => b.onclick = () => licenceModal(COSTS.licences.find(l => l.id === b.dataset.lic)));
   $('#view').querySelectorAll('[data-licdel]').forEach(b => b.onclick = () => { const l = COSTS.licences.find(x => x.id === b.dataset.licdel); if (l) deleteLicence(l); });
   $('#view').querySelectorAll('[data-licnew]').forEach(b => b.onclick = e => { e.stopPropagation(); licenceModal(null, b.dataset.licnew); });
+  const lsel = st.licSel || new Set(), again = (/** @type {string} */ focus) => { render(); /** @type {HTMLElement|null} */ ($(focus))?.focus(); };
+  $('#view').querySelectorAll('[data-licsel]').forEach(b => b.onchange = () => { const id = /** @type {HTMLElement} */ (b).dataset.licsel; if (lsel.has(id)) lsel.delete(id); else lsel.add(id); again(`#view [data-licsel="${CSS.escape(id)}"]`); });
+  const la = $('#view').querySelector('[data-licall]'); if (la) la.onchange = () => { if (COSTS.licences.every(l => lsel.has(l.id))) lsel.clear(); else COSTS.licences.forEach(l => lsel.add(l.id)); again('#view [data-licall]'); };
+  $('#view').querySelectorAll('[data-licbulk]').forEach(b => b.onclick = () => {
+    const what = /** @type {HTMLElement} */ (b).dataset.licbulk, list = COSTS.licences.filter(l => lsel.has(l.id));
+    if (what === 'clear'){ lsel.clear(); render(); return; }
+    if (what === 'edit'){ bulkChangeModal('licence', list, () => lsel.clear()); return; }
+    confirmModal(`Delete ${list.length} ${list.length === 1 ? 'licence' : 'licences'}`, html`Delete ${list.map(l => l.name).slice(0, 6).join(', ')}${list.length > 6 ? ` and ${list.length - 6} more` : ''}? The software on the devices is not touched. One Undo brings them back.`, 'Delete', () => {
+      const was = [...COSTS.licences], ids = new Set(list.map(l => l.id));
+      COSTS.licences = COSTS.licences.filter(l => !ids.has(l.id)); lsel.clear(); queueServerSave(); render();
+      toastUndo(`${list.length} ${list.length === 1 ? 'licence' : 'licences'} deleted`, () => {
+        const cur = COSTS.licences;
+        COSTS.licences = [...was.map(l => cur.find(x => x.id === l.id) || (ids.has(l.id) ? l : null)).filter(Boolean), ...cur.filter(x => !was.some(l => l.id === x.id))];
+        queueServerSave(); render(); }, { anyEpoch: true });
+    });
+  });
+}
+/* Several contracts or licences changed at once: what is filled in is set on each, what is left empty stays as it is.
+   Contracts: supplier and end; licences: end and cost period. One Undo puts back what each had. */
+function bulkChangeModal(kind, list, done){
+  const isCt = kind === 'contract', n = list.length, word = isCt ? (n === 1 ? 'contract' : 'contracts') : (n === 1 ? 'licence' : 'licences');
+  const periods = Object.entries(PERIODS).map(([k, t]) => html`<option value="${k}">${t}</option>`);
+  modal(html`<div class="mh">Change ${n} ${word}</div>
+    <div class="mb"><p class="note">Fill in only what should change; an empty field leaves each as it is.</p><div class="form" style="padding:0">
+      ${isCt ? html`<label for="bkSup">Supplier</label><input id="bkSup" maxlength="120" autocomplete="off" placeholder="Keep as it is">` : ''}
+      <label for="bkEnd">Ends</label>${rawHtml(dateFieldHtml('id="bkEnd"', ''))}
+      ${isCt ? '' : html`<label for="bkPer">Cost per</label><select id="bkPer"><option value="">Keep as it is</option>${periods}</select>`}
+    </div><p class="note err" id="bkErr" hidden></p></div>
+    <div class="mf"><button id="bkNo">Cancel</button><button id="bkOk" class="primary">Change ${n}</button></div>`, 'sm');
+  $('#bkNo').onclick = closeModal;
+  const err = t => { const e = $('#bkErr'); e.textContent = t; e.hidden = false; };
+  $('#bkOk').onclick = () => {
+    if (dateBad($('#bkEnd'))){ $('#bkEnd').focus(); return err('Write the day as dd.mm.yyyy.'); }
+    const sup = isCt ? /** @type {HTMLInputElement} */ ($('#bkSup')).value.trim() : '', end = dateValue($('#bkEnd')), per = isCt ? '' : /** @type {HTMLSelectElement} */ ($('#bkPer')).value;
+    if (!sup && !end && !per) return err('Nothing filled in to change.');
+    const early = isCt && end ? list.find(c => c.start && end < c.start) : null;
+    if (early) return err(`${early.name} starts on ${dayText(early.start)}, after that end.`);
+    const was = list.map(x => [x.id, x.supplier, x.end, x.per]);
+    for (const x of list){ if (sup) x.supplier = sup; if (end) x.end = end; if (per) x.per = per; }
+    closeModal(); done(); queueServerSave(); render();
+    const store = () => isCt ? COSTS.contracts : COSTS.licences;
+    toastUndo(`${n} ${word} changed`, () => {
+      for (const [id, supplier, e, p] of was){ const x = store().find(y => y.id === id); if (!x) continue;
+        for (const [k, v] of [['supplier', supplier], ['end', e], ['per', p]]) if (v === undefined) Reflect.deleteProperty(x, k); else x[k] = v; }
+      queueServerSave(); render(); }, { anyEpoch: true });
+  };
 }
 /* The New licence or edit licence dialog. name fills in a new licence's software. Save checks the name, cost and end
    date, then saves. */

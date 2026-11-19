@@ -157,3 +157,39 @@ test('a large inventory is sent packed when the client takes gzip', async () => 
     assert.equal(me.headers.get('content-encoding'), null, 'a small answer goes as it is');
   } finally { await srv.close(); }
 });
+
+/* The page reads the inventory without the installed software (software=0) and the software next (api/software, only
+   the devices the person may see); a save of a device without it leaves the stored software as it is. */
+test('the inventory without its software, the software on its own, and saves that keep it', async () => {
+  const { setPassword } = await import('../server/auth.js');
+  const srv = await startServer();
+  try {
+    const sw = [{ name: 'Office Suite', version: '16.0' }];
+    const s0 = loadState(srv.db);
+    saveState(srv.db, { ...s0, sites: ['Bern', 'Zürich'], locs: ['Bern / EG', 'Zürich / EG'],
+      users: [...s0.users, { id: 'v-bern', login: 'vbern', name: 'Bern Only', role: 'viewer', source: 'manual', active: true, groups: [], sites: ['Bern'] }],
+      objs: [dev('a', { loc: 'Bern / EG', software: sw }), dev('b', { loc: 'Zürich / EG', software: sw }), dev('c', { loc: 'Bern / EG' })],
+      lsPresence: { day: '2026-11-19', n: 3, since: '2026-11-01', full: { day: '2026-11-18', n: 3 }, days: [{ day: '2026-11-18', n: 3 }] },
+      adShort: { day: '2026-11-19', n: 1, of: 12 } });
+    setPassword(srv.db, 'v-bern', 'vbernpass12345');
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const lean = (await srv.call('GET', '/api/state?history=0&software=0', { cookie: a.cookie })).json;
+    assert.ok(lean.objs.every(o => !('software' in o)), 'no software in the inventory');
+    assert.ok((await srv.call('GET', '/api/state?history=0', { cookie: a.cookie })).json.objs.find(o => o.id === 'a').software, 'without software=0 it is there');
+    assert.deepEqual((await srv.call('GET', '/api/software', { cookie: a.cookie })).json.software, { a: sw, b: sw });
+    assert.equal((await srv.call('GET', '/api/software')).status, 401);
+    /* A device saved without its software keeps it; one saved with an empty list has none. */
+    const revs = lean.revs, obj = lean.objs.find(o => o.id === 'a');
+    let r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'object', id: 'a', value: { ...obj, name: 'PC-A2' }, base: revs['object|a'] }], dels: [] } });
+    assert.equal(r.status, 200); assert.deepEqual(r.json.conflicts, []);
+    assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'a'), { ...obj, name: 'PC-A2', software: sw });
+    r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'object', id: 'a', value: { ...obj, software: [] }, base: r.json.revs['object|a'] }], dels: [] } });
+    assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'a').software, []);
+    /* Someone limited to Bern: the software of Bern's devices only, and no counts of the whole inventory. */
+    const v = await signIn(srv, 'vbern', 'vbernpass12345');
+    assert.deepEqual(Object.keys((await srv.call('GET', '/api/software', { cookie: v.cookie })).json.software), []);
+    const vs = (await srv.call('GET', '/api/state?history=0', { cookie: v.cookie })).json;
+    assert.deepEqual(vs.lsPresence, { day: '2026-11-19', since: '2026-11-01', full: { day: '2026-11-18' } });
+    assert.deepEqual(vs.adShort, { day: '2026-11-19' });
+  } finally { await srv.close(); }
+});

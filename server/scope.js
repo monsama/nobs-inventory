@@ -35,6 +35,10 @@ export function scopeState(s, sc) {
   if (sc.own) { s.contracts = []; s.licences = []; s.users = (s.users || []).filter(u => u.id === sc.own || u.role === 'admin'); }
   /* The devices a sync found twice, and what each sync changed: only about the devices they see (names and serial
      numbers of other sites' devices are in them). */
+  /* How many devices each push brought, and how many AD computer accounts a read found, are counts of the whole
+     inventory: only the days are kept, which is all the page needs to say a device is gone (gone.js). */
+  if (s.lsPresence && typeof s.lsPresence === 'object') { const P = s.lsPresence; s.lsPresence = { day: P.day, since: P.since, ...(P.full ? { full: { day: P.full.day } } : {}) }; }
+  if (s.adShort && typeof s.adShort === 'object') s.adShort = { day: s.adShort.day };
   if (Array.isArray(s.graphAmbiguous)) s.graphAmbiguous = sc.own ? [] : s.graphAmbiguous.filter(a => (a.devices || []).length && a.devices.every(id => ids.has(id)));
   if (s.syncChanges && typeof s.syncChanges === 'object') {
     const keep = run => ({ ...run, ids: (run.ids || []).filter(id => ids.has(id)) });

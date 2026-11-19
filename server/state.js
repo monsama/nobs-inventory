@@ -757,6 +757,8 @@ export function applyChanges(db, body, guard = () => {}) {
       for (const k of ['ip', 'ip6', 'mac']) { const r = checkAddress(k, v[k]); if (!r.ok) bad(r.msg); if (v[k] !== undefined) v[k] = r.value; }
       if (!v.code) { do { s.codeN = (s.codeN || 0) + 1; } while (s.objs.some(o => o.code === 'INV-' + String(s.codeN).padStart(4, '0'))); v.code = 'INV-' + String(s.codeN).padStart(4, '0'); codes[c.id] = v.code; }
       const i = s.objs.findIndex(o => o.id === c.id);
+      /* A page that has not read the software yet (api/software) sends the device without it: the stored list stays. */
+      if (i >= 0 && !Object.hasOwn(v, 'software') && Array.isArray(s.objs[i].software)) v.software = s.objs[i].software;
       if (i >= 0) s.objs[i] = v; else s.objs.push(v);
     } else if (c.kind === 'rel') {
       const rid = String(c.id); const v2 = { ...v, id: rid };

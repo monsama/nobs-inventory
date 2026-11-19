@@ -2,6 +2,7 @@ import { pad2, stamp, stampTime } from './dates.js';
 import { goneAllWith, sourcesOfWith } from './gone.js';
 import { html } from './html.js';
 import { graphSeen, isIntune, otherManager } from './intune.js';
+import { neverScannedWith, scanOldWith, seenDates, whereAreThey, whereSign } from './where.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
@@ -159,18 +160,14 @@ export const FEED_EXTRA_HINT = {ipRoom:'A device without a location gets the roo
 export { WARRANTY_SOON_DAYS, warrantyState };
 /* A device Lansweeper has not scanned for over three months may be gone, or Lansweeper cannot log on to it: it is sent
    all the same, and flagged so someone checks it by hand. */
-export const SCAN_OLD_DAYS = 90;
-const isDay = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
-const daysAgo = (day, today) => (+today - +new Date(day + 'T00:00:00')) / 86400000;
 /* A device Lansweeper tries to scan but has never scanned (it only knows it from Active Directory, or cannot log on):
-   none of its details come from a scan. A week's grace for one it found only just now. */
-export const NEVER_SCANNED_GRACE_DAYS = 7;
-/* The day the grace counts from: when Lansweeper found it, or, from a Lansweeper that does not say, when it came here. */
-const foundDay = f => isDay(f.firstSeen) ? f.firstSeen : (() => { const t = stampTime(f.linked || f.created); return t ? new Date(t).toISOString().slice(0, 10) : ''; })();
-export const neverScanned = (o, today = new Date()) => !!(lsLive() && o.feed && !o.excluded && !o.detached && !o.feed.scanned && isDay(o.feed.tried)
-  && !(foundDay(o.feed) && daysAgo(foundDay(o.feed), today) <= NEVER_SCANNED_GRACE_DAYS));
-export const scanOld = (o, today = new Date()) => neverScanned(o, today) || !!(lsLive() && o.feed && !o.excluded && !o.detached && isDay(o.feed.scanned)
-  && daysAgo(o.feed.scanned, today) > SCAN_OLD_DAYS);
+   none of its details come from a scan. The rules are in where.js, shared with the server's weekly mail. */
+export { SCAN_OLD_DAYS, NEVER_SCANNED_GRACE_DAYS } from './where.js';
+export const neverScanned = (o, today = new Date()) => neverScannedWith(o, lsLive(), today);
+export const scanOld = (o, today = new Date()) => scanOldWith(o, lsLive(), today);
+/* The strongest sign that a device in use may be missing (where.js), with this page's newest push day. */
+export const whereOf = (/** @type {any[]} */ list) => whereAreThey(list, { lsPresence: st.lsPresence, lsLive: lsLive() });
+export const whereSignOf = o => whereSign(o, { lsPresence: st.lsPresence, lsLive: lsLive() });
 export const scanChip = o => !scanOld(o) ? '' : neverScanned(o)
   ? `<span class="chip warn lsst" title="Lansweeper has tried to scan it (last on ${dayText(o.feed.tried)}) but has never scanned it. Check by hand that it is there, and why Lansweeper cannot scan it.">Never scanned</span>`
   : `<span class="chip warn lsst" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>`;
@@ -469,8 +466,8 @@ export const joinBadges = o => {
   const g = SYNC.graph && o.graph && !o.graph.gone ? o.graph : null, j = g ? joinOf(o) : o.inAd ? 'AD joined' : '';
   const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && isIntune(g.managed));
   const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
-  /* data-s: the short label the List's narrow Directory column shows (Def for Defender). */
-  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b data-s="${label === 'Defender' ? 'Def' : label}">${label}</b><small>${esc(state)}</small></span>`;
+  /* data-s: the label the List's Directory column shows (the full source names). */
+  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b data-s="${label}">${label}</b><small>${esc(state)}</small></span>`;
   const tips = [
     ad ? (o.inAd ? 'Active Directory: has a computer account' + (j === 'Hybrid joined' ? ', hybrid joined' : '') : 'Active Directory: hybrid joined') : 'Active Directory: no computer account found',
     en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
@@ -516,9 +513,7 @@ const perDraw = fn => { let gen = -1, map = new WeakMap(); return o => { if (!ca
 export const lastSeenOf = perDraw(o => lastSeenNow(o));
 function lastSeenNow(o){
   /* Intune's date only for a device Intune manages, Entra's for its sign-in (intune.js graphSeen). */
-  const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ...graphSeen(o.graph),
-    ['Defender', o.defender && o.defender.lastSeen], ['Autopilot', o.autopilot && o.autopilot.lastContact]]
-    .map(([src, v]) => [src, String(v || '').slice(0, 10), String(v || '')]).filter(([, d]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d > '2000');
+  const all = seenDates(o);
   if (!all.length) return null;
   const when = (/** @type {string[]} */ [, d, raw]) => /T\d{2}:\d{2}/.test(raw) && Date.parse(raw) ? Date.parse(raw) : Date.parse(d + 'T00:00:00Z');
   const best = all.sort((a, b) => when(b) - when(a))[0], [src, day, raw] = best;
