@@ -54,7 +54,7 @@ try {
   await p.waitForSelector('#cards .lrow');
   // no software with the list: the licence counts come from the server; a device's software when its page opens
   await until(p, async () => !!(await import('/js/07-render.js')).SW.licUse);
-  assert.equal(await p.evaluate(async () => (await import('/js/07-render.js')).SW.loaded), false, 'not every device\'s software at sign-in');
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.some(o => Object.hasOwn(o, 'software'))), false, 'not every device\'s software at sign-in');
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
   await until(p, () => /Office Suite/.test(document.querySelector('#view').textContent));
   assert.equal(await p.evaluate(async () => (await import('/js/07-render.js')).pendingChanges().puts.length), 0, 'reading the software is no change');

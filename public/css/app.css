@@ -2469,7 +2469,7 @@ body:has(#toolbar .pickrow) #toast{bottom:calc(96px + env(safe-area-inset-bottom
 body:has(#toolbar .pickrow) #view{padding-bottom:72px}
 /* Quick edit: a pencil over the end of the row on hover (or keyboard focus), and its small box. */
 .card.lrow{position:relative}
-.lrow .qedit-btn{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:28px;height:28px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--bd);background:var(--panel);opacity:0;transition:opacity .1s}
+.lrow .qedit-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--bd);background:var(--panel);opacity:0;transition:opacity .1s}
 .lrow:hover .qedit-btn,.lrow .qedit-btn:focus-visible{opacity:1}
 .lrow .qedit-btn .i{width:14px;height:14px}
 @media (hover:none){ .lrow .qedit-btn{display:none} }
@@ -2660,3 +2660,17 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
    dialog's backdrop, out of reach of the pointer. */
 .modal-ghost{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;z-index:40;pointer-events:none}
 .modal-ghost .box{box-shadow:none}
+/* A field's sources, changed under its row in Data sources: the Locations list with a column for how each writes. */
+.ds-edrow>td{padding:0 0 4px!important;background:var(--sub)}
+.ds-ed{margin:6px 12px 8px}
+.ls-item.ls-mode{grid-template-columns:28px minmax(0,1fr) 140px 64px 40px}
+.ls-item.ls-mode select{width:100%}
+.ds-ed-foot{display:flex;align-items:center;gap:12px;padding:8px 12px;border-top:1px solid var(--bd2);font-size:12.5px;color:var(--muted)}
+.ds-ed-foot .ds-ed-says{flex:1;min-width:0}
+.ds-ed-foot b{color:var(--fg);font-weight:600}
+.ds-act .mini.on{background:var(--accent);border-color:var(--accent);color:var(--accentfg)}
+@media (max-width:760px){.ls-item.ls-mode{grid-template-columns:28px minmax(0,1fr) 64px 40px}.ls-item.ls-mode>span:nth-child(3){grid-column:2/-1;grid-row:2}
+  table.stack>tbody>tr.ds-edrow{padding:0;border-color:var(--accent)}table.stack>tbody>tr.ds-edrow>td{display:block!important;padding:0!important}
+  .ds-edrow .ds-ed{margin:0;border:0}.ds-ed-foot{flex-wrap:wrap}}
+/* The quick-edit pencil has room of its own at the end of each row of the List (heading too), so it never covers Last seen. */
+@media (hover:hover){ .lst.qe .lrow,.lst.qe .lhead{padding-right:48px} }

@@ -63,11 +63,13 @@ try {
   // the user's office: its own switch
   await flip('#locOffice'); await stored(st => st.locFromOffice === true);
 
-  // a dialog opened from Settings (a field's sources) keeps Settings in sight behind it, still; closing brings Settings back
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'sources'; (await import('/js/04-settings.js')).openSettings(); });
-  await p.waitForSelector('[data-dsedit="loc"]'); await p.click('[data-dsedit="loc"]');
+  // a dialog opened from Settings (the weekly e-mail's preview) keeps Settings in sight behind it, still; closing brings Settings back
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'mail'; (await import('/js/04-settings.js')).openSettings(); });
+  await p.waitForSelector('#dgPreview'); await p.click('#dgPreview');
   await p.waitForSelector('#mdl:not(:has(#setPane)) .mh');
-  assert.equal(await p.evaluate(() => { const g = document.querySelector('#mdlGhost'); return !!g && g.inert && !!g.querySelector('.box.settings') && !g.querySelector('[id]'); }), true, 'Settings stays behind, inert');
+  assert.equal(await p.evaluate(() => { const g = document.querySelector('#mdlGhost'); return !!g && g.inert && !!g.querySelector('.box.settings #setPane'); }), true, 'Settings stays behind, inert');
+  /* and looks as Settings does: its menu on the left, the pane beside it (styled by its ids) */
+  assert.equal(await p.evaluate(() => { const g = document.querySelector('#mdlGhost'), t = g.querySelector('#setTabs').getBoundingClientRect(), pn = g.querySelector('#setPane').getBoundingClientRect(); return t.right <= pn.left + 1 && t.height > 300; }), true, 'the copy keeps the Settings layout');
   if (process.env.GHOST) await p.screenshot({ path: process.env.GHOST });
   await p.keyboard.press('Escape');
   await p.waitForSelector('#mdl #setPane');

@@ -203,9 +203,9 @@ function keepGhost(box){
   dropGhost(); if (!box) return;
   const g = document.createElement('div');
   g.id = 'mdlGhost'; g.className = 'modal modal-ghost'; g.setAttribute('aria-hidden', 'true'); g.inert = true;
-  const copy = /** @type {HTMLElement} */ (box.cloneNode(true));
-  copy.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
-  g.append(copy); document.body.append(g);
+  /* The copy keeps its ids: Settings is styled by them (#setPane, #setTabs), so it looks as it did. It comes after the
+     dialog in the page, and the checks for an open Settings look in the dialog (#mdl) only. */
+  g.append(box.cloneNode(true)); document.body.append(g);
 }
 function dropGhost(){ const g = document.getElementById('mdlGhost'); if (g) g.remove(); }
 export const closeModal = () => {

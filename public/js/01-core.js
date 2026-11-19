@@ -513,6 +513,11 @@ let drawGen = 0, cacheOn = false;
 /** @template T @param {() => T} fn @returns {T} */
 export function withDrawCache(fn){ const was = cacheOn; if (!was){ cacheOn = true; drawGen++; } try { return fn(); } finally { if (!was) cacheOn = false; } }
 const perDraw = fn => { let gen = -1, map = new WeakMap(); return o => { if (!cacheOn || !o || typeof o !== 'object') return fn(o); if (gen !== drawGen){ gen = drawGen; map = new WeakMap(); } if (map.has(o)) return map.get(o); const v = fn(o); map.set(o, v); return v; }; };
+/* One value worked out once per draw (or each time when asked outside one). */
+/** @template T @param {() => T} fn @returns {() => T} */
+export const oncePerDraw = fn => { let gen = -1, v; return () => { if (!cacheOn) return fn(); if (gen !== drawGen){ gen = drawGen; v = fn(); } return v; }; };
+/* Per object, once per draw: exported for other modules' lookups. */
+export const perDrawOf = perDraw;
 export const lastSeenOf = perDraw(o => lastSeenNow(o));
 function lastSeenNow(o){
   /* Intune's date only for a device Intune manages, Entra's for its sign-in (intune.js graphSeen). */

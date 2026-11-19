@@ -1,7 +1,7 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
 import { dateBad, dateFieldHtml, dateValue } from './datefield.js';
-import { deleteButton, toastUndo, editButton, $, CONTACTS, COSTS, byId, contactOf, dayText, esc, objs, st, tico, toast, noMatchHtml } from './01-core.js';
+import { deleteButton, toastUndo, editButton, $, CONTACTS, COSTS, byId, contactOf, dayText, esc, objs, st, tico, toast, noMatchHtml, oncePerDraw, perDrawOf } from './01-core.js';
 import { contactLabel } from './contacts.js';
 import { contactCompanies, contactModal } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
@@ -250,11 +250,12 @@ export function licenceChip(l){
    are in the Licences box above and in the marker's tooltip, not repeated on every package of the licence. */
 /* How many devices a licence counts: over every device's software once it is known here (the Software tab's index,
    with the page's own copy where it holds one), else as the server counted it (api/licence-use). */
-function useOfLicence(l){
-  if (SW.loaded) return licenceUse(l, objs);
-  const known = knownSoftware();
-  if (known){ const u = licenceUse(l, objs.map(o => ({ status: o.status, software: known.get(o.id) || [], o })));
-    return { ...u, devices: u.devices.map(d => d.o) }; }
+/* Every device with its software as known here, once per draw (the Software tab asks for each licence and package). */
+const withKnown = oncePerDraw(() => { const known = knownSoftware(); return known && objs.map(o => ({ status: o.status, software: known.get(o.id) || [], o })); });
+const useOfLicence = perDrawOf(useOfLicenceNow);
+function useOfLicenceNow(l){
+  const list = withKnown();
+  if (list){ const u = licenceUse(l, list); return { ...u, devices: u.devices.map(d => d.o) }; }
   const used = (SW.licUse && SW.licUse[l.id]) || 0;
   return { used, free: l.seats - used, over: used > l.seats, devices: [] };
 }

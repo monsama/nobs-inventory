@@ -29,6 +29,10 @@ const SECTIONS = [
   ['Weekly e-mail', 'mail', 'Weekly e-mail', 'digest smtp mail server'],
   ['Health', 'maintenance', 'Health', 'status checks disk certificate inventory size'],
   ['Device fields and their sources', 'sources', 'Device fields', 'which source fills which field policy'],
+  ['Where a device\'s location comes from', 'locations', 'Location texts from the sources', 'location source order priority ad lansweeper entra office switch off'],
+  ['Order of a field\'s sources', 'sources', 'Device fields', 'priority order updates only if empty change switch off source'],
+  ['Preview this week\'s e-mail', 'mail', 'Weekly e-mail', 'preview digest without mail server test'],
+  ['Where are they? (not seen, not scanned)', 'sources', 'Gone devices', 'where are they not seen not scanned months'],
 ];
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
 
@@ -45,7 +49,7 @@ export function openSetting(k, title = ''){
   st.setTab = k;
   if (k === 'types') st.typeSel = title === 'Models' ? '__models' : (st.typeSel === '__models' ? null : st.typeSel);
   if (k === 'feed' && /type|CSV/.test(title)) { const adv = /** @type {HTMLDetailsElement | null} */ (document.getElementById('lsTypeAdv')); if (adv) adv.open = true; }
-  if ($('#setPane')) renderSetPane(); else openSettings();
+  if ($('#mdl #setPane')) renderSetPane(); else openSettings();
   if (!title) return;
   requestAnimationFrame(() => {
     const adv = /** @type {HTMLDetailsElement | null} */ (document.getElementById('lsTypeAdv')); if (adv && /type|CSV/.test(title)) adv.open = true;
