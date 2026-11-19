@@ -7,12 +7,14 @@ const sections = () => /** @type {HTMLElement[]} */ ([...(side ? side.querySelec
 const headOf = sec => /** @type {HTMLElement|null} */ (sec.querySelector(':scope>.hdr, :scope>summary'));
 
 function load(){
-  try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { order: Array.isArray(v.order) ? v.order : [], closed: Array.isArray(v.closed) ? v.closed : [] }; }
-  catch { return { order: [], closed: [] }; }
+  try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { order: Array.isArray(v.order) ? v.order : [], closed: Array.isArray(v.closed) ? v.closed : [], opened: Array.isArray(v.opened) ? v.opened : null }; }
+  catch { return { order: [], closed: [], opened: null }; }
 }
 function save(){
   const closed = sections().filter(s => s.tagName !== 'DETAILS' && s.classList.contains('collapsed')).map(s => s.dataset.sec);
-  try { localStorage.setItem(KEY, JSON.stringify({ order: sections().map(s => s.dataset.sec), closed })); } catch { /* Browser storage can be blocked: the choice is then not kept. */ }
+  /* More filters (a details element) is kept open or shut too. */
+  const opened = sections().filter(s => s.tagName === 'DETAILS' && /** @type {HTMLDetailsElement} */ (s).open).map(s => s.dataset.sec);
+  try { localStorage.setItem(KEY, JSON.stringify({ order: sections().map(s => s.dataset.sec), closed, opened })); } catch { /* Browser storage can be blocked: the choice is then not kept. */ }
 }
 /* A section folded or opened; More filters is a details element and folds by itself. */
 function setOpen(sec, open){
@@ -29,7 +31,7 @@ function move(sec, dir){
 }
 
 if (side){
-  const { order, closed } = load();
+  const { order, closed, opened } = load();
   /* The order kept, then any section it does not know yet, where it is in the page. */
   const byName = new Map(sections().map(s => [s.dataset.sec, s]));
   const kept = order.map(n => byName.get(n)).filter(Boolean);
@@ -44,6 +46,10 @@ if (side){
     /* The section's name is its fold button (a header holding Clear filters cannot be a button itself); a click anywhere
        else on the header folds it too. */
     const t = /** @type {HTMLElement|null} */ (h.querySelector('.sec-t'));
+    if (sec.tagName === 'DETAILS'){
+      if (opened) /** @type {HTMLDetailsElement} */ (sec).open = opened.includes(sec.dataset.sec);
+      sec.addEventListener('toggle', save);
+    }
     if (sec.tagName !== 'DETAILS'){
       setOpen(sec, !closed.includes(sec.dataset.sec));
       h.addEventListener('click', e => { const b = /** @type {HTMLElement} */ (e.target).closest('button'); if (b && b !== t) return; setOpen(sec, sec.classList.contains('collapsed')); save(); });

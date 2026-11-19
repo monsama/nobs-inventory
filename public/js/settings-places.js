@@ -20,7 +20,7 @@ const roomsOf = site => LOCS.filter(l => siteOf(l) === site && l.includes(' / ')
 const devicesIn = room => objs.filter(o => o.loc === room);
 const namesOf = room => Object.entries(locMapAll()).filter(([, r]) => r === room).map(([t]) => t);
 /* The plan areas that show a room: one given the room, or one named like it on a plan of its site. */
-const areasOf = room => PLANS.flatMap(p => (p.areas || []).filter(a => a.room === room || (!a.room && `${p.site} / ${a.name}` === room)).map(a => ({ plan: p.name || p.site, area: a.name })));
+const areasOf = room => PLANS.flatMap(p => (p.areas || []).filter(a => a.room === room || (!a.room && `${p.site} / ${a.name}` === room)).map(a => ({ id: p.id, plan: p.name || p.site, area: a.name })));
 
 function current(){
   if (sel.room && LOCS.includes(sel.room)) return sel;
@@ -71,7 +71,7 @@ function roomHtml(room){
     <div class="lc-rows">
       <div class="lc-row"><span>Devices</span><span>${devs.length ? `${devs.length} ${devs.length === 1 ? 'device' : 'devices'}` : 'None yet'}</span>${devs.length ? html`<button type="button" class="mini" data-plshow="${room}">Show them</button>` : ''}</div>
       <div class="lc-row"><span>Store room</span><label class="switch" title="${isStore ? `The store room of ${site}` : `Make it the store room of ${site}`}"><input type="checkbox" id="plStore" ${isStore ? 'checked' : ''} ${ed ? '' : 'disabled'} aria-label="${`The store room of ${site}`}"><span aria-hidden="true"></span></label><small class="muted">${isStore ? `Devices taken back into stock in ${site} go here.` : 'Where devices taken back into stock go.'}</small></div>
-      <div class="lc-row"><span>Floor plan</span><span>${areas.length ? areas.map((a, i) => html`${i ? ', ' : ''}${a.plan} › ${a.area}`) : html`<span class="muted">Not on a plan</span>`}</span></div>
+      <div class="lc-row"><span>Floor plan</span><span>${areas.length ? areas.map((a, i) => html`${i ? ', ' : ''}<button type="button" class="link" data-plopen="${a.id}" title="Open the plan">${a.plan} › ${a.area}</button>`) : html`<span class="muted">${PLANS.some(p => p.site === site) ? 'Not on a plan yet' : `${site} has no floor plan`}</span>`}</span>${ed && PLANS.some(p => p.site === site) ? html`<button type="button" class="mini" id="plDraw" title="Opens the plan of ${site}; the area you draw is this room">Draw on plan…</button>` : ''}</div>
       <div class="lc-row lc-names"><span>Names in the sources</span><span class="lc-chips">
         ${names.length ? names.map(t => html`<span class="chip lc-chip" title="${`${textCount(t)} ${textCount(t) === 1 ? 'device says' : 'devices say'} so now`}">${t}${ed ? html`<button type="button" class="lc-x" data-plunname="${t}" aria-label="${`Remove the name ${t}`}" title="Remove: devices keep their location">×</button>` : ''}</span>`) : html`<span class="muted">None: a source text of exactly “${roomPart(room)}” or “${room}” is taken as this room</span>`}
         ${ed && free.length ? html`<select id="plAddName" aria-label="${`Add a name from the sources to ${room}`}"><option value="">+ Add a name from the sources…</option>${free.map(e => html`<option value="${e.text}">${e.text} (${e.n})</option>`)}</select>` : ''}</span></div>
@@ -118,6 +118,7 @@ export function bindPlaces(root){
     renderSetLocs(); /** @type {HTMLElement|null} */ (document.querySelector(`[data-plsel="${CSS.escape(v)}"]`))?.focus();
   });
   const f = $('#plFind'); if (f) f.oninput = () => { find = f.value; const at = f.selectionStart; renderSetLocs(); const g = /** @type {HTMLInputElement|null} */ ($('#plFind')); if (g){ g.focus(); g.setSelectionRange(at, at); } };
+  root.querySelectorAll('[data-plopen]').forEach(b => b.onclick = async () => { const { closeModal } = await import('./19-modal.js'), pl = await import('./20-plans.js'); closeModal(); pl.openPlan(b.dataset.plopen); });
   root.querySelectorAll('[data-plshow]').forEach(b => b.onclick = async () => {
     const { resetFilters } = await import('./02-views.js'), { closeModal } = await import('./19-modal.js');
     closeModal(); resetFilters(); st.scope = null; st.loc = b.dataset.plshow; st.tab = st.tab in { cards: 1, table: 1 } ? st.tab : 'cards'; render();
@@ -164,5 +165,6 @@ export function bindPlaces(root){
       toastUndo(`${room} deleted`, () => { LOCS.splice(0, LOCS.length, ...was.locs); st.locMap = was.locMap; st.adLocMap = was.adLocMap; st.stockRooms = was.stockRooms; sel = { room }; queueServerSave(); renderSetLocs(); render(); });
     };
     const mg = $('#plMerge'); if (mg) mg.onchange = () => { if (mg.value) mergeLoc(room, mg.value); };
+    const dr = $('#plDraw'); if (dr) dr.onclick = async () => { const { closeModal } = await import('./19-modal.js'), pl = await import('./20-plans.js'); closeModal(); pl.drawRoomOnPlan(room); };
   }
 }

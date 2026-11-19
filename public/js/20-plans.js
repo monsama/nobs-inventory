@@ -555,6 +555,17 @@ export function placeDevice(plan, o, x, y, sure = false){
   planPlace = null; queueServerSave(); renderPlans();
   toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); queueServerSave(); renderPlans(); });
 }
+/* From a room in Settings → Locations: its site's plan, to draw an area for it (the room picked when the area is named),
+   or the plan that shows it. */
+let drawFor = null;
+export function drawRoomOnPlan(room){
+  const plan = PLANS.find(p => p.site === siteOf(room)); if (!plan) return false;
+  planSel = plan.id; planMode = 'area'; planPlace = null; planParts = []; planEditArea = null; drawFor = room;
+  st.tab = 'plans'; render({ save: false });
+  toast(`Draw the area of ${room} on ${plan.name || plan.site}: drag a rectangle`);
+  return true;
+}
+export function openPlan(id){ if (!planById(id)) return; planSel = id; planMode = 'view'; planPlace = null; st.tab = 'plans'; render({ save: false }); }
 /* From a device's page: its floor plan, with the device marked and in view. */
 export function showOnPlan(o){
   if (!o.planPos || !planById(o.planPos.plan)) return;
@@ -932,6 +943,9 @@ export function areaModal(plan, rects){
   /* Drawn inside an area that has a room (a corner of an office): that room first, so devices placed in the new area
      stay in the room they are in. */
   if (outerRoom && rooms.includes(outerRoom)){ $('#arRoom').value = outerRoom; picked = true; sayRoom(); }
+  /* Drawn for a room from Settings → Locations: that room, and the area named after it. */
+  if (drawFor && rooms.includes(drawFor)){ $('#arRoom').value = drawFor; $('#arName').value = roomName(drawFor); picked = true; sayRoom(); }
+  drawFor = null;
   $('#arRoom').addEventListener('change', () => { picked = !!$('#arRoom').value; });
   $('#arName').oninput = () => {
     if (!picked){ const n = $('#arName').value.trim().toLowerCase(); $('#arRoom').value = rooms.find(l => roomName(l).toLowerCase() === n) || ''; }

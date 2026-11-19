@@ -143,7 +143,9 @@ export function cardHtml(o, idx, join = showJoin()){
   const t = TYPES[o.type] || { label: o.type };
   const [dl, dv] = cardLine(o, detailOf(o.type), idx);
   const tip = [o.purpose, o.serial && 'Serial number ' + o.serial, o.model && o.model].filter(Boolean).join(' · ');
-  const name = html`<span class="c-name"><button type="button" class="nm card-open" data-open="${o.id}" title="${tip || 'Open ' + o.name}">${o.name}</button>${rawHtml(markHtml(o, false))}${o.code && !o.review ? html`<small class="code">${o.code}</small>` : ''}</span>`;
+  /* The description (purpose) is a second, quieter line under the name, when there is one. */
+  const desc = String(o.purpose || '').trim();
+  const name = html`<span class="c-name${desc ? ' has-desc' : ''}"><span class="c-nl"><button type="button" class="nm card-open" data-open="${o.id}" title="${tip || 'Open ' + o.name}">${o.name}</button>${rawHtml(markHtml(o, false))}${o.code && !o.review ? html`<small class="code">${o.code}</small>` : ''}</span>${desc ? html`<span class="c-desc" title="${desc}">${desc}</span>` : ''}</span>`;
   const head = html`<button type="button" class="cardtick" title="Select (Shift + click selects a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button><span class="c-ico" title="${t.label}">${rawHtml(tico(o.type))}</span>${name}${userCell(o, idx)}${locCell(o, idx)}<span class="c-ip mono">${o.ip || ''}</span>`;
   if (o.review){
     const why = !o.review.ignored && waitReason(o).text;

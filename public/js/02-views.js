@@ -114,6 +114,19 @@ function drawSide(){
     !st.scope && (st.newWeek || cnt(addedRecently)) ? html`<button class="item ${st.newWeek ? 'sel' : ''}" data-newweek title="Came into the inventory in the last ${NEW_DAYS} days: from a sync, taken from Pending devices, or added by hand"><span class="dot new"></span><span class="lbl">Added this week</span><span class="cnt">${cnt(addedRecently)}</span></button>` : ''}`;
   /* The saved views (views-saved.js). */
   renderSavedViews();
+  sideSummaries();
+}
+/* A folded section says the filter it holds, beside its name ("Types · PC"), so a filter in force is never hidden. */
+function sideSummaries(){
+  const rc = st.resp ? contactOf(st.resp) : null;
+  const said = { types: st.type && TYPES[st.type] ? TYPES[st.type].label : '', locs: st.loc || '', status: st.status && STATUS[st.status] ? STATUS[st.status].label : st.live ? 'Not retired' : '',
+    os: st.osFam || '', resp: rc ? rc.name : '', adg: st.adGroup || '' };
+  for (const [sec, txt] of Object.entries(said)){
+    const h = document.querySelector(`#side .sidesec[data-sec="${sec}"] > .hdr`); if (!h) continue;
+    let sp = /** @type {HTMLElement|null} */ (h.querySelector('.sec-sum'));
+    if (!sp){ sp = document.createElement('span'); sp.className = 'sec-sum'; const t = h.querySelector('.sec-t'); if (t) t.after(sp); else h.append(sp); }
+    sp.textContent = txt ? `· ${txt}` : ''; sp.title = txt ? `Filtered: ${txt}` : '';
+  }
 }
 $('#side').addEventListener('click', e => {
   /* A saved view is opened, renamed or deleted by views-saved.js. */

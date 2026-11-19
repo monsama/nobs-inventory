@@ -11,7 +11,8 @@ import { closeModal, modal } from './19-modal.js';
 import { render } from './07-render.js';
 import { isAdmin, who } from './04-settings.js';
 import { LINK_OF, plugOf } from './05-new-object.js';
-import { html } from './html.js';
+import { html, rawHtml } from './html.js';
+import { locOptions } from './loc-pick.js';
 
 const DASH = '-';
 const STATE_CLS = { ok: 'dot', warn: 'dot warn', off: 'dot off' };
@@ -72,7 +73,7 @@ export function bindPatchPanel(o){
   $('#ppImport').onclick = () => patchImportModal();
 }
 
-const roomOptions = sel => html`<option value="">No room</option>${LOCS.map(l => html`<option value="${l}" ${l === sel ? 'selected' : ''}>${l}</option>`)}`;
+const roomOptions = sel => rawHtml(locOptions(sel, { none: 'No room' }));
 /* The switches a panel's port can be patched to: those at the panel's site first, the others under Other sites. */
 const siteOf = o => String((o && o.loc) || '').split(' / ')[0];
 const swOptions = (sel, panel) => {
@@ -90,7 +91,7 @@ export function portModal(panel, port){
   modal(html`<div class="mh">${panel.name} · ${port}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="ppOutName">Outlet</label><input id="ppOutName" class="mono" maxlength="60" value="${out.name || ''}" placeholder="e.g. 2.OG-R12-04" autocomplete="off">
-      <label for="ppOutLoc">Room</label><select id="ppOutLoc">${roomOptions(out.loc || '')}</select>
+      <label for="ppOutLoc">Room</label><select id="ppOutLoc" class="locpick">${roomOptions(out.loc || '')}</select>
       <label for="ppSw">Patched to</label><select id="ppSw">${swOptions(cord ? cord.to : '', panel)}</select>
       <label for="ppSwPort">Switch port</label><select id="ppSwPort"></select>
       <label for="ppDev">Device</label><select id="ppDev"><option value="">Nothing</option>${devs.map(d => html`<option value="${d.id}" ${plug && plug.from === d.id ? 'selected' : ''}>${d.name} · ${TYPES[d.type] ? TYPES[d.type].short : d.type}${plugOf(d) && plugOf(d).id !== panel.id ? ' · now on ' + plugOf(d).name : ''}</option>`)}</select>
@@ -150,7 +151,7 @@ export function nameOutletsModal(panel){
     <div class="mb"><div class="form" style="padding:0">
       <label for="ppPattern">Pattern</label><input id="ppPattern" class="mono" maxlength="60" placeholder="e.g. 2.OG-R12-{n}" autocomplete="off">
       ${rangeInputs(panel, 1, panel.ports || 1)}
-      <label for="ppRoom">Room</label><select id="ppRoom"><option value="">Keep as it is</option>${LOCS.map(l => html`<option value="${l}">${l}</option>`)}</select>
+      <label for="ppRoom">Room</label><select id="ppRoom" class="locpick">${rawHtml(locOptions('', { none: 'Keep as it is' }))}</select>
     </div><p class="note">{n} is the port number with two digits (04), {#} the number as it is (4).</p><div id="ppPrevBox"></div></div>
     <div class="mf"><span class="muted" id="ppSum"></span><div class="grow"></div><button id="ppCancel">Cancel</button><button id="ppGo" class="primary" disabled>Name outlets</button></div>`, 'wide');
   let plan = [];

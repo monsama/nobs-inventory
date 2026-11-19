@@ -1,19 +1,20 @@
 /* Quick edit from the List: the ✎ at the end of a row opens a small box for what changes most (location, status, user)
    without opening the device. Each change is saved at once as an edit by hand, with a line in the device's history
    and Undo, the same as on the device's page. Retired opens the Retire dialog, which says what it gives up. */
-import { $, LOCS, STATUS, byId, esc, evEl, feedLinked, hist, markHand, now, objs, pickHand, restoreSnapshot, snapshot, toastUndo } from './01-core.js';
+import { $, STATUS, byId, esc, evEl, feedLinked, hist, markHand, now, objs, pickHand, restoreSnapshot, snapshot, toastUndo } from './01-core.js';
 import { isAdmin, rackLocFollow, who } from './04-settings.js';
 import { render } from './07-render.js';
 import { retireModal } from './03-object-modals.js';
 import { handOutModal, takeBackModal } from './27-handout.js';
-import { html } from './html.js';
+import { html, rawHtml } from './html.js';
+import { locOptions } from './loc-pick.js';
 
 let box = null;
 const close = () => { if (box) try { box.hidePopover(); } catch { /* not open */ } };
 function quickEdit(o, btn){
   if (!box){ box = document.createElement('div'); box.id = 'qedit'; box.className = 'menubox qedit'; box.setAttribute('popover', ''); document.body.append(box); }
   box.innerHTML = String(html`<div class="qe-h">${o.name}</div>
-    <label class="qe-row"><span>Location</span><select id="qeLoc"><option value="">No location</option>${[...new Set([...LOCS, ...(o.loc ? [o.loc] : [])])].map(l => html`<option value="${l}" ${l === o.loc ? 'selected' : ''}>${l}</option>`)}</select></label>
+    <label class="qe-row"><span>Location</span><select id="qeLoc" class="locpick">${rawHtml(locOptions(o.loc || ''))}</select></label>
     <label class="qe-row"><span>Status</span><select id="qeStatus">${Object.entries(STATUS).map(([k, v]) => html`<option value="${k}" ${k === o.status ? 'selected' : ''}>${v.label}${k === 'retired' && o.status !== 'retired' ? '…' : ''}</option>`)}</select></label>
     <div class="qe-row"><span>User</span><span class="qe-user">${o.user || 'Nobody'}</span><button type="button" id="qeUser">${o.user ? 'Give to someone else…' : 'Hand out…'}</button>${o.user ? html`<button type="button" id="qeBack">Take back…</button>` : ''}</div>`);
   /* Right under the pencil, its right edge on the pencil's; above it when there is no room below; always in the window. */
