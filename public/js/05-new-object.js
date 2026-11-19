@@ -3,7 +3,7 @@ import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
 import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who } from './04-settings.js';
-import { flushSave, render } from './07-render.js';
+import { SW, flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
 import { HOST_KINDS, NET_GEAR, kindProblem, linkKind, relationProblem } from './relations.js';
 import { html, rawHtml } from './html.js';
@@ -166,7 +166,7 @@ export function newObjModal(pre={}){
       rels.push({id:'r'+rid(), from:o.id, to:up, kind: link.kind === 'connected' ? linkKind(o, t) : link.kind, port: link.port ? p || null : null, vlan:null}); }
     if (c){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && (o[k] === undefined || ['ports','sfp','pfx'].includes(k))) o[k] = c[k]; });
-      if (c.software) o.software = c.software.map(x => ({...x}));
+      { const sw = c.software || SW.map.get(c.id); if (sw) o.software = sw.map(x => ({...x})); }
       /* Where the copy is plugged in, attached or runs is what the dialog says (its field), not the original's links: a
          monitor copied onto another PC would else be on both, and a port or LAG belongs to one device. A patch cord
          starts on a port of the panel copied, so it is not copied either. */

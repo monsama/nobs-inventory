@@ -1,6 +1,6 @@
 /* The device page's sources: what Lansweeper, Microsoft Entra and Intune (with Defender) and Active Directory say of a
    device, one tab each in the Sources panel. */
-import { GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
+import { scanSpan, GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 import { html, rawHtml } from './html.js';
@@ -15,7 +15,7 @@ function lsDates(o){
   const first = (HISTORY[o.id] || []).at(-1), added = f.created || (first && /^(Created|Added)\b/.test(first.msg) ? first.t : '');
   const never = neverScanned(o);
   return [
-    row('Last scanned', f.scanned ? html`${rawHtml(agoHtml(f.scanned))}${scanOld(o) ? html`<p class="fieldnote warn">Lansweeper has not scanned it for over three months: it may be gone, or Lansweeper cannot log on to it. Check it by hand, then retire it or fix the scan in Lansweeper.</p>` : ''}`
+    row('Last scanned', f.scanned ? html`${rawHtml(agoHtml(f.scanned))}${scanOld(o) ? html`<p class="fieldnote warn">Lansweeper has not scanned it for over ${scanSpan()}: it may be gone, or Lansweeper cannot log on to it. Check it by hand, then retire it or fix the scan in Lansweeper.</p>` : ''}`
       : f.tried ? html`<span class="muted">never</span>${never ? html`<p class="fieldnote warn">Lansweeper tries to scan it but never has: its details are only what Active Directory knows. Check it by hand, or why Lansweeper cannot reach or log on to it (its Scan issues tab).</p>` : ''}` : html`<span class="muted">not sent by this push script</span>`,
       'When a Lansweeper scan of this device last worked'),
     f.tried && f.tried !== f.scanned ? row('Last scan attempt', rawHtml(agoHtml(f.tried)), 'When Lansweeper last tried to scan it, whether or not that worked') : '',

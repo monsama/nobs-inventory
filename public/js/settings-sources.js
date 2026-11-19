@@ -1,7 +1,8 @@
 /* Settings → Data sources: who wins when several sources know a field, for all of them (All fields) and for one (Fields
    from this source, on its own tab), and what else each brings. Drawn from sync-map.js (the lists the syncs themselves
    use) and from the current settings, so it changes with them and is never out of date. */
-import { $$, $, DEFAULT_POLICY, FIELD_LABEL, GONE_FILTERS, SYNC, dayText, objs, st, toastUndo } from './01-core.js';
+import { $$, $, DEFAULT_POLICY, FIELD_LABEL, GONE_FILTERS, SYNC, dayText, objs, st, toastUndo, whereCtx } from './01-core.js';
+import { WHERE_DAY_CHOICES, span } from './where.js';
 import { closeModal, modal } from './19-modal.js';
 import { LS_FILL, MODES, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldMode, fieldOrder, maySet } from './sync-map.js';
 import { queueServerSave, render, view } from './07-render.js';
@@ -194,7 +195,12 @@ function goneHtml(on){
   const days = P && Array.isArray(P.days) ? P.days.slice(0, 14).reverse() : [];
   const top = Math.max(1, ...days.map(d => d.n));
   const sizes = on.ls && days.length > 1 ? html`<div class="ds-gonerow ds-pushsizes"><b>Push sizes</b><span class="ds-bars" role="img" aria-label="${`Devices per push day: ${days.map(d => `${dayText(d.day)} ${d.n}`).join(', ')}`}">${days.map(d => html`<span class="ds-bar${P.full && d.n < P.full.n / 2 ? ' short' : ''}" title="${`${dayText(d.day)}: ${d.n} devices`}"><i style="height:${Math.max(4, Math.round(d.n / top * 100))}%"></i></span>`)}</span><span class="note">${days[days.length - 1].n} on ${dayText(days[days.length - 1].day)}, ${Math.min(...days.map(d => d.n))} to ${top} in ${days.length} days</span></div>` : '';
-  return html`<div class="panelbox"><div class="hdr">Gone devices <span class="cnt">${n('any')} gone from a source · ${n('all')} from all</span></div><div class="ds-gone">${sizes}${rows.map(([k, label, , how]) => html`<div class="ds-gonerow"><b>${label}</b><span class="note">${how}</span><button type="button" data-dsgone="${k}" ${n(k) ? '' : 'disabled'}>${n(k) ? `Show ${n(k)}` : 'None gone'}</button></div>`)}</div></div>`;
+  /* The limits of the Overview's Where are they? (and the weekly e-mail): how long without a sign of a device counts. */
+  const ctx = whereCtx(), opt = (/** @type {number} */ cur) => WHERE_DAY_CHOICES.map(d => html`<option value="${d}" ${d === cur ? 'selected' : ''}>${span(d)}</option>`);
+  const ro = isAdmin() ? '' : 'disabled';
+  const limits = html`<div class="ds-gonerow ds-where"><b>Where are they?</b><span class="note">On the Overview and in the weekly e-mail: a device counts as not seen, or not scanned, after this long.</span>
+    <span class="ds-wsel"><label for="wdUnseen">Not seen for</label><select id="wdUnseen" ${ro}>${opt(ctx.unseenDays)}</select>${on.ls ? html`<label for="wdScan">Not scanned for</label><select id="wdScan" ${ro}>${opt(ctx.scanDays)}</select>` : ''}</span></div>`;
+  return html`<div class="panelbox"><div class="hdr">Gone devices <span class="cnt">${n('any')} gone from a source · ${n('all')} from all</span></div><div class="ds-gone">${sizes}${rows.map(([k, label, , how]) => html`<div class="ds-gonerow"><b>${label}</b><span class="note">${how}</span><button type="button" data-dsgone="${k}" ${n(k) ? '' : 'disabled'}>${n(k) ? `Show ${n(k)}` : 'None gone'}</button></div>`)}${limits}</div></div>`;
 }
 export function renderSetSources(){
   const root = $('#setSources'); if (!root) return;
@@ -219,6 +225,15 @@ ${goneHtml(on)}
     <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></div>
     <div class="panelbox"><div class="hdr">Never</div><ul class="ds-never">${NEVER.map(n => html`<li>${n}</li>`)}</ul></div>`;
 
+  for (const [id, k] of [['#wdUnseen', 'unseen'], ['#wdScan', 'scan']]){
+    const sel = /** @type {HTMLSelectElement|null} */ (root.querySelector(id)); if (!sel || !isAdmin()) continue;
+    sel.onchange = () => {
+      const was = { ...(st.whereDays || {}) }, d = Number(sel.value);
+      st.whereDays = { ...was, [k]: d }; if (d === 90) delete st.whereDays[k];
+      queueServerSave(); render();
+      toastUndo(`${k === 'unseen' ? 'Not seen' : 'Not scanned'} now counts after ${span(d)}`, () => { st.whereDays = was; queueServerSave(); render(); renderSetSources(); });
+    };
+  }
   root.querySelectorAll('[data-dsgone]').forEach(b => b.onclick = () => { closeModal(); resetFilters(); st.scope = null; st.gone = /** @type {HTMLElement} */ (b).dataset.dsgone; st.tab = 'cards'; view(); });
   root.querySelectorAll('[data-dstab]').forEach(b => b.onclick = () => { st.setTab = b.dataset.dstab; renderSetPane(); $('#setPane').scrollTop = 0; });
   bindMatrix(root, on);

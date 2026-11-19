@@ -2,13 +2,13 @@
    ticked if it is gone from every source, else (not seen for a while, not scanned) left for someone to confirm; a
    reason is proposed (where they are gone from) and can be changed, each is taken out of its rack and its links are given up as in bulk, each gets a history
    line naming who, and one Undo brings all of it back. */
-import { $, $$, GONE_FILTERS, whereSignOf, hist, now, objs, rels, restoreSnapshot, snapshot, st, toastUndo } from './01-core.js';
+import { $, $$, GONE_FILTERS, whereCtx, whereSignOf, hist, now, objs, rels, restoreSnapshot, snapshot, st, toastUndo } from './01-core.js';
 import { retireLinks } from './03-object-modals.js';
 import { who } from './04-settings.js';
 import { render } from './07-render.js';
 import { closeModal, modal } from './19-modal.js';
 import { html } from './html.js';
-import { WHERE_LABELS } from './where.js';
+import { whereLabel } from './where.js';
 
 /** @param {any[]} list the devices listed (none retired) */
 export function retireGoneModal(list){
@@ -21,7 +21,7 @@ export function retireGoneModal(list){
   modal(html`<div class="mh">Retire ${n === 1 ? 'this device' : 'devices'}?</div>
     <div class="mb"><p class="note">They stay in the inventory for the record, with their history. Each is taken out of its rack and its connections are given up, so nothing looks in use that is not. One Undo brings it all back.</p>
       <div class="gr-tools"><button type="button" class="link" data-grall="1">Tick all</button><button type="button" class="link" data-grall="0">Tick none</button></div>
-      <ul class="gr-list gr-pick">${list.map(o => html`<li><label><input type="checkbox" data-grid="${o.id}" ${on(o) ? 'checked' : ''}><b class="mono">${o.name}</b> <span class="muted">${o.code || ''}${sign.get(o.id) ? ` · ${WHERE_LABELS[sign.get(o.id)]}` : ''}</span></label></li>`)}</ul>
+      <ul class="gr-list gr-pick">${list.map(o => html`<li><label><input type="checkbox" data-grid="${o.id}" ${on(o) ? 'checked' : ''}><b class="mono">${o.name}</b> <span class="muted">${o.code || ''}${sign.get(o.id) ? ` · ${whereLabel(sign.get(o.id), whereCtx())}` : ''}</span></label></li>`)}</ul>
       <div class="form" style="padding:8px 0 0"><label for="grWhy">Reason</label><input id="grWhy" maxlength="200" value="${said}"></div></div>
     <div class="mf"><button id="grCancel">Cancel</button><button id="grOk" class="danger-text">Retire</button></div>`, 'sm');
   const picked = () => list.filter(o => /** @type {HTMLInputElement|null} */ ($(`[data-grid="${CSS.escape(o.id)}"]`))?.checked);

@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { NEW_DAYS, stampTime, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
+import { scanSpan, whereSignOf, NEW_DAYS, stampTime, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -55,7 +55,7 @@ function drawSide(){
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => html`<button class="item sub ${st.loc===l?'sel':''}" data-loc="${l}"><span class="lbl">${l.split(' / ')[1]}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`)}`)}`;
   /* Warranty: devices whose warranty ends within 90 days, and those whose has ended. */
   $('#wtyList').innerHTML = html`${[['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'off'], ['ended', 'Ended', 'off']].map(([k, l, c]) => html`<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`)}`;
-  $('#seenList').innerHTML = html`${Object.entries(SEEN_FILTERS).map(([k, [l, f]]) => html`<button class="item ${st.seen===k?'sel':''}" data-seen="${k}"><span class="dot ${k === 'd30' ? 'warn' : 'bad'}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(f)}</span></button>`)}`;
+  $('#seenList').innerHTML = html`${Object.entries(SEEN_FILTERS).map(([k, [l, f]]) => html`<button class="item ${st.seen===k?'sel':''}" data-seen="${k}"><span class="dot ${k === 'd30' ? 'warn' : 'bad'}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(f)}</span></button>`)}<button class="item ${st.where ? 'sel' : ''}" data-where="1" title="Gone from every source, not seen or not scanned for long (Settings → Data sources)"><span class="dot bad"></span><span class="lbl">Where are they?</span><span class="cnt">${cnt(o => o.status !== 'retired' && !!whereSignOf(o))}</span></button>`;
   /* Gone from a source: one source in particular (only the sources some device has been in), any of them, or all of
      the ones the device was in. Hidden while no device has ever been in a source. */
   const inSrc = new Set(objs.flatMap(o => sourcesOf(o).map(x => x.src)));
@@ -65,7 +65,7 @@ function drawSide(){
   /* Lansweeper: devices it has not scanned for three months, to be checked by hand. Shown while Lansweeper is in use. */
   const nOld = LS_USED() ? cnt(o => scanOld(o)) : 0;
   $('#chkHdr').hidden = $('#chkList').hidden = !LS_USED();
-  $('#chkList').innerHTML = LS_USED() ? html`<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
+  $('#chkList').innerHTML = LS_USED() ? html`<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="${`Lansweeper has not scanned them for over ${scanSpan()}`}"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
   /* Duplicates, whatever found them: a second record by DNS name (Lansweeper, e.g. a docking station), more than one record
      in Entra, and a Graph record that fits two devices here. Each is listed only when it has devices; the group only when
      one is. */
@@ -128,6 +128,7 @@ $('#side').addEventListener('click', e => {
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('seen' in b.dataset) st.seen = st.seen === b.dataset.seen ? null : b.dataset.seen;
+  if ('where' in b.dataset) st.where = !st.where;
   if ('gone' in b.dataset) st.gone = st.gone === b.dataset.gone ? null : b.dataset.gone;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('newweek' in b.dataset) st.newWeek = !st.newWeek;
@@ -165,7 +166,7 @@ export function enterCheck(type = null){
   if (!LIST_TABS.includes(st.tab)) st.tab = 'cards';
 }
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.seen = st.gone = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.seen = st.gone = st.where = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 /** A filter typed under a column of the device table counts too: Clear filters clears it. */
@@ -197,7 +198,8 @@ export function renderFilterBar(){
     st.warranty && ['warranty', 'Warranty', st.warranty === 'soon' ? `ends within ${WARRANTY_SOON_DAYS} days` : 'ended'],
     st.seen && SEEN_FILTERS[st.seen] && ['seen', 'Last seen', SEEN_FILTERS[st.seen][0].replace(/^Not seen/, 'not').replace(/^Never seen by a source/, 'never')],
     st.gone && GONE_FILTERS[st.gone] && ['gone', 'Gone', GONE_FILTERS[st.gone][0].replace(/^From/, 'from')],
-    st.scanOld && ['scanOld', '', 'Not scanned for 3 months'],
+    st.where && ['where', '', 'Where are they?'],
+    st.scanOld && ['scanOld', '', `Not scanned for ${scanSpan()}`],
     st.twins && ['twins', 'Duplicates', 'by DNS name'],
     st.scope === 'review' && st.rvKnown && ['rvKnown', '', 'In AD or Entra'],
     st.scope === 'review' && st.rvOld && ['rvOld', '', `Not seen for ${REVIEW_STALE_DAYS} days`],
@@ -248,7 +250,7 @@ export function renderFilterBar(){
   const groups = typeSum(clear);
   const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait fb-ckrow"><b>Add at once</b><span class="muted">${clear.length} shown with nothing unclear</span>${groups.map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
   /* Gone from a source: the devices listed can be retired in one go (admins, in the inventory's lists). */
-  const goneN = list && !st.scope && (st.gone || (st.ids && st.ids.where)) && isAdmin() ? goneShown().length : 0;
+  const goneN = list && !st.scope && (st.gone || st.where) && isAdmin() ? goneShown().length : 0;
   const goneBar = !goneN ? '' : html`<div class="fb-person fb-wait"><b>${goneN} ${goneN === 1 ? 'device' : 'devices'} ${st.gone ? 'gone' : 'may no longer be there'}</b><span class="muted">check where they are, then retire the ones no longer there</span><span class="grow"></span><button type="button" data-goneretire="1">Retire these ${goneN}…</button></div>`;
   bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar && !goneBar;
   bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${scope}${addBar}${goneBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
@@ -294,7 +296,7 @@ $('#fbar').addEventListener('click', e => {
   if (k === 'all') resetFilters();
   else if (k === 'q') st.q = '';
   else if (k === 'scope'){ st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); }
-  else if (k === 'scanOld' || k === 'twins' || k === 'live' || k === 'rvKnown' || k === 'rvOld' || k === 'newWeek') st[k] = false;
+  else if (k === 'scanOld' || k === 'where' || k === 'twins' || k === 'live' || k === 'rvKnown' || k === 'rvOld' || k === 'newWeek') st[k] = false;
   else st[k] = null;
   view();
 });

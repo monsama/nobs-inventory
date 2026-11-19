@@ -2618,3 +2618,7 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
   body:not(.side-drawer) #sideBtn .side-lbl{display:inline}
   body:not(.side-drawer) #sideBtn[aria-pressed="true"]{background:var(--sub);color:var(--linktext);font-weight:600}
 }
+/* The limits of Where are they?: two small pickers on the right of the row. */
+.ds-wsel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.ds-wsel label{color:var(--muted);font-size:12px}
+.ds-wsel select{width:auto;min-width:110px}

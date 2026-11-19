@@ -185,9 +185,17 @@ test('the inventory without its software, the software on its own, and saves tha
     assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'a'), { ...obj, name: 'PC-A2', software: sw });
     r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'object', id: 'a', value: { ...obj, software: [] }, base: r.json.revs['object|a'] }], dels: [] } });
     assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'a').software, []);
+    /* One device's software, and the licences' use counted on the server. */
+    assert.deepEqual((await srv.call('GET', '/api/software/b', { cookie: a.cookie })).json, { id: 'b', software: sw });
+    assert.deepEqual((await srv.call('GET', '/api/software/c', { cookie: a.cookie })).json.software, []);
+    assert.equal((await srv.call('GET', '/api/software/nope', { cookie: a.cookie })).status, 404);
+    const s1 = loadState(srv.db); saveState(srv.db, { ...s1, licences: [{ id: 'l1', name: 'Office', seats: 0, per: 'year' }] });
+    assert.deepEqual((await srv.call('GET', '/api/licence-use', { cookie: a.cookie })).json.use, { l1: 1 });
     /* Someone limited to Bern: the software of Bern's devices only, and no counts of the whole inventory. */
     const v = await signIn(srv, 'vbern', 'vbernpass12345');
     assert.deepEqual(Object.keys((await srv.call('GET', '/api/software', { cookie: v.cookie })).json.software), []);
+    assert.equal((await srv.call('GET', '/api/software/b', { cookie: v.cookie })).status, 404, 'a device of another site');
+    assert.deepEqual((await srv.call('GET', '/api/licence-use', { cookie: v.cookie })).json.use, { l1: 0 }, 'only their devices counted');
     const vs = (await srv.call('GET', '/api/state?history=0', { cookie: v.cookie })).json;
     assert.deepEqual(vs.lsPresence, { day: '2026-11-19', since: '2026-11-01', full: { day: '2026-11-18' } });
     assert.deepEqual(vs.adShort, { day: '2026-11-19' });

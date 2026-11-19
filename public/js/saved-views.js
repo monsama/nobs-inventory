@@ -4,7 +4,7 @@
 
 /* The sidebar filters a view keeps: text (an id or a name) or on/off. Lists made elsewhere (a data-quality check, a
    list from the Overview, Pending devices) are left out: they are not filters one picks again. */
-export const VIEW_FILTERS = { type: 's', loc: 's', status: 's', warranty: 's', seen: 's', gone: 's', intune: 's', osFam: 's', resp: 's', person: 's', adGroup: 's', scanOld: 'b', twins: 'b', live: 'b', ctDue: 'b', cnKind: 's' };
+export const VIEW_FILTERS = { type: 's', loc: 's', status: 's', warranty: 's', seen: 's', gone: 's', intune: 's', osFam: 's', resp: 's', person: 's', adGroup: 's', scanOld: 'b', where: 'b', twins: 'b', live: 'b', ctDue: 'b', cnKind: 's' };
 export const VIEW_TABS = ['cards', 'table', 'map'];
 /* Contracts and Contacts keep views too: their search and their own filter (Only due, internal or external). They are
    listed in a Views menu on their own toolbar, not in the sidebar, and are not sent by mail (that is a device list). */

@@ -216,8 +216,7 @@ export function renderOverview(){
   /* One sign only: its own filter (gone from all comes with Retire these); several: those devices, with when each was last
      seen and where from it is gone. */
   v.querySelectorAll('[data-ovmissing]').forEach(b => b.onclick = () => missing.only === 'gone' ? go('cards', { gone: 'all', live: true })
-    : missing.only === 'unseen' ? go('table', { seen: 'd90', live: true }) : missing.only === 'scan' ? go('table', { scanOld: true, live: true })
-    : go('table', { ids: { label: 'Where are they?', ids: missing.ids, cols: ['seen', 'gone'], where: true } }));
+    : go('table', { where: true, live: true }));
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */

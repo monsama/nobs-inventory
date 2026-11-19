@@ -9,7 +9,7 @@ import { writeDoc } from './db.js';
 import { dateText } from '../public/js/dates.js';
 import { WARRANTY_SOON_DAYS, attention } from '../public/js/notices.js';
 import { MAIL_ADDRESS } from '../public/js/saved-views.js';
-import { WHERE_LABELS, whereAreThey } from '../public/js/where.js';
+import { whereAreThey, whereCtxOf, whereLabel } from '../public/js/where.js';
 
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
 const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
@@ -94,8 +94,9 @@ export function buildDigest(s, { link = '', backups = null, copy = null, health 
     list(maint, x => `${x.o.name}${x.o.code ? ` (${x.o.code})` : ''}: ${x.m.what}, ${x.days < 0 ? 'overdue since' : 'due'} ${dateText(x.m.due)}`)]);
   /* Devices that may no longer be there, as on the Overview (where.js): gone from every source, else not seen for 90
      days, else not scanned by Lansweeper for 3 months, each once under the strongest sign, the strongest first. */
-  const where = whereAreThey(live, { lsPresence: s.lsPresence, lsLive: s.useLansweeper !== false && s.feedOn !== false }, today);
-  const signed = Object.entries(where.by).flatMap(([k, os]) => os.map(o => [o, WHERE_LABELS[k]]));
+  const ctx = whereCtxOf(s, s.useLansweeper !== false && s.feedOn !== false);
+  const where = whereAreThey(live, ctx, today);
+  const signed = Object.entries(where.by).flatMap(([k, os]) => os.map(o => [o, whereLabel(k, ctx)]));
   if (signed.length) sections.push([`Where are they? ${signed.length} device${signed.length === 1 ? '' : 's'}: ${where.parts.join(', ')}`,
     list(signed, ([o, why]) => `${o.name}${o.code ? ` (${o.code})` : ''}: ${why}`)]);
   if (reported.length) sections.push([`${reported.length} problem${reported.length === 1 ? '' : 's'} reported by users, not done yet`, list(reported, o => `${o.name}: ${o.reported.text} (${o.reported.by}, ${dateText(String(o.reported.at).slice(0, 10))})`)]);

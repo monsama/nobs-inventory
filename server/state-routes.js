@@ -7,6 +7,7 @@ import { autoBackup } from './backup.js';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { HttpError } from './errors.js';
+import { licenceUse } from '../public/js/costs.js';
 import { purgeOrphanImages } from './device-images.js';
 
 /* Adds the inventory routes: GET /api/state (all of it, or what changed since, cut to what the person may see, without
@@ -62,7 +63,10 @@ export function registerStateRoutes(app, ctx) {
               send('rel', r.id, r.data && inScope(objOf(r.data.from), sc) && inScope(objOf(r.data.to), sc) ? r.data : null);
             } else if (r.kind === 'history') {
               if (inScope(objOf(r.id), sc)) send('history', r.id, r.data);
-            } else if (r.kind === 'setting' && ['stocktakes', 'graphAmbiguous', 'syncChanges', 'plans', 'lsPresence', 'adShort'].includes(r.id) && r.data) {
+            } else if (r.kind === 'setting' && ['lsPresence', 'adShort'].includes(r.id) && r.data) {
+              /* Counts of the whole inventory, cut without the device list (scope.js). */
+              send('setting', r.id, scopeState({ objs: [], [r.id]: r.data }, sc)[r.id]);
+            } else if (r.kind === 'setting' && ['stocktakes', 'graphAmbiguous', 'syncChanges', 'plans'].includes(r.id) && r.data) {
               /* Only what is about the devices they see: the device list is read for it. */
               const seen = scopeState({ objs: db.prepare("SELECT data FROM docs WHERE kind = 'object'").all().map(x => JSON.parse(x.data)), [r.id]: r.data }, sc);
               send('setting', r.id, seen[r.id]);
@@ -107,6 +111,27 @@ export function registerStateRoutes(app, ctx) {
       }
       res.set('Cache-Control', 'no-store');
       sendPacked(req, res, { software }, next);
+    } catch (e) { next(e); }
+  });
+
+  /* One device's software, for its page (a page that loaded the inventory without software reads it only here). */
+  app.get('/api/software/:id', requireUser, (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const o = db.prepare("SELECT data FROM docs WHERE kind = 'object' AND id = ?").get(id);
+      const d = o ? JSON.parse(o.data) : null;
+      if (!d || !inScope(d, scopeOf(req.user))) throw new HttpError(404, 'No such device.');
+      res.set('Cache-Control', 'no-store').json({ id, software: Array.isArray(d.software) ? d.software : [] });
+    } catch (e) { next(e); }
+  });
+  /* How many devices use each licence, counted here, so the Overview can say which are over-used without the page
+     reading every device's software. Only the devices the person may see. */
+  app.get('/api/licence-use', requireUser, (req, res, next) => {
+    try {
+      const sc = scopeOf(req.user), objs = db.prepare("SELECT data FROM docs WHERE kind = 'object'").all().map(r => JSON.parse(r.data)).filter(o => !o.review && inScope(o, sc));
+      const lic = settingOf(db, 'licences'), use = {};
+      if (!(sc && sc.own)) for (const l of Array.isArray(lic) ? lic : []) if (l && l.id) use[l.id] = licenceUse(l, objs).used;
+      res.set('Cache-Control', 'no-store').json({ use });
     } catch (e) { next(e); }
   });
 

@@ -52,9 +52,19 @@ try {
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await p.waitForSelector('#cards .lrow');
-  // the software comes after the list, on its own; the page saves nothing for it
-  await until(p, async () => (await import('/js/07-render.js')).SW.loaded);
+  // no software with the list: the licence counts come from the server; a device's software when its page opens
+  await until(p, async () => !!(await import('/js/07-render.js')).SW.licUse);
+  assert.equal(await p.evaluate(async () => (await import('/js/07-render.js')).SW.loaded), false, 'not every device\'s software at sign-in');
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
+  await until(p, () => /Office Suite/.test(document.querySelector('#view').textContent));
   assert.equal(await p.evaluate(async () => (await import('/js/07-render.js')).pendingChanges().puts.length), 0, 'reading the software is no change');
+  // an Undo of a change made before the software was read keeps it
+  assert.equal(await p.evaluate(async () => { const c = await import('/js/01-core.js'), o = c.byId('a'); const was = JSON.parse(JSON.stringify(o)); delete was.software;
+    c.restoreSnapshot([[o, was]], 'test'); return (o.software || []).length; }), 2);
+  // a change since, sent without software, has none in the page's copy; the others are given what the page knows
+  assert.deepEqual(await p.evaluate(async () => { const r = await import('/js/07-render.js'), c = await import('/js/01-core.js');
+    const copy = r.SERVER.copy; if (!copy || !copy.swLean) return 'no lean copy';
+    const o = { ...copy.objs.find(x => x.id === 'b') }; return [!('software' in o), c.byId('a').software.length]; }), [true, 2]);
   const go = tab => p.evaluate(async t => { const c = await import('/js/01-core.js'); c.st.tab = t; c.st.q = ''; (await import('/js/07-render.js')).render(); }, tab);
 
   // Contracts: two picked, one bar, deleted together; one Undo brings both back in their place
@@ -117,7 +127,17 @@ try {
   await p.waitForSelector('.ds-pushsizes .ds-bar');
   assert.equal(await p.$$eval('.ds-pushsizes .ds-bar', b => b.length), 3);
   assert.equal(await p.$$eval('.ds-pushsizes .ds-bar.short', b => b.length), 1);
+  // the limits of Where are they?: not seen after a year, so PC-OLD (200 days) no longer counts; back to 90 days
+  await p.selectOption('#wdUnseen', '365');
+  await stored(st => st.whereDays && st.whereDays.unseen === 365);
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).whereOf((await import('/js/01-core.js')).objs.filter(o => o.status !== 'retired')).ids.join()), 'g');
+  await p.selectOption('#wdUnseen', '90');
+  await stored(st => !st.whereDays || !st.whereDays.unseen);
   await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
+  // the sidebar has it too
+  await go('cards'); await p.evaluate(() => { document.querySelector('#moreFilters').open = true; }); await p.click('#seenList [data-where]');
+  await until(p, () => document.querySelectorAll('#cards .lrow').length === 2 && !!document.querySelector('#fbar [data-goneretire]'));
+  await p.click('#seenList [data-where]');
 
   // Overview: one row for the devices that may be missing, leading to them
   await go('overview'); await p.waitForSelector('[data-ovmissing]');
