@@ -63,6 +63,8 @@ export const TABLE_COLS = [
 /* The Lansweeper column is left out while Lansweeper is off; Found by shows only in Pending devices. */
 /* The rows the Table shows (after its column filters and sort, also those not drawn yet), for printing. */
 let LAST = null;
+/* The rows the Table shows now, its column filters applied (null before it is drawn): what an action on "these" means. */
+export const tableShownList = () => LAST ? LAST.list : null;
 const cellText = h => String(h).replace(/<span class="mk\b[^"]*"[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).replace(/\s+/g, ' ').trim();
 /* The Table's columns in the order shown and the text of each cell; from the Cards, the devices listed with the
    Table's columns. */
@@ -99,7 +101,7 @@ export function setHiddenCols(list){
 const COL_PRESETS = {
   basic: ['Basic', ['code', 'type', 'model', 'serial', 'loc', 'user', 'status']],
   network: ['Network', ['type', 'ip', 'mac', 'loc', 'conn', 'status', 'seen']],
-  lifecycle: ['Lifecycle', ['type', 'model', 'purchased', 'warranty', 'due', 'replPrice', 'maint', 'status']],
+  lifecycle: ['Lifecycle', ['type', 'model', 'purchased', 'warranty', 'due', 'replPrice', 'maint', 'seen', 'gone', 'status']],
   costs: ['Costs', ['type', 'price', 'supplier', 'invoice', 'purchased', 'replPrice', 'resp']],
 };
 let colPickOpen = false;

@@ -10,6 +10,7 @@ export const VIEW_TABS = ['cards', 'table', 'map'];
    listed in a Views menu on their own toolbar, not in the sidebar, and are not sent by mail (that is a device list). */
 export const LIST_VIEW_TABS = ['contracts', 'contacts'];
 export const isListView = v => !!v && LIST_VIEW_TABS.includes(v.tab);
+const LIST_FILTERS = ['ctDue', 'cnKind'];
 export const VIEWS_MAX = 50;
 const COLS_MAX = 60, TEXT_MAX = 200, KEY_MAX = 40, NAME_MAX = 80;
 
@@ -30,8 +31,10 @@ export function remapTable(tv, keys) {
 /* The view the list shows now. cols: the keys of the columns shown; tv: the table's kept state, whose column order,
    column filters and sort are kept by column key, so they survive columns shown or hidden later. */
 export function serializeView(st, { cols = [], tv = null } = {}) {
+  /* Each kind of view keeps its own filters: the device lists the sidebar's, Contracts Only due, Contacts internal or external. */
+  const own = LIST_VIEW_TABS.includes(st.tab) ? (st.tab === 'contracts' ? ['ctDue'] : ['cnKind']) : Object.keys(VIEW_FILTERS).filter(k => !LIST_FILTERS.includes(k));
   const filters = {};
-  for (const [k, t] of Object.entries(VIEW_FILTERS)) { const v = st[k]; if (t === 'b' ? v === true : typeof v === 'string' && v) filters[k] = v; }
+  for (const [k, t] of Object.entries(VIEW_FILTERS)) { const v = st[k]; if (own.includes(k) && (t === 'b' ? v === true : typeof v === 'string' && v)) filters[k] = v; }
   const keys = tv && Array.isArray(tv.keys) ? tv.keys : [];
   /* The columns in the order the table shows them (column 0, the tick box, aside). */
   const ord = tv && Array.isArray(tv.order) ? tv.order.filter(ci => ci > 0).map(ci => keys[ci - 1]).filter(k => cols.includes(k)) : [];
@@ -74,8 +77,8 @@ export function tableStateFor(view, tv, keys) {
 export function upsertView(list, view, name, newId) {
   const n = String(name || '').trim(), at = list.findIndex(v => v.name.toLowerCase() === n.toLowerCase());
   const keep = { ...Object.fromEntries(VIEW_PARTS.map(k => [k, view[k]])), name: n };
-  /* A view replaced keeps its mail schedule. */
-  return at >= 0 ? list.map((v, i) => i === at ? { ...keep, id: v.id, ...(v.mail ? { mail: v.mail } : {}) } : v) : [...list, { ...keep, id: newId }];
+  /* A view replaced keeps its mail schedule, unless it becomes a view of Contracts or Contacts (never sent by mail). */
+  return at >= 0 ? list.map((v, i) => i === at ? { ...keep, id: v.id, ...(v.mail && !isListView(keep) ? { mail: v.mail } : {}) } : v) : [...list, { ...keep, id: newId }];
 }
 export const renameView = (list, id, name) => list.map(v => v.id === id ? { ...v, name: String(name).trim() } : v);
 /* The mail schedule set on a view, or taken off (none and no addresses). */

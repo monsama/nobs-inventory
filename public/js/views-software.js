@@ -70,7 +70,7 @@ export function renderSoftware(){
   st.swOpen = (st.swOpen || []).filter(n => all.some(r => r.name === n));
   st.swSort ??= 'name';
   const devCount = objs.filter(o => (o.software || []).length).length;
-  $('#toolbar').innerHTML = html`<span class="muted" id="swCount"></span>${viewSearchHtml('Package, version, device or user', 'Search the software')}<div class="grow"></div>
+  $('#toolbar').innerHTML = html`<span class="muted" id="swCount"></span>${all.length ? viewSearchHtml('Package, version, device or user', 'Search the software') : ''}<div class="grow"></div>
     <button id="swCollapse" ${st.swOpen.length ? '' : 'hidden'}>Collapse all</button><span class="muted hide-n">Add software on a PC or server</span>`;
   if (!all.length){ $('#view').innerHTML = html`<div class="sw-page">${rawHtml(licencesPanel())}<div class="empty">No software recorded yet. Add it on a PC or server.</div></div>`; bindLicences(); return; }
   /* data-tb: the generic column tools (filter row, drag, resize) stay off; this table has its own search and sort. */

@@ -32,7 +32,8 @@ export function urlOf(t, middle){
 }
 const go = (e, middle) => {
   const t = /** @type {Element} */ (e.target);
-  if (!t || !t.closest || t.closest('#mdl, .modal')) return;
+  /* In a dialog only the pages of Settings lead somewhere of their own; anything else there stays in the dialog. */
+  if (!t || !t.closest || (t.closest('#mdl, .modal') && !t.closest('[data-st]'))) return;
   const url = urlOf(t, middle); if (!url) return;
   e.preventDefault(); e.stopImmediatePropagation();
   window.open(url, '_blank', 'noopener');

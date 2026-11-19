@@ -94,6 +94,13 @@ export function healthReport(db, s, { version = '', on = {}, graphCert = null, p
       !r ? 'Run it once with Sync now.' : !r.ok ? [syncFix(src, r.error), String(r.error || '').slice(0, 200)].filter(Boolean).join(' Error: ') : state === 'late' ? (push ? 'No push from Lansweeper for more than two days: check the scheduled task on the Lansweeper server (Lansweeper-Push.ps1), its log and its token (Settings → Data sources → Lansweeper).' : 'It has not run as often as planned: is the server kept running?') : '');
   }
 
+  /* A push or an AD read that came back short (far fewer devices than usual) is not used to find gone devices: said
+     here, so a query or search base that broke is put right. */
+  const P = s.lsPresence;
+  if (P && P.short && !switchedOff.lansweeper) add('Syncs', 'Lansweeper push size', 'warn', `${P.short.n} of about ${P.short.of} devices on ${P.short.day}`,
+    'Far fewer devices than the last full push: no device is found gone by it. Check the push script\'s query (MaxAgeDays, the asset state) on the Lansweeper server.');
+  if (s.adShort && !switchedOff.ldap) add('Syncs', 'Active Directory read size', 'warn', `${s.adShort.n} of ${s.adShort.of} computer accounts on ${s.adShort.day}`,
+    'Far fewer computer accounts than the devices marked in AD: none is found gone by it. Check the computers search base and filter in Settings → Data sources → Active Directory.');
   /* Certificates that expire: the one the server signs in to Graph with, and the directory's CA. */
   const certState = d => d < 0 ? 'bad' : d < 30 ? 'warn' : 'ok';
   const certValue = (iso, now2) => { const d = days(iso, now2); return d < 0 ? `Expired on ${dateText(iso.slice(0, 10))}` : `Valid until ${dateText(iso.slice(0, 10))} (${d} days)`; };

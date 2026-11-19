@@ -1,6 +1,6 @@
 /* Browser test of what came with Gone from a source: Retire these N from the filter bar (with Undo), the Overview's line
    for devices no source lists, the address following the open device or view (and reopening it), saved views on the
-   Contracts toolbar, / going to a list's own search, and a built-in type in its old default colour taking the new one. */
+   Contracts toolbar, / going to a list's own search, a colour picked for a type shown as picked, and the List's Directory column without overlaps. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
@@ -33,8 +33,8 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await p.waitForSelector('#cards .lrow');
 
-  // colours: an old default takes the new one, a colour picked stays
-  assert.deepEqual(await p.evaluate(async () => { const c = await import('/js/01-core.js'); return [c.tcol('switch'), c.tcol('printer')]; }), ['#0d9488', '#123456']);
+  // a colour picked for a type is shown as picked
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).tcol('printer')), '#123456');
 
   // the Overview: a line for the devices no source lists any more, leading to them
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
@@ -74,6 +74,18 @@ try {
   await p.click('#lvMenu .menu-btn'); await p.click('#lvMenu [data-lvopen]');
   await until(p, () => !/Support Firewall/.test(document.querySelector('table.contracts tbody').textContent));
   assert.equal(await p.inputValue('#vq'), 'lease');
+
+  // the List's Directory column: AD, Entra, Intune and Defender side by side, none past its cell or over another
+  await p.evaluate(async () => { localStorage.setItem('ni-card-join', '1'); });
+  await p.goto(base + '/'); await p.waitForSelector('#cards .lrow');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.SYNC.graph = true; c.SYNC.defender = true; c.st.tab = 'cards'; c.st.q = ''; (await import('/js/07-render.js')).render(); });
+  await p.waitForSelector('#cards .lrow .c-dir .jb');
+  assert.deepEqual(await p.evaluate(() => { const out = [];
+    for (const cell of document.querySelectorAll('#cards .lrow .c-dir')) { const cr = cell.getBoundingClientRect(); if (!cr.width) continue;
+      const bs = [...cell.querySelectorAll('.jb')].map(b => b.getBoundingClientRect());
+      bs.forEach((r, i) => { if (r.right > cr.right + 0.5) out.push('past its cell'); if (i && r.left < bs[i - 1].right) out.push('over another'); }); }
+    return [...new Set(out)]; }), []);
+  assert.equal(await p.locator('#cards .lrow .c-dir .jb').first().locator('b').getAttribute('data-s'), 'AD');
 
   assert.deepEqual(errors, [], 'page errors');
   console.log('gone extras: all checks passed');

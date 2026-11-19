@@ -469,14 +469,15 @@ export const joinBadges = o => {
   const g = SYNC.graph && o.graph && !o.graph.gone ? o.graph : null, j = g ? joinOf(o) : o.inAd ? 'AD joined' : '';
   const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && isIntune(g.managed));
   const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
-  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b>${label}</b><small>${esc(state)}</small></span>`;
+  /* data-s: the short label the List's narrow Directory column shows (Def for Defender). */
+  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b data-s="${label === 'Defender' ? 'Def' : label}">${label}</b><small>${esc(state)}</small></span>`;
   const tips = [
     ad ? (o.inAd ? 'Active Directory: has a computer account' + (j === 'Hybrid joined' ? ', hybrid joined' : '') : 'Active Directory: hybrid joined') : 'Active Directory: no computer account found',
     en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
     it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? `Microsoft Intune: not managed${otherManager(g.managed) ? ' (' + otherManager(g.managed) + ')' : ''}` : 'Microsoft Intune: not managed',
   ];
   /* Without Microsoft Graph set up this app cannot know Entra or Intune: those two say so instead of "not joined". */
-  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b>${label}</b><small>not checked</small></span>`;
+  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b data-s="${label}">${label}</b><small>not checked</small></span>`;
   if (!SYNC.graph) { tips[1] = 'Microsoft Entra ID (Azure AD): not known, Microsoft Graph is not set up'; tips[2] = 'Microsoft Intune: not known, Microsoft Graph is not set up'; }
   /* Defender for Endpoint, once it has been read (Settings): active and low risk is green, inactive or medium risk amber,
      high risk red. */
@@ -727,10 +728,10 @@ export const evEl = e => /** @type {El} */ (e.target);
 export const noMatchHtml = () => `${st.q && st.q.trim() ? `Nothing matches “${esc(st.q.trim())}”.` : 'Nothing matches these filters.'} <button type="button" class="link" data-clearall>Clear filters</button>`;
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* A type's colour goes into a style attribute: only a hex colour is used. */
-/* The colours the built-in types had before they were grouped by kind (computers blue, servers violet, network teal,
-   phones green, the rest neutral): a saved type still in its old default colour takes the new one; a colour someone
-   picked stays. */
-export const OLD_TYPE_COLORS = {'pc': '#1565c0', 'notebook': '#2563eb', 'server': '#6a3fb5', 'vm': '#7c3aed', 'accesspoint': '#0891b2', 'sip': '#15803d', 'pbx': '#0f766e', 'monitor': '#64748b', 'switch': '#c2410c', 'printer': '#a16207', 'patch': '#0f766e', 'router': '#1e3a8a', 'firewall': '#b91c1c', 'modem': '#78716c', 'storage': '#0891b2', 'android': '#4d7c0f', 'ios': '#a21caf', 'mobile': '#0d9488', 'plc': '#be185d', 'camera': '#9333ea', 'bmc': '#4f46e5', 'rack': '#475569', 'other': '#5a6b7d'};
+/* The built-in types by kind, as their colours group them (the help on colours and the map's key show it). */
+/** @type {[string, string, string[]][]} */
+export const TYPE_KINDS = [['Computers', 'blue', ['pc', 'notebook']], ['Servers', 'violet', ['server', 'vm', 'storage', 'bmc']], ['Network', 'teal', ['switch', 'router', 'firewall', 'accesspoint', 'patch']],
+  ['Phones', 'green', ['sip', 'pbx', 'android', 'ios', 'mobile']], ['The rest', 'neutral', ['monitor', 'printer', 'camera', 'plc', 'modem', 'rack', 'other']]];
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
 /* A type's icon; hovering it names the type (Notebook, PC, Server …). */
 export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" title="${esc(TYPES[t]?.label || t)}" style="--tc:${tcol(t)}">${svg(t)}</span>`;

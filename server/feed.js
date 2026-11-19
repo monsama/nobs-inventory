@@ -314,6 +314,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const pairs = [];
   /* The devices this push has updated so far (a second record merged into one of them is then left alone). */
   const matched = new Set();
+  /* The devices this push updated or created, however they were found (asset id, serial number, name): Lansweeper still
+     lists them, for Gone from a source below. */
+  const inPush = new Set();
   const locs = s.locs || [];
   let taken = null;   /* codes and ids in use, read when the first new device is made */
   /* How many wait in Pending devices: a push cannot add more than REVIEW_MAX there (a wrong or stolen token would fill the inventory). */
@@ -474,13 +477,13 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       /* Every value it came with is Lansweeper's. */
       for (const k of [...FEED_FIELDS, 'user', 'loc']) if (obj[k]) markSource(obj, k, 'ls');
       for (const k of FEED_FIELDS) noteValue(obj, k, 'ls', obj[k], r.scanned || seen);
-      s.objs.push(obj); index(obj);
+      s.objs.push(obj); index(obj); inPush.add(obj);
       pairs.push({ r, obj });
       counts.created++;
       if (obj.review) counts.review = (counts.review || 0) + 1;
       continue;
     }
-    pairs.push({ r, obj: found }); matched.add(found.id);
+    pairs.push({ r, obj: found }); matched.add(found.id); inPush.add(found);
     const wasLinked = !!found.feed;
     /* linked: when this inventory's device was first matched to the Lansweeper asset. */
     if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen, linked: seen, assetType: r.assetType || '' };
@@ -559,23 +562,27 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     else { found.feed.seen = seen; counts.unchanged++; }
   }
   /* Which devices Lansweeper still lists. A push sends every active asset, in batches, each day: a device gets the day it
-     was last in one (feed.inPush, written once a day), and the page compares it with the day of the newest push
-     (s.lsPresence.day), so a device Lansweeper no longer sends shows as gone from it. A file uploaded by hand is not the
-     whole list and says nothing about what is gone. since: the day this started, for devices not in a push since. */
+     was last in one (feed.inPush, written once a day), and the day counts how many devices it brought (n). A day is
+     judged once the next one starts: brought at least half as many as the last full day, it is a full day (full), and
+     the page compares each device with it, so a device Lansweeper no longer sends shows as gone; far fewer (a query that
+     failed, a filter set too tight) and it is set aside (short), said under Health, and nothing is found gone by it.
+     A file uploaded by hand is not the whole list and says nothing about what is gone. since: the day this started. */
   if (!byHand && records.length) {
     const day = now.toISOString().slice(0, 10);
-    const refs = new Set(records.map(r => r && r.ref != null ? String(r.ref).trim() : '').filter(Boolean));
     let present = 0;
-    const mark = o => { if (o && o.feed && o.feed.inPush !== day) { o.feed.inPush = day; present++; } };
-    for (const o of s.objs) {
-      if (!o.feed || o.feed.ref == null || !refs.has(String(o.feed.ref).trim())) continue;
-      mark(o);
-      /* A record merged into a device (a reinstall) stands for that device too. */
-      if (o.excluded && o.review && o.review.merged) mark(s.objs.find(x => x.id === o.review.merged));
-    }
+    /* A record merged into a device (a reinstall) updated that device above, so it is among them; a dock's record is not. */
+    for (const o of inPush) if (o.feed && o.feed.inPush !== day) { o.feed.inPush = day; present++; }
     const was = s.lsPresence || {};
-    if (was.day !== day) { s.lsPresence = { day, since: was.since || day }; present++; }
-    if (present) counts.present = present;
+    let next = was;
+    if (was.day !== day) {
+      next = { day, n: 0, since: was.since || day, ...(was.full ? { full: was.full } : {}), ...(was.short ? { short: was.short } : {}) };
+      if (was.day && typeof was.n === 'number') {
+        if (!was.full || was.n >= was.full.n / 2) { next.full = { day: was.day, n: was.n }; delete next.short; }
+        else next.short = { day: was.day, n: was.n, of: was.full.n };
+      }
+    }
+    if (present || next !== was) s.lsPresence = { ...next, n: (next.n || 0) + present };
+    if (present || next !== was) counts.present = present || 1;
   }
   counts.people = applyDepartments(s, cleaned);
   /* A person Lansweeper made who is someone else's login too (the directory's, Entra's): one record again. */

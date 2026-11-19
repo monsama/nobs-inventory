@@ -4,8 +4,9 @@
 import { dateText } from './dates.js';
 
 /* The sources a device has been in, and whether each still lists it. Lansweeper: the day it was last in a push
-   (feed.inPush, else the day this tracking began) against the day of the newest push, two days apart at least, so one
-   push that broke off half way gives no false alarm. Active Directory: the day its computer account went (adGone).
+   (feed.inPush, else the day this tracking began) against the last full push day (P.full: one that brought at least
+   half as many devices as the full day before it), two days apart at least, so a push that broke off gives no false
+   alarm. Active Directory: the day its computer account went (adGone).
    Entra & Intune: the time the sync no longer found it (graph.gone). A detached or excluded device is no longer
    Lansweeper's; a retired one has gone on purpose and is never listed. */
 export const SOURCE_NAMES = { ls: 'Lansweeper', ad: 'Active Directory', graph: 'Entra & Intune' };
@@ -14,8 +15,9 @@ const isoDay = v => /^\d{4}-\d{2}-\d{2}/.test(v || '') ? Date.parse(String(v).sl
 export function sourcesOfWith(o, P){
   const out = [];
   if (o.feed && o.feed.sys === 'Lansweeper' && !o.detached && !o.excluded){
-    const last = o.feed.inPush || (P && P.since);
-    const gone = !!(P && P.day && last && isoDay(P.day) - isoDay(last) >= 2);
+    /* Against the last full push day (one that brought about as many devices as usual), two days on at least. */
+    const last = o.feed.inPush || (P && P.since), ref = P && P.full && P.full.day;
+    const gone = !!(ref && last && isoDay(ref) - isoDay(last) >= 2);
     out.push({ src: 'ls', name: SOURCE_NAMES.ls, gone, when: gone ? (o.feed.inPush ? `last sent by Lansweeper on ${dateText(o.feed.inPush)}` : `not sent by Lansweeper since ${dateText(P.since)}`) : '' });
   }
   if (o.inAd || o.adGone) out.push({ src: 'ad', name: SOURCE_NAMES.ad, gone: !o.inAd && !!o.adGone, when: !o.inAd && o.adGone ? `its computer account went on ${dateText(o.adGone)}` : '' });

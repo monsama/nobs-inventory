@@ -12,7 +12,7 @@ import { USERS, isAdmin, ownOnly, seenSites } from './04-settings.js';
 import { sheetModal } from './08-sheets.js';
 import { handOutToModal, takeBackModal } from './27-handout.js';
 import { reviewDo, waitReason } from './15-review.js';
-import { QUALITY_FIX, qfix } from './views-table.js';
+import { QUALITY_FIX, qfix, tableShownList } from './views-table.js';
 import { renderSavedViews } from './views-saved.js';
 import { html, rawHtml } from './html.js';
 /* ---------- sidebar ---------- */
@@ -248,14 +248,16 @@ export function renderFilterBar(){
   const groups = typeSum(clear);
   const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait fb-ckrow"><b>Add at once</b><span class="muted">${clear.length} shown with nothing unclear</span>${groups.map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
   /* Gone from a source: the devices listed can be retired in one go (admins, in the inventory's lists). */
-  const goneN = list && !st.scope && st.gone && isAdmin() ? filtered().filter(o => o.status !== 'retired').length : 0;
+  const goneN = list && !st.scope && st.gone && isAdmin() ? goneShown().length : 0;
   const goneBar = !goneN ? '' : html`<div class="fb-person fb-wait"><b>${goneN} ${goneN === 1 ? 'device' : 'devices'} gone</b><span class="muted">check where they are, then retire the ones no longer there</span><span class="grow"></span><button type="button" data-goneretire="1">Retire these ${goneN}…</button></div>`;
   bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar && !goneBar;
   bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${scope}${addBar}${goneBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
+/* The devices a Gone from list shows, not retired: in the Table only the rows its column filters leave. */
+const goneShown = () => ((st.tab === 'table' && tableShownList()) || filtered()).filter(o => o.status !== 'retired');
 $('#fbar').addEventListener('click', e => {
   if (e.target.closest('[data-gowait]')){ enterCheck(); view(); return; }
-  if (e.target.closest('[data-goneretire]')){ import('./gone-retire.js').then(m => m.retireGoneModal(filtered().filter(o => o.status !== 'retired'))); return; }
+  if (e.target.closest('[data-goneretire]')){ import('./gone-retire.js').then(m => m.retireGoneModal(goneShown())); return; }
   if (e.target.closest('[data-waitok]')){ markPendingSeen(); view(); return; }
   /* Pending devices's own filters: why they wait, which source found them, the ignored ones. */
   const ck = e.target.closest('[data-ckwhy], [data-cksrc], [data-ckign]');

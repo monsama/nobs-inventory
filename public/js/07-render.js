@@ -1,7 +1,7 @@
 /* Drawing: the open tab, the status bar, back and forward, keyboard shortcuts. Saving, loading and signing in live in
    server-save.js, server-load.js and signin.js; their names are exported from here too, so importers need not change. */
 import { renderBell } from './06-topbar.js';
-import { evEl, $$, lsLive, LS_USED, SYNC, daysSince, withDrawCache } from './01-core.js';
+import { evEl, $$, lsLive, LS_USED, SYNC, daysSince, withDrawCache, TYPE_KINDS, TYPES, tcol } from './01-core.js';
 import { updateSync, bindFullTextOnHover, fullTextTooltips, $, byId, objs, st } from './01-core.js';
 import { html } from './html.js';
 import { applyRole, isAdmin, ownOnly } from './04-settings.js';
@@ -162,7 +162,10 @@ const COLOURS = [['', 'Green', 'There and fine: in AD, joined to Entra, complian
   ['off', 'Grey ring', 'Not there or off: not joined, not managed, not onboarded, in stock, a source turned off'],
   ['gone', 'Grey', 'Done: retired']];
 const coloursTable = () => html`<table class="grid mini colours keys" style="min-width:0"><tbody>${COLOURS.map(([c, l, t]) => html`<tr><td><span class="dot ${c}"></span> <b>${l}</b></td><td>${t}</td></tr>`)}</tbody></table>
-  <p class="note">Blue marks links, the selection and actions, never a state.</p>`;
+  <p class="note">Blue marks links, the selection and actions, never a state.</p>
+  <div class="hdr" style="margin-top:12px">Device types</div>
+  <p class="note">The colour of a type says its kind. A colour picked under Settings → Device types is shown as picked.</p>
+  <table class="grid mini colours" style="min-width:0"><tbody>${TYPE_KINDS.map(([kind, , list]) => html`<tr><td><b>${kind}</b></td><td class="tk-list">${list.filter(t => TYPES[t]).map(t => html`<span class="tk"><i style="background:${tcol(t)}"></i>${TYPES[t].label}</span>`)}</td></tr>`)}</tbody></table>`;
 export function coloursModal(){
   modal(html`<div class="mh">What the colours mean</div><div class="mb">${coloursTable()}</div>
     <div class="mf"><button id="clClose" class="primary">Done</button></div>`, 'sm');

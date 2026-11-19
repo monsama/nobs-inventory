@@ -32,7 +32,10 @@ export function bindViewSearch(redraw){
   const box = /** @type {HTMLInputElement|null} */ ($('#vq'));
   if (!box) return;
   const top = /** @type {HTMLInputElement|null} */ ($('#search'));
+  clearTimeout(timer);
   const go = () => {
+    /* A list drawn again, or another tab opened, since the typing: this field is gone and the search is the new one's. */
+    if (!box.isConnected) return;
     const at = box.selectionStart;
     st.q = box.value; if (top) top.value = box.value;
     redraw();

@@ -1,6 +1,6 @@
 /* Loading from the server: reloads, checks for other people's changes, unsaved changes put back on top. */
 import { applyDelta } from './delta.js';
-import { $, REVIEW, UNDO, CONTACTS, SYNC, OLD_TYPE_COLORS } from './01-core.js';
+import { $, REVIEW, UNDO, CONTACTS, SYNC } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { HISTORY_KEEP, COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
 import { USERS, bindUser, isAdmin } from './04-settings.js';
@@ -213,7 +213,8 @@ function applyState(d){
   Object.assign(TYPE_FIELDS, d.typeFields || {});
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.useAd = d.useAd !== false; st.useGraph = d.useGraph !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
-  st.lsPresence = d.lsPresence && typeof d.lsPresence === 'object' ? d.lsPresence : null;   /* the newest Lansweeper push day, for Gone from */
+  st.lsPresence = d.lsPresence && typeof d.lsPresence === 'object' ? d.lsPresence : null;
+  st.adShort = d.adShort && typeof d.adShort === 'object' ? d.adShort : null;   /* an AD read set aside as short */   /* the newest Lansweeper push day, for Gone from */
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
   st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.adLocAuto = typeof d.adLocAuto === 'string' ? d.adLocAuto : ''; st.stockRooms = d.stockRooms && typeof d.stockRooms === 'object' ? d.stockRooms : {}; st.savedViews = Array.isArray(d.savedViews) ? d.savedViews : []; st.fieldOrder = d.fieldOrder || null; st.fieldMode = d.fieldMode || null; st.syncChanges = d.syncChanges || {}; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.peopleNotSame = Array.isArray(d.peopleNotSame) ? d.peopleNotSame : []; st.groupRoles = Array.isArray(d.groupRoles) ? d.groupRoles : []; st.lifecycle = d.lifecycle && typeof d.lifecycle === 'object' ? d.lifecycle : {}; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.testRuns = d.testRuns && typeof d.testRuns === 'object' ? d.testRuns : {}; st.backupKeep = d.backupKeep || 10;
   /* For an admin: the last restore test and copy of the backups (for the bell), the last mail of each saved view. */
@@ -221,8 +222,6 @@ function applyState(d){
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
-    /* A built-in type still in its old default colour takes the new one (OLD_TYPE_COLORS); a colour picked stays. */
-    for (const [k, c] of Object.entries(OLD_TYPE_COLORS)) if (TYPES[k] && DEFAULT_TYPES[k] && String(TYPES[k].color || '').toLowerCase() === c) TYPES[k].color = DEFAULT_TYPES[k].color;
   }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, ip6:true, patch:true, software:true, links:true, dept:true, ipRoom:true}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});

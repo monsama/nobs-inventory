@@ -15,7 +15,7 @@ bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const s0 = loadState(db);
 const dev = (id, more = {}) => ({ id, code: 'INV-' + id, type: 'pc', name: 'PC-' + id.toUpperCase(), status: 'active', loc: '', ovr: {}, feed: null, added: '2026-01-01T08:00:00.000Z', ...more });
 const lsf = day => ({ sys: 'Lansweeper', ref: 'r' + day, seen: '01.11.2026 08:00', inPush: day });
-saveState(db, { ...s0, lsPresence: { day: '2026-11-18', since: '2026-11-01' }, objs: [
+saveState(db, { ...s0, lsPresence: { day: '2026-11-19', n: 1, since: '2026-11-01', full: { day: '2026-11-18', n: 3 } }, objs: [
   dev('a', { feed: lsf('2026-11-18'), inAd: true }),                                           // listed everywhere
   dev('b', { feed: { ...lsf('2026-11-10'), ref: 'rb' }, inAd: true }),                          // gone from Lansweeper only
   dev('c', { feed: { ...lsf('2026-11-09'), ref: 'rc' }, adGone: '2026-11-12', graph: { gone: '12.11.2026 06:00' } }),   // gone from all three
