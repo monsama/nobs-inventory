@@ -2679,3 +2679,63 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
 .lr-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--warn-bd,var(--bd));border-left:3px solid var(--warn,#c08a00);border-radius:var(--r-m);background:var(--panel)}
 .lr-say{flex:1;min-width:220px}
 .lr-acts{display:flex;gap:6px;flex-wrap:wrap}
+/* The filters beside the list (wider than a phone): as wide as their edge is dragged; folded away, a thin strip at the
+   left that opens them again (click or drag) and shows how many filters are in force. No Filters button in the bar. */
+#sideRail,#sideGrip{display:none}
+@media (min-width:821px){
+  body:not(.noside) #sideBtn{display:none!important}
+  #side{width:var(--sidew,250px)}
+  body.side-shut #side{display:none}
+  body:not(.noside):not(.side-shut) #sideGrip{display:block;flex:none;width:7px;margin-left:-4px;margin-right:-3px;position:relative;z-index:6;cursor:col-resize;touch-action:none;outline:0}
+  #sideGrip::after{content:'';position:absolute;inset:0 3px 0 3px;background:transparent;transition:background .12s}
+  #sideGrip:hover::after,#sideGrip:focus-visible::after,body.side-dragging #sideGrip::after{background:var(--accent)}
+  body:not(.noside).side-shut #sideRail{display:flex;flex:none;align-self:stretch;height:auto;max-height:none;flex-direction:column;align-items:center;gap:6px;width:14px;padding:10px 0;margin:0;border:0;border-right:1px solid var(--bd);border-radius:0;background:var(--bg);color:var(--muted);cursor:col-resize;touch-action:none;min-height:0}
+  #sideRail:hover,#sideRail:focus-visible{background:var(--sub);color:var(--fg)}
+  #sideRail:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  #sideRail .i{width:12px;height:12px}
+  #sideRail .rail-n:not([hidden]){display:inline-flex;align-items:center;justify-content:center;min-width:14px;height:14px;border-radius:7px;background:var(--accent);color:#fff;font-size:10px;font-weight:600}
+  body.side-dragging,body.side-dragging *{cursor:col-resize!important;user-select:none}
+  body.side-snap #side{opacity:.45}
+  .side-pinrow{display:flex;justify-content:flex-end;padding:6px 10px 0}
+}
+/* Settings → Locations: sites and rooms as a list (left) and the one picked (right), as Device types. */
+.lc-split{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:340px}
+.lc-side{display:flex;flex-direction:column;gap:8px;padding:10px;border-right:1px solid var(--bd2);min-width:0}
+.lc-side #plFind{width:100%}
+.lc-tree,.lc-rooms{list-style:none;margin:0;padding:0}
+.lc-tree{flex:1;overflow:auto;max-height:420px}
+.lc-rooms{margin:0 0 4px 14px;padding-left:8px;border-left:2px solid var(--bd2)}
+.lc-it{display:flex;align-items:center;gap:8px;width:100%;min-height:30px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--fg);text-align:left;cursor:pointer}
+.lc-it:hover{background:var(--sub)}
+.lc-it.on{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--linktext);font-weight:600}
+.lc-it.lc-site{font-weight:600}
+.lc-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-n{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.lc-none{padding:8px}
+.lc-add{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--bd2);padding-top:8px}
+.lc-add .lpanel-add{padding:0;margin:0}
+.lc-add .note{margin:0;padding:0 2px!important}
+.lc-detail{display:flex;flex-direction:column;gap:12px;padding:14px 16px;min-width:0}
+.lc-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.lc-head .lc-title{flex:1;min-width:180px;max-width:420px;font-size:16px;font-weight:600}
+.lc-head select{width:auto;min-width:140px}
+.lc-rows{display:flex;flex-direction:column;border:1px solid var(--bd2);border-radius:var(--r-m)}
+.lc-row{display:grid;grid-template-columns:170px minmax(0,1fr) auto;align-items:center;gap:12px;padding:9px 12px;border-top:1px solid var(--bd2);min-height:44px}
+.lc-row:first-child{border-top:0}
+.lc-row>span:first-child{color:var(--muted);font-size:12.5px}
+.lc-row>small{grid-column:2/-1;margin-top:-6px}
+.lc-row .switch{justify-self:start}
+.lc-row>select{max-width:280px}
+.lc-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lc-chip{display:inline-flex;align-items:center;gap:4px;padding-right:4px}
+.lc-x{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:0 4px;min-height:0;height:18px;line-height:18px;font-size:14px;border-radius:4px}
+.lc-x:hover{color:var(--fg);background:var(--sub)}
+.lc-chips select{width:auto;max-width:280px}
+.lc-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.lc-merge{display:inline-flex;align-items:center;gap:8px}
+.lc-merge select{width:auto;max-width:280px}
+@media (max-width:760px){.lc-split{grid-template-columns:minmax(0,1fr)}.lc-side{border-right:0;border-bottom:1px solid var(--bd2)}.lc-tree{max-height:240px}.lc-row{grid-template-columns:minmax(0,1fr) auto}.lc-row>span:first-child{grid-column:1/-1}.lc-row>small{grid-column:1/-1;margin-top:0}}
+.lc-add .lpanel-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lc-add .lpanel-add>input{flex:1 1 120px;min-width:0;width:auto}
+.lc-add .lpanel-add>button{flex:none}
+.lc-add #nlSite{flex:1 1 100%;width:100%}

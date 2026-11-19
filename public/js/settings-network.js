@@ -7,6 +7,7 @@ import { SOURCES_OF, fieldOrder, fieldMode } from './sync-map.js';
 import { setOrderNow } from './settings-sources.js';
 import { roomFor } from './room-name.js';
 import { REVIEW, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
+import { bindPlaces, placeSelect, placesHtml } from './settings-places.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
 /* The uses a range can have. DHCP and reserved ranges are skipped when an address is picked for a device. */
@@ -220,57 +221,16 @@ export function renderSetDomains(){
 export const warn = t => html`<span style="color:var(--danger)">${t}</span>`;
 export const siteOf = l => String(l || '').split(' / ')[0];
 /* The store room of each site: taking a device back proposes it (27-handout.js). */
-function stockRoomsHtml(){
-  const sites = SITES.filter(x => LOCS.some(l => siteOf(l) === x)); if (!sites.length) return '';
-  const rooms = st.stockRooms || {};
-  return html`<section class="panelbox locpanel"><div class="hdr">Store rooms</div>
-    <p class="note lnote">Where a device taken back into stock goes: taking back proposes the store room of the device's site.</p>
-    <div class="lrows">${sites.map(x => html`<div class="lrow"><span>${x}</span><select data-stock="${x}" aria-label="Store room of ${x}" style="grid-column:2 / 4"><option value="">None</option>${LOCS.filter(l => siteOf(l) === x).map(l => html`<option value="${l}" ${rooms[x] === l ? 'selected' : ''}>${l.split(' / ').slice(1).join(' / ')}</option>`)}</select></div>`)}</div></section>`;
-}
-/* Draws Settings → Locations: the sites and rooms with their device counts (one still in use cannot be deleted), the
-   store rooms and the location texts from the sources. Wires renaming, deleting and adding sites and rooms. */
+/* Draws Settings → Locations: the sites and rooms, and the location texts from the sources still to be given a room. */
 export function renderSetLocs(){
   if (!$('#setLocs')) return;   /* an Undo after Settings was closed: nothing here to draw */
-  const siteRow = (x, i) => {
-    /* The devices there, counted as in the sidebar; its rooms also keep it from being deleted. */
-    const n = objs.filter(o => siteOf(o.loc) === x).length, rooms = LOCS.filter(l => siteOf(l) === x).length;
-    const why = [n ? `${n} ${n === 1 ? 'device' : 'devices'}` : '', rooms ? `${rooms} ${rooms === 1 ? 'room' : 'rooms'}` : ''].filter(Boolean).join(' and ');
-    return html`<div class="lrow"><input data-si="${i}" value="${x}" aria-label="Site name"><span class="n">${n}</span>
-      <button data-sd="${i}" ${why && html`disabled title="It still has ${why}"`}>Delete</button></div>`;
-  };
-  const roomRow = (l, i, first = true) => {
-    const n = objs.filter(o => o.loc === l).length;
-    return html`<div class="lrow room${first ? ' site-first' : ''}"><span class="site" title="${siteOf(l)}">${first ? siteOf(l) : ''}</span><input data-lo="${i}" value="${l.split(' / ').slice(1).join(' / ')}" aria-label="Room in ${siteOf(l)}">
-      <span class="n">${n}</span><button data-ld="${i}" ${n > 0 && html`disabled title="It still has ${n} ${n === 1 ? 'device' : 'devices'}"`}>Delete</button></div>`;
-  };
-  /* Rooms by site (in the order of the sites), then by name; each keeps its place in the list it is saved in. */
-  const siteRank = l => { const k = SITES.indexOf(siteOf(l)); return k < 0 ? SITES.length : k; };
-  const byRoomSite = LOCS.map((l, i) => /** @type {[string, number]} */ ([l, i])).sort((a, b) => siteRank(a[0]) - siteRank(b[0]) || siteOf(a[0]).localeCompare(siteOf(b[0])) || a[0].localeCompare(b[0]));
-  $('#setLocs').innerHTML = html`<div class="locgrid">
-    <section class="panelbox locpanel"><div class="hdr">Sites <span class="cnt">${SITES.length}</span></div>
-      <div class="lrows"><div class="lrow head"><span>Site</span><span class="n">Devices</span><span></span></div>
-        ${SITES.length ? SITES.map((x, i) => siteRow(x, i)) : html`<p class="note lempty">No sites yet. Add the first one below.</p>`}</div>
-      <div class="lpanel-add"><input id="nsName" placeholder="New site, e.g. Branch office" aria-label="New site"><button id="nsAdd">Add site</button></div>
-      <p class="note lnote" id="nsMsg">A site is a town or a building.</p></section>
-    <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
-      <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Devices</span><span></span></div>
-        ${LOCS.length ? byRoomSite.map(([l, i], k) => roomRow(l, i, k === 0 || siteOf(byRoomSite[k - 1][0]) !== siteOf(l))) : html`<p class="note lempty">No rooms yet.</p>`}</div>
-      <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => html`<option>${x}</option>`)}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
-      <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
-  </div>${stockRoomsHtml()}${adLocsHtml()}`;
+  /* The sites and rooms (list and detail, settings-places.js), then what the sources call a device's location. */
+  $('#setLocs').innerHTML = html`${placesHtml()}${adLocsHtml()}`;
   const root = $('#setLocs');
-  root.querySelectorAll('[data-stock]').forEach(sel => sel.onchange = () => {
-    const next = { ...(st.stockRooms || {}) };
-    if (sel.value) next[sel.dataset.stock] = sel.value; else delete next[sel.dataset.stock];
-    st.stockRooms = next; queueServerSave(); toast(sel.value ? `Store room of ${sel.dataset.stock}: ${sel.value}` : `${sel.dataset.stock} has no store room`);
-  });
-  root.querySelectorAll('[data-si]').forEach(i => i.onchange = () => renameSite(SITES[+i.dataset.si], i.value));
-  root.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { if (st.adLocAuto === SITES[+b.dataset.sd]) st.adLocAuto = ''; SITES.splice(+b.dataset.sd, 1); toast('Site deleted'); renderSetLocs(); render(); });
-  root.querySelectorAll('[data-lo]').forEach(i => i.onchange = () => { const old = LOCS[+i.dataset.lo]; renameLoc(old, siteOf(old) + ' / ' + i.value.trim()); });
-  root.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => { LOCS.splice(+b.dataset.ld, 1); toast('Room deleted'); renderSetLocs(); render(); });
-  const enter = (id, fn) => $(id).onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); fn(); } };
-  $('#nsAdd').onclick = addSite; enter('#nsName', addSite);
-  $('#nlAdd').onclick = addRoom; enter('#nlRoom', addRoom);
+  bindPlaces(root);
+  const enter = (id, fn) => { const el = $(id); if (el) el.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); fn(); } }; };
+  const ns = $('#nsAdd'); if (ns) ns.onclick = addSite; enter('#nsName', addSite);
+  const nl = $('#nlAdd'); if (nl) nl.onclick = addRoom; enter('#nlRoom', addRoom);
   bindAdLocs(root);
 }
 /* Location texts from the sources: AD's location of a computer account, Lansweeper's building and location, and (with
@@ -293,16 +253,23 @@ const locTexts = () => {
   return [...m.values()].sort((a, b) => a.text.localeCompare(b.text));
 };
 const locMap = () => ({ ...(st.adLocMap || {}), ...(st.locMap || {}) });
+export const locMapAll = locMap;
+/* The room part of "Site / Room". */
+export const roomPart = l => String(l || '').split(' / ').slice(1).join(' / ');
 const locTarget = t => LOCS.find(l => lc(l) === lc(t)) || (Object.entries(locMap()).find(([k]) => lc(k) === lc(t)) || [])[1] || '';
 /* The Location texts from the sources panel: each text with its sources and device count, and what it is used as.
    An admin can pick an existing room or a new one for it, or remove that again. */
 /* The sources whose texts are listed: those that fill the location now (and the user's office while it is used). */
 const usedSrc = () => new Set([...fieldOrder(st, 'loc'), ...(st.locFromOffice ? ['office'] : [])]);
-const shownTexts = () => { const use = usedSrc(); return locTexts().map(e => ({ ...e, src: new Set([...e.src].filter(x => use.has(x))) })).filter(e => e.src.size); };
+export const shownTexts = () => { const use = usedSrc(); return locTexts().map(e => ({ ...e, src: new Set([...e.src].filter(x => use.has(x))) })).filter(e => e.src.size); };
 /* Renamed in a source (AD, Lansweeper): devices in room R now report text T, where they reported M, a text mapped to R
    that no device reports any more. Offered: keep them in R (T is mapped to R in M's place) and, where R is named after
    M, rename R after T as well. Each is one Undo. With "Rooms from AD's location" on, the AD sync keeps the room by
    itself (ldap-sync.js autoRoom); renaming it is still offered here. */
+/* The texts no room knows yet (not a room's name, not mapped to one): the ones to give a room, listed below. */
+export const newTexts = () => shownTexts().filter(e => !LOCS.some(l => lc(l) === lc(e.text)) && !locTarget(e.text));
+/* How many devices say text t now (in any source). */
+export const textCount = t => (locTexts().find(e => lc(e.text) === lc(t)) || { n: 0 }).n;
 export function renamedTexts(){
   const said = new Set(locTexts().map(e => lc(e.text)));
   const orphan = Object.entries(locMap()).filter(([m, r]) => !said.has(lc(m)) && LOCS.includes(r));
@@ -351,7 +318,7 @@ function bindRenamed(root){
   root.querySelectorAll('[data-lrren]').forEach(b => b.onclick = () => act(+b.dataset.lrren, true));
 }
 function adLocsHtml(){
-  const list = shownTexts();
+  const list = newTexts();
   /* Which sources fill a device's location, in order: set here at once. Each source has its place (1 first; a source
      higher up replaces what one lower down wrote), arrows to move it and a switch; the user's office (from AD or Entra)
      is the fallback for devices without one. A source switched off fills nothing, and its texts are not listed below. */
@@ -368,7 +335,7 @@ function adLocsHtml(){
   const orderLine = html`<div class="locsrc"><div class="locsrc-h"><b>Location comes from</b><span class="muted">first in the list wins</span></div>
     <ol class="locsrc-list">${[...order, ...off].map((x, i) => srcItem(x, i))}${officeItem}</ol></div>`;
   /* Nothing to list: either nothing was sent, or only by sources switched off. The row of sources stays, to switch one on. */
-  if (!list.length) return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources</div>${orderLine}<p class="note lnote">${locTexts().length ? 'The sources in use have sent no location text; switch one on above to see its texts.' : 'No source has sent a location text yet. Active Directory\'s location, Lansweeper\'s building and location, and the office of a device\'s user show here, to use as rooms.'}</p></section>`;
+  if (!list.length) return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources</div>${orderLine}${renamedHtml()}<p class="note lnote">${shownTexts().length ? 'Every location text the sources send has its room: they are listed on the rooms above, as their names in the sources.' : locTexts().length ? 'The sources in use have sent no location text; switch one on above to see its texts.' : 'No source has sent a location text yet. Active Directory\'s location of a computer account and Lansweeper\'s building and location are listed here, to give each a room.'}</p></section>`;
   /* AD's location is often kept by hand: its texts can become rooms of a site by themselves. Off by default. */
   const auto = html`<label class="adloc-auto">Rooms from AD's location<select id="adLocAuto" ${isAdmin() ? '' : 'disabled'} aria-label="Rooms from AD's location"><option value="">Off: I pick them here</option>${SITES.map(x => html`<option value="${x}" ${st.adLocAuto === x ? 'selected' : ''}>Made at each AD sync, in ${x}</option>`)}</select></label>`;
   const free = list.map((e, i) => [e, i]).filter(([e]) => !LOCS.some(l => lc(l) === lc(e.text)) && !locTarget(e.text));
@@ -385,8 +352,8 @@ function adLocsHtml(){
     const tags = [...e.src].map(x => html`<span class="chip adloc-src">${SRC_TAG[x]}</span>`);
     return html`<div class="lrow adloc${isAdmin() ? ' pick' : ''}">${tick}<span class="adloc-text" title="${e.text}">${e.text}</span><span class="adloc-tags">${tags}</span><span class="n" title="Devices with this location text">${e.n}</span><span class="adloc-ctl">${ctl}</span></div>`;
   };
-  return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources <span class="cnt">${list.length}</span></div>
-    <p class="note lnote">What the sources call a device's location. Use a text as a room here, existing or new, and the syncs fill it in on devices without a location. A text alone never becomes a location.</p>
+  return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources <span class="cnt">${list.length} new</span></div>
+    <p class="note lnote">What the sources call a device's location, not yet a room here. Give each one a room, existing or new, and the syncs fill it in on devices without a location; it is then listed on its room. A text alone never becomes a location.</p>
     ${orderLine}
     ${renamedHtml()}
     <div class="lnote adloc-opts">${auto}</div>
@@ -394,7 +361,7 @@ function adLocsHtml(){
     <div class="lrows"><div class="lrow adloc head${isAdmin() ? ' pick' : ''}">${isAdmin() ? html`<span></span>` : ''}<span>Location text</span><span>Source</span><span class="n">Devices</span><span></span></div>${list.map((e, i) => row(e, i))}</div></section>`;
 }
 /* Devices without a location whose sources name text get its room now (as the next sync would), with one Undo. */
-function useAdLoc(text, room, msg){ useAdLocs([[text, room]], msg); }
+export function useAdLoc(text, room, msg){ useAdLocs([[text, room]], msg); }
 function useAdLocs(pairs, msg){
   const mapBefore = { ...(st.locMap || {}) }, adBefore = st.adLocMap, locsBefore = [...LOCS];
   const devs = [];
@@ -422,7 +389,7 @@ const bulkSite = () => SITES.includes(adSite) ? adSite : SITES[0] || '';
 const roomName = (site, t) => cleanLoc(roomFor(site, t));
 function bindAdLocs(root){
   bindRenamed(root);
-  const list = shownTexts();
+  const list = newTexts();
   /* The row of sources: a switch takes one out (or puts it back, last); the arrows change its place. */
   const order = fieldOrder(st, 'loc'), NAME = { ad: 'AD', ls: 'Lansweeper' };
   const say = list2 => list2.length ? `from ${list2.map(x => NAME[x]).join(' › ')}` : 'from no source';
@@ -467,7 +434,7 @@ export function addSite(){
   const name = $('#nsName').value.trim(), msg = $('#nsMsg');
   if (!name || name.includes(' / ')){ msg.innerHTML = warn('Write the site name, without a slash.'); $('#nsName').focus(); return; }
   if (SITES.includes(name)){ msg.innerHTML = warn(name + ' already exists.'); return; }
-  SITES.push(name); toast('Added site ' + name); renderSetLocs(); render();
+  SITES.push(name); placeSelect({ site: name }); toast('Added site ' + name); renderSetLocs(); render();
 }
 export function addRoom(){
   if (!isAdmin()) return;
@@ -476,12 +443,12 @@ export function addRoom(){
   if (!room || room.includes(' / ')){ msg.innerHTML = warn('Write the room name, without a slash.'); $('#nlRoom').focus(); return; }
   const name = site + ' / ' + room;
   if (LOCS.includes(name)){ msg.innerHTML = warn(name + ' already exists.'); return; }
-  LOCS.push(name); toast('Added ' + name); renderSetLocs(); render();
+  LOCS.push(name); placeSelect({ room: name }); toast('Added ' + name); renderSetLocs(); render();
 }
 /* The settings that name a place, renamed with it: the store room of each site (its key, a site, and its room), the place
    a saved view filters on, and the rooms that location texts from the sources are mapped to. move gives the new name of
    a place, or the same one. */
-function renamePlaceRefs(move){
+export function renamePlaceRefs(move){
   if (st.stockRooms) st.stockRooms = Object.fromEntries(Object.entries(st.stockRooms).map(([k, v]) => [move(k), move(v)]));
   if (Array.isArray(st.savedViews)) st.savedViews = st.savedViews.map(v => v && v.filters && v.filters.loc && move(v.filters.loc) !== v.filters.loc ? { ...v, filters: { ...v.filters, loc: move(v.filters.loc) } } : v);
   for (const k of ['locMap', 'adLocMap']) if (st[k]) st[k] = Object.fromEntries(Object.entries(st[k]).map(([t, room]) => [t, move(room)]));

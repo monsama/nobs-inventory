@@ -51,7 +51,8 @@ try {
   assert.match(await p.textContent('#setFindList'), /Store rooms/);
   await p.press('#setFind', 'Enter');
   await until(p, async () => (await import('/js/01-core.js')).st.setTab === 'locations');
-  await p.waitForSelector('#setPane .panelbox.set-flash:has(> .hdr:text("Store rooms"))');
+  /* store rooms are set on the sites and rooms, so that section is brought into view */
+  await p.waitForSelector('#setPane .panelbox.set-flash:has(> .hdr:has-text("Sites and rooms"))');
 
   // a long note under a section's title: one line and More; More shows the rest
   await openSetTab(p, 'subnets'); await p.waitForSelector('#setSubnets');

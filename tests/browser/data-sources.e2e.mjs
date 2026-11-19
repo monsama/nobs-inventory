@@ -202,7 +202,8 @@ try {
   // Settings → Locations lists the location texts of the sources; one used as a new room places its devices there, Undo takes it back
   await openSetTab(p, 'locations'); await p.waitForSelector('#adLocs');
   assert.match(await p.textContent('#adLocs'), /Raum 3\.12\s*AD\s*2/);
-  assert.match(await p.textContent('#adLocs'), /bern \/ eg\s*AD\s*1\s*Is a room here/);
+  /* a text that names a room here is no new text: it is that room (not listed below) */
+  assert.doesNotMatch(await p.textContent('#adLocs'), /bern \/ eg/);
   // Lansweeper does not fill the location by default: its texts are listed once it is switched on, here
   assert.doesNotMatch(await p.textContent('#adLocs'), /HQ \/ Lager/);
   await p.locator('[data-locon="ls"]').locator('xpath=..').click();
@@ -213,7 +214,11 @@ try {
   await stored(st => st.locFromOffice === true);
   await p.selectOption('#adLocs .lrow:has-text("Raum 3.12") [data-admap]', 'site:Bern');
   await stored(st => st.locs.includes('Bern / Raum 3.12') && (st.locMap || {})['Raum 3.12'] === 'Bern / Raum 3.12' && st.objs.filter(o => o.loc === 'Bern / Raum 3.12').length === 2);
-  assert.match(await p.textContent('#adLocs'), /→ Bern \/ Raum 3\.12/);
+  /* given a room, the text leaves the list of new texts and is one of the room's names in the sources */
+  assert.equal(await p.locator('#adLocs .adloc-text', { hasText: 'Raum 3.12' }).count(), 0);
+  await p.click('[data-plsel="room:Bern / Raum 3.12"]');
+  await p.waitForSelector('[data-plroom="Bern / Raum 3.12"] .lc-chip');
+  assert.match(await p.textContent('[data-plroom="Bern / Raum 3.12"] .lc-chips'), /Raum 3\.12/);
   await p.click('#toast .t-undo');
   await stored(st => !st.locs.includes('Bern / Raum 3.12') && !(st.locMap || {})['Raum 3.12'] && st.objs.every(o => !o.loc));
   // the order the sources fill the location in, shown over the list
