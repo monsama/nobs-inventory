@@ -1,4 +1,5 @@
 import { pad2, stamp, stampTime } from './dates.js';
+import { goneAllWith, sourcesOfWith } from './gone.js';
 import { html } from './html.js';
 import { graphSeen, isIntune, otherManager } from './intune.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
@@ -48,26 +49,26 @@ export const svg = (t, cls='i') => {
 /* ---------- reference data ---------- */
 /* Object types are data: name, short name, colour and icon. Edited in Settings → Device types. */
 export const TYPES = {
-  pc:{label:'PC', short:'PC', color:'#1565c0', icon:'pc'},
-  notebook:{label:'Notebook', short:'NB', color:'#2563eb', icon:'laptop'},
-  server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
+  pc:{label:'PC', short:'PC', color:'#2563eb', icon:'pc'},
+  notebook:{label:'Notebook', short:'NB', color:'#1d4ed8', icon:'laptop'},
+  server:{label:'Server', short:'Server', color:'#6d28d9', icon:'server'},
   vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
   accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
-  sip:{label:'VoIP phone', short:'VoIP', color:'#15803d', icon:'sip'},
-  pbx:{label:'Telephone system', short:'PBX', color:'#0f766e', icon:'pbx'},
+  sip:{label:'VoIP phone', short:'VoIP', color:'#16a34a', icon:'sip'},
+  pbx:{label:'Telephone system', short:'PBX', color:'#15803d', icon:'pbx'},
   monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
-  switch:{label:'Switch', short:'Switch', color:'#c2410c', icon:'switch'},
-  printer:{label:'Printer', short:'Printer', color:'#a16207', icon:'printer'},
+  switch:{label:'Switch', short:'Switch', color:'#0d9488', icon:'switch'},
+  printer:{label:'Printer', short:'Printer', color:'#78716c', icon:'printer'},
   patch:{label:'Patch panel', short:'Patch', color:'#0f766e', icon:'patch'},
-  router:{label:'Router', short:'Router', color:'#1e3a8a', icon:'router'},
-  firewall:{label:'Firewall', short:'Firewall', color:'#b91c1c', icon:'firewall'},
-  modem:{label:'Modem', short:'Modem', color:'#78716c', icon:'modem'},
-  storage:{label:'Storage', short:'Storage', color:'#0891b2', icon:'storage'},
-  android:{label:'Android device', short:'Android', color:'#4d7c0f', icon:'mobile'},
-  ios:{label:'iOS device', short:'iOS', color:'#a21caf', icon:'mobile'},
-  mobile:{label:'Other mobile device', short:'Mobile', color:'#0d9488', icon:'mobile'},
-  plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
-  camera:{label:'Camera / Recorder', short:'Camera', color:'#9333ea', icon:'camera'},
+  router:{label:'Router', short:'Router', color:'#0e7490', icon:'router'},
+  firewall:{label:'Firewall', short:'Firewall', color:'#155e75', icon:'firewall'},
+  modem:{label:'Modem', short:'Modem', color:'#57534e', icon:'modem'},
+  storage:{label:'Storage', short:'Storage', color:'#5b21b6', icon:'storage'},
+  android:{label:'Android device', short:'Android', color:'#65a30d', icon:'mobile'},
+  ios:{label:'iOS device', short:'iOS', color:'#059669', icon:'mobile'},
+  mobile:{label:'Other mobile device', short:'Mobile', color:'#047857', icon:'mobile'},
+  plc:{label:'PLC / Controller', short:'PLC', color:'#86198f', icon:'plc'},
+  camera:{label:'Camera / Recorder', short:'Camera', color:'#52525b', icon:'camera'},
   bmc:{label:'iLO / iDRAC', short:'iLO', color:'#4f46e5', icon:'bmc'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
@@ -505,7 +506,14 @@ export function defenderState(o){
    computer it has not scanned yet). */
 export const reviewStale = o => { const s = lastSeenOf(o); return !!s && s.days > REVIEW_STALE_DAYS; };
 /* The latest a source saw the device: {src, day, at, days}, days counted to today. null when no source has a date. */
-export function lastSeenOf(o){
+/* Worked out once per device while the page is drawn: the sidebar counts and the list ask the same of every device.
+   Only while drawing (withDrawCache), each draw afresh, so anything asked outside a draw is always worked out anew. */
+let drawGen = 0, cacheOn = false;
+/** @template T @param {() => T} fn @returns {T} */
+export function withDrawCache(fn){ const was = cacheOn; if (!was){ cacheOn = true; drawGen++; } try { return fn(); } finally { if (!was) cacheOn = false; } }
+const perDraw = fn => { let gen = -1, map = new WeakMap(); return o => { if (!cacheOn || !o || typeof o !== 'object') return fn(o); if (gen !== drawGen){ gen = drawGen; map = new WeakMap(); } if (map.has(o)) return map.get(o); const v = fn(o); map.set(o, v); return v; }; };
+export const lastSeenOf = perDraw(o => lastSeenNow(o));
+function lastSeenNow(o){
   /* Intune's date only for a device Intune manages, Entra's for its sign-in (intune.js graphSeen). */
   const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ...graphSeen(o.graph),
     ['Defender', o.defender && o.defender.lastSeen], ['Autopilot', o.autopilot && o.autopilot.lastContact]]
@@ -524,32 +532,17 @@ export const SEEN_FILTERS = {
   d30: ['Not seen for 30 days', o => { const s = lastSeenOf(o); return !!s && s.days > 30; }],
   d90: ['Not seen for 90 days', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
 };
-/* The sources a device has been in, and whether each still lists it. Lansweeper: the day it was last in a push
-   (feed.inPush, else the day this tracking began) against the day of the newest push, two days apart at least, so one
-   push that broke off half way gives no false alarm. Active Directory: the day its computer account went (adGone).
-   Entra & Intune: the time the sync no longer found it (graph.gone). A detached or excluded device is no longer
-   Lansweeper's; a retired one has gone on purpose and is never listed. */
-export const SOURCE_NAMES = { ls: 'Lansweeper', ad: 'Active Directory', graph: 'Entra & Intune' };
-const isoDay = v => /^\d{4}-\d{2}-\d{2}/.test(v || '') ? Date.parse(String(v).slice(0, 10) + 'T00:00:00Z') / 864e5 : NaN;
+/* Gone from a source: the rule is in gone.js, shared with the server; here with the page's newest push day. */
+export { SOURCE_NAMES } from './gone.js';
 /** @returns {{src: string, name: string, gone: boolean, when: string}[]} */
-export function sourcesOf(o){
-  const out = [];
-  if (o.feed && o.feed.sys === 'Lansweeper' && !o.detached && !o.excluded){
-    const P = st.lsPresence, last = o.feed.inPush || (P && P.since);
-    const gone = !!(P && P.day && last && isoDay(P.day) - isoDay(last) >= 2);
-    out.push({ src: 'ls', name: SOURCE_NAMES.ls, gone, when: gone ? (o.feed.inPush ? `last sent by Lansweeper on ${dayText(o.feed.inPush)}` : `not sent by Lansweeper since ${dayText(P.since)}`) : '' });
-  }
-  if (o.inAd || o.adGone) out.push({ src: 'ad', name: SOURCE_NAMES.ad, gone: !o.inAd && !!o.adGone, when: !o.inAd && o.adGone ? `its computer account went on ${dayText(o.adGone)}` : '' });
-  if (o.graph) out.push({ src: 'graph', name: SOURCE_NAMES.graph, gone: !!o.graph.gone, when: o.graph.gone ? `no longer found since ${String(o.graph.gone).slice(0, 10)}` : '' });
-  return out;
-}
+export const sourcesOf = perDraw(o => sourcesOfWith(o, st.lsPresence));
 export const goneFrom = o => o.status === 'retired' ? [] : sourcesOf(o).filter(x => x.gone);
 /* Gone from a source, under More filters: from one source in particular, from at least one, or from every source the
    device was in (nothing lists it any more). [label, test]. */
 /** @type {Record<string, [string, (o: any) => boolean]>} */
 export const GONE_FILTERS = {
   any: ['From any source', o => goneFrom(o).length > 0],
-  all: ['From every source it was in', o => { if (o.status === 'retired') return false; const s = sourcesOf(o); return s.length > 0 && s.every(x => x.gone); }],
+  all: ['From every source it was in', o => goneAllWith(o, st.lsPresence)],
   ls: ['From Lansweeper', o => goneFrom(o).some(x => x.src === 'ls')],
   ad: ['From Active Directory', o => goneFrom(o).some(x => x.src === 'ad')],
   graph: ['From Entra & Intune', o => goneFrom(o).some(x => x.src === 'graph')],
@@ -734,6 +727,10 @@ export const evEl = e => /** @type {El} */ (e.target);
 export const noMatchHtml = () => `${st.q && st.q.trim() ? `Nothing matches “${esc(st.q.trim())}”.` : 'Nothing matches these filters.'} <button type="button" class="link" data-clearall>Clear filters</button>`;
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* A type's colour goes into a style attribute: only a hex colour is used. */
+/* The colours the built-in types had before they were grouped by kind (computers blue, servers violet, network teal,
+   phones green, the rest neutral): a saved type still in its old default colour takes the new one; a colour someone
+   picked stays. */
+export const OLD_TYPE_COLORS = {'pc': '#1565c0', 'notebook': '#2563eb', 'server': '#6a3fb5', 'vm': '#7c3aed', 'accesspoint': '#0891b2', 'sip': '#15803d', 'pbx': '#0f766e', 'monitor': '#64748b', 'switch': '#c2410c', 'printer': '#a16207', 'patch': '#0f766e', 'router': '#1e3a8a', 'firewall': '#b91c1c', 'modem': '#78716c', 'storage': '#0891b2', 'android': '#4d7c0f', 'ios': '#a21caf', 'mobile': '#0d9488', 'plc': '#be185d', 'camera': '#9333ea', 'bmc': '#4f46e5', 'rack': '#475569', 'other': '#5a6b7d'};
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
 /* A type's icon; hovering it names the type (Notebook, PC, Server …). */
 export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" title="${esc(TYPES[t]?.label || t)}" style="--tc:${tcol(t)}">${svg(t)}</span>`;

@@ -2549,3 +2549,8 @@ body.dense table.grid:is(.ips,.prns,.sw,.contracts) th{height:28px}
 .vsearch input{width:100%;padding-left:30px}
 #view mark{background:color-mix(in srgb,var(--accent) 22%,transparent);color:inherit;border-radius:2px;padding:0 1px}
 @media (max-width:760px){.vsearch{flex:1 1 100%;order:5}}
+/* Colours: a panel's footer row is part of the panel, not a grey band under it; the empty units of a rack are quieter;
+   Data quality reads as progress (blue), and only a low share is a warning (amber). */
+.panelbox .addrel{background:transparent}
+.rack .slot{opacity:.35}
+.ov-qbar.warn>span{background:var(--accent)}.ov-qbar.bad>span{background:var(--warn)}

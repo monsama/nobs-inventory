@@ -13,6 +13,7 @@ COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.cont
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
+import { bindListViews, listViewsMenuHtml } from './views-saved.js';
 import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './view-search.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -85,7 +86,7 @@ export function renderContracts(){
   const live = all.filter(c => runningNow(c));
   const year = live.reduce((t, c) => t + yearlyCost(c), 0);
   const due = contractsDue().length, late = contractsLate().length;
-  $('#toolbar').innerHTML = html`<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${all.length ? viewSearchHtml('Contract, supplier, number or device', 'Search the contracts') : ''}${due || late ? html`<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${String(!!st.ctDue)}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
+  $('#toolbar').innerHTML = html`<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${all.length ? viewSearchHtml('Contract, supplier, number or device', 'Search the contracts') : ''}${all.length ? rawHtml(listViewsMenuHtml('contracts')) : ''}${due || late ? html`<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${String(!!st.ctDue)}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
     ${isAdmin() ? html`<button id="ctNew" class="primary">New contract</button>` : ''}`;
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   if (!all.length){
@@ -105,7 +106,7 @@ export function renderContracts(){
   $('#view').querySelectorAll('[data-ctcontact]').forEach(b => b.onclick = () => { const k = contactOf(b.dataset.ctcontact); if (k) contactModal(k); });
   $('#view').querySelectorAll('[data-ctdel]').forEach(b => b.onclick = () => { const c = COSTS.contracts.find(x => x.id === b.dataset.ctdel); if (c) deleteContract(c); });
   const db = $('#ctDueBtn'); if (db) db.onclick = () => { st.ctDue = !st.ctDue; renderContracts(); };
-  bindViewSearch(renderContracts);
+  bindViewSearch(renderContracts); bindListViews();
 }
 
 /* The contacts of a contract that are still in Contacts, as a short line under its supplier. */

@@ -10,6 +10,7 @@ import { queueServerSave, render, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { applyImport, contactsCsv, decodeText, IMPORT_FIELDS, planImport, readContactFile } from './contacts-import.js';
 import { html, rawHtml } from './html.js';
+import { bindListViews, listViewsMenuHtml } from './views-saved.js';
 import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './view-search.js';
 import { EXPORT_ICON } from './print-view.js';
 
@@ -78,7 +79,7 @@ export function renderContacts(){
     ...[c.phone, c.mobile].flatMap(v => { const d = String(v || '').replace(/[\s/().-]/g, ''); return [d, d.replace(/^\+\d{2}/, '0')]; }), CONTACT_KINDS[c.kind],
     ...devicesOf(c).flatMap(o => [o.name, o.code]), ...(COSTS.contracts || []).filter(x => (x.contacts || []).includes(c.id)).map(x => x.name)], words);
   const shown = all.filter(hit);
-  $('#toolbar').innerHTML = html`<span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span>${all.length ? viewSearchHtml('Name, company, phone or device', 'Search the contacts') : ''}<span class="tbsep"></span><select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
+  $('#toolbar').innerHTML = html`<span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span>${all.length ? viewSearchHtml('Name, company, phone or device', 'Search the contacts') : ''}${all.length ? rawHtml(listViewsMenuHtml('contacts')) : ''}<span class="tbsep"></span><select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
     <div class="grow"></div>
     ${all.length ? rawHtml(menuHtml(EXPORT_ICON + 'Export', String(html`<button type="button" id="cnExport">CSV<span class="muted">, all contacts, for Excel or to import again</span></button>`), { id: 'cnExportMenu' })) : ''}
     ${isAdmin() ? html`${dirPeople().length ? html`<button id="cnDir" title="People from Active Directory or Entra, as internal contacts linked to them">From directory…</button>` : ''}<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>` : ''}`;
@@ -91,7 +92,7 @@ export function renderContacts(){
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   $('#cnKind').onchange = e => { st.cnKind = e.target.value; renderContacts(); };
-  bindViewSearch(renderContacts);
+  bindViewSearch(renderContacts); bindListViews();
   if (!all.length){
     $('#view').innerHTML = `<div class="empty">No contacts yet: your own IT people and the people at your IT partners. Add them, or import a CSV or vCards.</div>`;
     return;
