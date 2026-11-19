@@ -10,8 +10,15 @@ const TYPE_RENAMES = { iphone: 'ios', tablet: 'mobile', smartphone: 'mobile' };
 export const NOTES_MAX = 20000;
 /* Brings a stored inventory up to date, at start and when a backup is restored: changes s in place and returns true
    when anything changed (the start then takes a backup and saves). Each step is safe to run again. */
+/* 0.9.149: the built-in types' colours grouped by kind (computers blue, servers violet, network teal, phones green, the
+   rest neutral). A saved type still in its old default colour takes the new one, at each start (also after restoring an
+   older backup); any other colour picked stays. */
+const OLD_TYPE_COLORS = {'pc': '#1565c0', 'notebook': '#2563eb', 'server': '#6a3fb5', 'vm': '#7c3aed', 'accesspoint': '#0891b2', 'sip': '#15803d', 'pbx': '#0f766e', 'monitor': '#64748b', 'switch': '#c2410c', 'printer': '#a16207', 'patch': '#0f766e', 'router': '#1e3a8a', 'firewall': '#b91c1c', 'modem': '#78716c', 'storage': '#0891b2', 'android': '#4d7c0f', 'ios': '#a21caf', 'mobile': '#0d9488', 'plc': '#be185d', 'camera': '#9333ea', 'bmc': '#4f46e5', 'rack': '#475569', 'other': '#5a6b7d'};
+const NEW_TYPE_COLORS = {'pc': '#2563eb', 'notebook': '#1d4ed8', 'server': '#6d28d9', 'vm': '#7c3aed', 'accesspoint': '#0891b2', 'sip': '#16a34a', 'pbx': '#15803d', 'monitor': '#64748b', 'switch': '#0d9488', 'printer': '#78716c', 'patch': '#0f766e', 'router': '#0e7490', 'firewall': '#155e75', 'modem': '#57534e', 'storage': '#5b21b6', 'android': '#65a30d', 'ios': '#059669', 'mobile': '#047857', 'plc': '#86198f', 'camera': '#52525b', 'bmc': '#4f46e5', 'rack': '#475569', 'other': '#5a6b7d'};
 export function migrateState(s) {
   let changed = false;
+  /* Only a colour changed counts as an upgrade (with a backup first). */
+  for (const [k, c] of Object.entries(OLD_TYPE_COLORS)) if (c !== NEW_TYPE_COLORS[k] && s.types && s.types[k] && String(s.types[k].color || '').toLowerCase() === c) { s.types[k] = { ...s.types[k], color: NEW_TYPE_COLORS[k] }; changed = true; }
   for (const o of s.objs) if (TYPE_RENAMES[o.type]) { o.type = TYPE_RENAMES[o.type]; changed = true; }
   /* A device's own choices of who fills a field (o.ovr, before the source picker) are picks now (fill.js). */
   for (const o of s.objs) if (liftOvr(o, s.policy || {})) changed = true;

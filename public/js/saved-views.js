@@ -4,8 +4,13 @@
 
 /* The sidebar filters a view keeps: text (an id or a name) or on/off. Lists made elsewhere (a data-quality check, a
    list from the Overview, Pending devices) are left out: they are not filters one picks again. */
-export const VIEW_FILTERS = { type: 's', loc: 's', status: 's', warranty: 's', seen: 's', intune: 's', osFam: 's', resp: 's', person: 's', adGroup: 's', scanOld: 'b', twins: 'b', live: 'b' };
+export const VIEW_FILTERS = { type: 's', loc: 's', status: 's', warranty: 's', seen: 's', gone: 's', intune: 's', osFam: 's', resp: 's', person: 's', adGroup: 's', scanOld: 'b', twins: 'b', live: 'b', ctDue: 'b', cnKind: 's' };
 export const VIEW_TABS = ['cards', 'table', 'map'];
+/* Contracts and Contacts keep views too: their search and their own filter (Only due, internal or external). They are
+   listed in a Views menu on their own toolbar, not in the sidebar, and are not sent by mail (that is a device list). */
+export const LIST_VIEW_TABS = ['contracts', 'contacts'];
+export const isListView = v => !!v && LIST_VIEW_TABS.includes(v.tab);
+const LIST_FILTERS = ['ctDue', 'cnKind'];
 export const VIEWS_MAX = 50;
 const COLS_MAX = 60, TEXT_MAX = 200, KEY_MAX = 40, NAME_MAX = 80;
 
@@ -26,8 +31,10 @@ export function remapTable(tv, keys) {
 /* The view the list shows now. cols: the keys of the columns shown; tv: the table's kept state, whose column order,
    column filters and sort are kept by column key, so they survive columns shown or hidden later. */
 export function serializeView(st, { cols = [], tv = null } = {}) {
+  /* Each kind of view keeps its own filters: the device lists the sidebar's, Contracts Only due, Contacts internal or external. */
+  const own = LIST_VIEW_TABS.includes(st.tab) ? (st.tab === 'contracts' ? ['ctDue'] : ['cnKind']) : Object.keys(VIEW_FILTERS).filter(k => !LIST_FILTERS.includes(k));
   const filters = {};
-  for (const [k, t] of Object.entries(VIEW_FILTERS)) { const v = st[k]; if (t === 'b' ? v === true : typeof v === 'string' && v) filters[k] = v; }
+  for (const [k, t] of Object.entries(VIEW_FILTERS)) { const v = st[k]; if (own.includes(k) && (t === 'b' ? v === true : typeof v === 'string' && v)) filters[k] = v; }
   const keys = tv && Array.isArray(tv.keys) ? tv.keys : [];
   /* The columns in the order the table shows them (column 0, the tick box, aside). */
   const ord = tv && Array.isArray(tv.order) ? tv.order.filter(ci => ci > 0).map(ci => keys[ci - 1]).filter(k => cols.includes(k)) : [];
@@ -35,6 +42,7 @@ export function serializeView(st, { cols = [], tv = null } = {}) {
   const colFilters = {};
   for (const [ci, q] of Object.entries((tv && tv.filters) || {})) { const k = keys[+ci - 1], t = String(q || '').trim(); if (k && t) colFilters[k] = t; }
   const sc = tv && tv.sort && keys[tv.sort.ci - 1];
+  if (LIST_VIEW_TABS.includes(st.tab)) return { tab: st.tab, q: String(st.q || '').trim(), filters, cols: [], sort: null, colFilters: {} };
   return { tab: VIEW_TABS.includes(st.tab) ? st.tab : 'table', q: String(st.q || '').trim(), filters, cols: [...cols], sort: sc ? { col: sc, dir: tv.sort.dir < 0 ? -1 : 1 } : null, colFilters };
 }
 /* Whether two views show the same (their names and ids aside). */
@@ -47,7 +55,7 @@ export const sameView = (a, b) => !!a && !!b && canon(a) === canon(b);
 export function applyViewFilters(view, st) {
   for (const [k, t] of Object.entries(VIEW_FILTERS)) st[k] = (view.filters || {})[k] ?? (t === 'b' ? false : null);
   st.q = view.q || '';
-  if (VIEW_TABS.includes(view.tab)) st.tab = view.tab;
+  if (VIEW_TABS.includes(view.tab) || LIST_VIEW_TABS.includes(view.tab)) st.tab = view.tab;
   return st;
 }
 /* The columns to hide for a view: every one that can be hidden and is not among its columns. */
@@ -69,8 +77,8 @@ export function tableStateFor(view, tv, keys) {
 export function upsertView(list, view, name, newId) {
   const n = String(name || '').trim(), at = list.findIndex(v => v.name.toLowerCase() === n.toLowerCase());
   const keep = { ...Object.fromEntries(VIEW_PARTS.map(k => [k, view[k]])), name: n };
-  /* A view replaced keeps its mail schedule. */
-  return at >= 0 ? list.map((v, i) => i === at ? { ...keep, id: v.id, ...(v.mail ? { mail: v.mail } : {}) } : v) : [...list, { ...keep, id: newId }];
+  /* A view replaced keeps its mail schedule, unless it becomes a view of Contracts or Contacts (never sent by mail). */
+  return at >= 0 ? list.map((v, i) => i === at ? { ...keep, id: v.id, ...(v.mail && !isListView(keep) ? { mail: v.mail } : {}) } : v) : [...list, { ...keep, id: newId }];
 }
 export const renameView = (list, id, name) => list.map(v => v.id === id ? { ...v, name: String(name).trim() } : v);
 /* The mail schedule set on a view, or taken off (none and no addresses). */
@@ -135,7 +143,8 @@ export function savedViewsProblem(list) {
     if (!str(v.id, KEY_MAX) || !v.id || ids.has(v.id)) return 'Each saved view has an id of its own.';
     ids.add(v.id);
     if (!str(v.name, NAME_MAX) || !v.name.trim()) return `A saved view has a name of up to ${NAME_MAX} characters.`;
-    if (v.tab !== undefined && !VIEW_TABS.includes(v.tab)) return `${v.name}: the view is Cards, Table or Relations.`;
+    if (v.tab !== undefined && !VIEW_TABS.includes(v.tab) && !LIST_VIEW_TABS.includes(v.tab)) return `${v.name}: the view is the List, Table, Relations, Contracts or Contacts.`;
+    if (isListView(v) && v.mail && v.mail.every !== 'none') return `${v.name}: only a list of devices is sent by mail.`;
     if (v.q !== undefined && !str(v.q, TEXT_MAX)) return `${v.name}: the search is text of up to ${TEXT_MAX} characters.`;
     const f = v.filters ?? {};
     if (!f || typeof f !== 'object' || Array.isArray(f) || Object.entries(f).some(([k, x]) => !VIEW_FILTERS[k] || (VIEW_FILTERS[k] === 'b' ? typeof x !== 'boolean' : !str(x, TEXT_MAX))))

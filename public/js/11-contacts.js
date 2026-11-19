@@ -10,6 +10,8 @@ import { queueServerSave, render, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { applyImport, contactsCsv, decodeText, IMPORT_FIELDS, planImport, readContactFile } from './contacts-import.js';
 import { html, rawHtml } from './html.js';
+import { bindListViews, listViewsMenuHtml } from './views-saved.js';
+import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './view-search.js';
 import { EXPORT_ICON } from './print-view.js';
 
 const newId = () => 'k' + Math.random().toString(36).slice(2, 10);
@@ -48,12 +50,14 @@ function deleteContact(c){
 }
 /* One contact's card as HTML: name and role, what to ask them about, how to reach them, the note, and their devices.
    Delete only for admins. */
+/* The words of the search in force, marked in the names on the cards. */
+let curWords = /** @type {string[]} */ ([]);
 function contactCard(c){
   const n = devicesOf(c).length, k = (COSTS.contracts || []).filter(x => (x.contacts || []).includes(c.id)).length;
   const ways = reach(c);
   return html`<div class="cn-card ${c.kind}">
     <div class="cn-head"><span class="cn-avatar" aria-hidden="true">${initials(c.name)}</span>
-      <div class="cn-who"><b>${c.name}</b><span class="muted">${[c.role, c.kind === 'external' ? '' : c.company].filter(Boolean).join(' · ') || CONTACT_KINDS[c.kind]}</span></div>
+      <div class="cn-who"><b>${markHtml(c.name, curWords)}</b><span class="muted">${[c.role, c.kind === 'external' ? '' : c.company].filter(Boolean).join(' · ') || CONTACT_KINDS[c.kind]}</span></div>
       <span class="rowacts">${rawHtml(editButton(String(html`data-cnedit="${c.id}"`), c.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-cndel="${c.id}"`), c.name)) : ''}</span></div>
     ${c.area ? html`<div class="cn-area" title="Ask about">${c.area}</div>` : ''}
     <div class="cn-ways">${ways.length ? ways : html`<span class="muted">No e-mail or phone yet</span>`}</div>
@@ -65,11 +69,17 @@ function contactCard(c){
 /* The Contacts tab: a toolbar (internal or external, Export CSV, and for admins From directory, Import and New), then the
    cards the search leaves, own people first, then each partner company. */
 export function renderContacts(){
-  const q = (st.q || '').trim().toLowerCase(), kind = st.cnKind || '';
+  const kind = st.cnKind || '', words = qWords(st.q || '');
+  curWords = words;
   const all = CONTACTS.list;
-  const hit = c => (!kind || c.kind === kind) && (!q || [c.name, c.company, c.area, c.role, c.email, c.phone, c.mobile, c.note].some(v => String(v || '').toLowerCase().includes(q)));
+  /* Every word in the contact (name, company, what to ask about, role, e-mail, phones, note), or in the devices they are
+     responsible for or the contracts they are on: a search for a device finds who looks after it. Phone numbers match
+     without their spaces too, and +41 31 … as 031 …. */
+  const hit = c => (!kind || c.kind === kind) && matchWords([c.name, c.company, c.area, c.role, c.email, c.phone, c.mobile, c.note,
+    ...[c.phone, c.mobile].flatMap(v => { const d = String(v || '').replace(/[\s/().-]/g, ''); return [d, d.replace(/^\+\d{2}/, '0')]; }), CONTACT_KINDS[c.kind],
+    ...devicesOf(c).flatMap(o => [o.name, o.code]), ...(COSTS.contracts || []).filter(x => (x.contacts || []).includes(c.id)).map(x => x.name)], words);
   const shown = all.filter(hit);
-  $('#toolbar').innerHTML = html`<span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span><span class="tbsep"></span><select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
+  $('#toolbar').innerHTML = html`<span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span>${all.length ? viewSearchHtml('Name, company, phone or device', 'Search the contacts') : ''}${all.length ? rawHtml(listViewsMenuHtml('contacts')) : ''}<span class="tbsep"></span><select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
     <div class="grow"></div>
     ${all.length ? rawHtml(menuHtml(EXPORT_ICON + 'Export', String(html`<button type="button" id="cnExport">CSV<span class="muted">, all contacts, for Excel or to import again</span></button>`), { id: 'cnExportMenu' })) : ''}
     ${isAdmin() ? html`${dirPeople().length ? html`<button id="cnDir" title="People from Active Directory or Entra, as internal contacts linked to them">From directory…</button>` : ''}<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>` : ''}`;
@@ -82,6 +92,7 @@ export function renderContacts(){
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   $('#cnKind').onchange = e => { st.cnKind = e.target.value; renderContacts(); };
+  bindViewSearch(renderContacts); bindListViews();
   if (!all.length){
     $('#view').innerHTML = `<div class="empty">No contacts yet: your own IT people and the people at your IT partners. Add them, or import a CSV or vCards.</div>`;
     return;

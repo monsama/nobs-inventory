@@ -167,7 +167,7 @@
       },
       "Device": {
         "type": "object",
-        "required": ["id", "code", "name", "type", "typeLabel", "model", "serial", "status", "location", "ip", "mac", "os", "purchased", "warranty", "intune"],
+        "required": ["id", "code", "name", "type", "typeLabel", "model", "serial", "status", "location", "ip", "mac", "os", "purchased", "warranty", "intune", "goneFrom"],
         "properties": {
           "id": { "type": "string" },
           "code": { "type": "string", "description": "Inventory number.", "examples": ["INV-0001"] },
@@ -185,6 +185,7 @@
           "warranty": { "type": "string", "description": "End of the warranty (YYYY-MM-DD), or empty." },
           "user": { "type": "string", "description": "The device's user. Only for a token made with people." },
           "department": { "type": "string", "description": "The user's department. Only for a token made with people." },
+          "goneFrom": { "type": "array", "items": { "type": "string", "enum": ["ls", "ad", "graph"] }, "description": "The sync sources that had the device and no longer list it: ls (Lansweeper, not in the full pushes of two days), ad (its computer account is gone from Active Directory), graph (no longer found in Entra or Intune). Empty for a retired device; in CSV, separated by spaces." },
           "intune": {
             "description": "What Intune said at the last sync, or null for a device Intune does not know.",
             "oneOf": [

@@ -299,7 +299,7 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
 
 /* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
 /* scans: a newer scan day, or a dock's links seen again (they are kept for DOCK_LINKS_DAYS from then): saved too. */
-export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans', 'settled'].some(k => counts[k] > 0);
+export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans', 'settled', 'present'].some(k => counts[k] > 0);
 
 /* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
 /* byHand: an export an admin uploaded: its new devices go straight in (IP-only ones still wait), as the person chose the file. */
@@ -314,6 +314,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const pairs = [];
   /* The devices this push has updated so far (a second record merged into one of them is then left alone). */
   const matched = new Set();
+  /* The devices this push updated or created, however they were found (asset id, serial number, name): Lansweeper still
+     lists them, for Gone from a source below. */
+  const inPush = new Set();
   const locs = s.locs || [];
   let taken = null;   /* codes and ids in use, read when the first new device is made */
   /* How many wait in Pending devices: a push cannot add more than REVIEW_MAX there (a wrong or stolen token would fill the inventory). */
@@ -388,8 +391,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     /* With "IP-only devices to review" on, a device named only by its IP address (no serial number) is never added
        straight away: it waits in Pending devices, like every new device does unless Settings adds them directly. */
     const ipOnly = !!s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial;
-    /* A device named by a DNS name (argonb35.corp.example) with no serial number, whose first part is the name of a device
-       here (ARGONB35), is most likely a second record of that device, left by a docking station's or a USB network adapter:
+    /* A device named by a DNS name (pc-nb35.corp.example) with no serial number, whose first part is the name of a device
+       here (PC-NB35), is most likely a second record of that device, left by a docking station's or a USB network adapter:
        it is never added straight away, whatever Settings says, so a person decides in Pending devices. */
     const twin = !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && ((byName.get(lc(r.name).split('.')[0]) || []).some(o => o.status !== 'retired') || pushed.has(lc(r.name).split('.')[0]));
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
@@ -474,13 +477,13 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       /* Every value it came with is Lansweeper's. */
       for (const k of [...FEED_FIELDS, 'user', 'loc']) if (obj[k]) markSource(obj, k, 'ls');
       for (const k of FEED_FIELDS) noteValue(obj, k, 'ls', obj[k], r.scanned || seen);
-      s.objs.push(obj); index(obj);
+      s.objs.push(obj); index(obj); inPush.add(obj);
       pairs.push({ r, obj });
       counts.created++;
       if (obj.review) counts.review = (counts.review || 0) + 1;
       continue;
     }
-    pairs.push({ r, obj: found }); matched.add(found.id);
+    pairs.push({ r, obj: found }); matched.add(found.id); inPush.add(found);
     const wasLinked = !!found.feed;
     /* linked: when this inventory's device was first matched to the Lansweeper asset. */
     if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen, linked: seen, assetType: r.assetType || '' };
@@ -557,6 +560,29 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }
+  }
+  /* Which devices Lansweeper still lists. A push sends every active asset, in batches, each day: a device gets the day it
+     was last in one (feed.inPush, written once a day), and the day counts how many devices it brought (n). A day is
+     judged once the next one starts: brought at least half as many as the last full day, it is a full day (full), and
+     the page compares each device with it, so a device Lansweeper no longer sends shows as gone; far fewer (a query that
+     failed, a filter set too tight) and it is set aside (short), said under Health, and nothing is found gone by it.
+     A file uploaded by hand is not the whole list and says nothing about what is gone. since: the day this started. */
+  if (!byHand && records.length) {
+    const day = now.toISOString().slice(0, 10);
+    let present = 0;
+    /* A record merged into a device (a reinstall) updated that device above, so it is among them; a dock's record is not. */
+    for (const o of inPush) if (o.feed && o.feed.inPush !== day) { o.feed.inPush = day; present++; }
+    const was = s.lsPresence || {};
+    let next = was;
+    if (was.day !== day) {
+      next = { day, n: 0, since: was.since || day, ...(was.full ? { full: was.full } : {}), ...(was.short ? { short: was.short } : {}) };
+      if (was.day && typeof was.n === 'number') {
+        if (!was.full || was.n >= was.full.n / 2) { next.full = { day: was.day, n: was.n }; delete next.short; }
+        else next.short = { day: was.day, n: was.n, of: was.full.n };
+      }
+    }
+    if (present || next !== was) s.lsPresence = { ...next, n: (next.n || 0) + present };
+    if (present || next !== was) counts.present = present || 1;
   }
   counts.people = applyDepartments(s, cleaned);
   /* A person Lansweeper made who is someone else's login too (the directory's, Entra's): one record again. */

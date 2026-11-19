@@ -13,6 +13,8 @@ COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.cont
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
+import { bindListViews, listViewsMenuHtml } from './views-saved.js';
+import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './view-search.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 /* An amount in the inventory's currency: whole numbers without decimals, others with two. */
@@ -72,17 +74,19 @@ function costSummary(all){
 /* The Contracts tab: the costs per year, then the contracts the search and Only due leave, with the yearly total of the
    running ones. New and Delete are for admins. */
 export function renderContracts(){
-  const q = (st.q || '').trim().toLowerCase();
+  const q = (st.q || '').trim(), words = qWords(q);
   const all = COSTS.contracts;
-  const hit = c => !q || [c.name, c.supplier, c.ref, CONTRACT_KINDS[c.kind], c.note, ...(c.contacts || []).map(id => (contactOf(id) || {}).name)].some(v => String(v || '').toLowerCase().includes(q))
-    || (c.devices || []).some(id => (byId(id) || {}).name?.toLowerCase().includes(q));
+  /* Every word in the contract: its name, number, kind, supplier, note, contacts, or the devices it covers (name,
+     inventory number, serial number, user). */
+  const hit = c => matchWords([c.name, c.supplier, c.ref, CONTRACT_KINDS[c.kind], c.note, ...(c.contacts || []).map(id => (contactOf(id) || {}).name),
+    ...(c.devices || []).map(byId).filter(Boolean).flatMap(o => [o.name, o.code, o.serial, o.user])], words);
   /* "Only due": the contracts that need someone now, notice due soon or already passed. */
   const needs = c => ['soon', 'late'].includes(contractStatus(c).state);
   const rows = sorted(all.filter(c => hit(c) && (!st.ctDue || needs(c))));
   const live = all.filter(c => runningNow(c));
   const year = live.reduce((t, c) => t + yearlyCost(c), 0);
   const due = contractsDue().length, late = contractsLate().length;
-  $('#toolbar').innerHTML = html`<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? html`<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${String(!!st.ctDue)}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
+  $('#toolbar').innerHTML = html`<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${all.length ? viewSearchHtml('Contract, supplier, number or device', 'Search the contracts') : ''}${all.length ? rawHtml(listViewsMenuHtml('contracts')) : ''}${due || late ? html`<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${String(!!st.ctDue)}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
     ${isAdmin() ? html`<button id="ctNew" class="primary">New contract</button>` : ''}`;
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   if (!all.length){
@@ -92,8 +96,8 @@ export function renderContracts(){
   }
   $('#view').innerHTML = html`${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
       <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Notice by</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
-    ${rows.length ? rows.map(({ c }) => html`<tr><td title="${c.name}"><button class="link" data-contract="${c.id}"><b>${c.name}</b></button>${c.ref ? html` <span class="mono muted">${c.ref}</span>` : ''}</td>
-      <td>${CONTRACT_KINDS[c.kind]}</td><td>${c.supplier || ''}${contactsLine(c)}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
+    ${rows.length ? rows.map(({ c }) => html`<tr><td title="${c.name}"><button class="link" data-contract="${c.id}"><b>${markHtml(c.name, words)}</b></button>${c.ref ? html` <span class="mono muted">${markHtml(c.ref, words)}</span>` : ''}</td>
+      <td>${CONTRACT_KINDS[c.kind]}</td><td>${markHtml(c.supplier || '', words)}${contactsLine(c)}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
       <td class="num">${c.cost > 0 ? html`${rawHtml(money(c.cost))} <span class="muted">${PERIODS[c.per || 'year']}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
       <td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-contract="${c.id}"`), c.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-ctdel="${c.id}"`), c.name)) : ''}</span></td></tr>`)
       : html`<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue && !st.q ? 'No contract needs anyone now.' : rawHtml(noMatchHtml())}</td></tr>`}
@@ -102,6 +106,7 @@ export function renderContracts(){
   $('#view').querySelectorAll('[data-ctcontact]').forEach(b => b.onclick = () => { const k = contactOf(b.dataset.ctcontact); if (k) contactModal(k); });
   $('#view').querySelectorAll('[data-ctdel]').forEach(b => b.onclick = () => { const c = COSTS.contracts.find(x => x.id === b.dataset.ctdel); if (c) deleteContract(c); });
   const db = $('#ctDueBtn'); if (db) db.onclick = () => { st.ctDue = !st.ctDue; renderContracts(); };
+  bindViewSearch(renderContracts); bindListViews();
 }
 
 /* The contacts of a contract that are still in Contacts, as a short line under its supplier. */

@@ -46,8 +46,8 @@ export function registerApiRoutes(app, { db, requireUser, requireAdmin, throttle
     if (q) list = list.filter(o => [o.code, o.name, o.serial, o.model, o.ip, o.mac].some(v => v && String(v).toLowerCase().includes(q)));
     const out = list.map(o => apiDevice(o, s, { people: req.apiToken.people }));
     if (req.query.format === 'csv') {
-      const cols = ['id', 'code', 'name', 'typeLabel', 'model', 'serial', 'status', 'location', 'ip', 'mac', 'os', 'purchased', 'warranty', ...(req.apiToken.people ? ['user', 'department'] : [])];
-      return res.type('text/csv').send('\ufeff' + [cols.join(','), ...out.map(d => cols.map(c => csvCellApi(d[c])).join(','))].join('\r\n'));
+      const cols = ['id', 'code', 'name', 'typeLabel', 'model', 'serial', 'status', 'location', 'ip', 'mac', 'os', 'purchased', 'warranty', ...(req.apiToken.people ? ['user', 'department'] : []), 'goneFrom'];
+      return res.type('text/csv').send('\ufeff' + [cols.join(','), ...out.map(d => cols.map(c => csvCellApi(Array.isArray(d[c]) ? d[c].join(' ') : d[c])).join(','))].join('\r\n'));
     }
     res.json({ count: out.length, devices: out });
   });

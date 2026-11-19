@@ -156,7 +156,7 @@ export function mapInner(L){
 export function mapLegend(L){
   const types = [...new Set(L.list.map(o => o.type))];
   return html`<details class="maplegend" aria-label="Map key"><summary>Legend</summary><div class="lgbody">
-    <b>Boxes</b><div class="lgtypes">${types.map(t => html`<span>${rawHtml(tico(t, 'tico sm'))}${TYPES[t].label}</span>`)}</div>
+    <b>Boxes</b><div class="lgtext">Coloured by kind: computers blue, servers violet, network teal, phones green, the rest neutral.</div><div class="lgtypes">${types.map(t => html`<span>${rawHtml(tico(t, 'tico sm'))}${TYPES[t].label}</span>`)}</div>
     <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links, or a line to read its label. The chain runs left to right from the top.</div></div></details>`;
 }
 export function mapApply(){

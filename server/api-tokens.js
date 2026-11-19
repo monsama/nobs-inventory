@@ -4,6 +4,7 @@
    minute), and a token can be revoked at any time. */
 import crypto from 'node:crypto';
 import { CONTRACT_KINDS, contractStatus, licenceUse } from '../public/js/costs.js';
+import { sourcesOfWith } from '../public/js/gone.js';
 
 const digest = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 export const TOKEN_PREFIX = 'nobs_';
@@ -45,6 +46,8 @@ export function apiDevice(o, s, { people = false } = {}) {
     location: o.loc || '', ip: o.ip || '', mac: o.mac || '', os: o.os || '', purchased: o.purchased || '', warranty: o.warranty || '',
     ...(people ? { user: (u && u.name) || o.user || '', department: (u && u.dept) || '' } : {}),
     intune: o.graph && !o.graph.gone ? { compliance: o.graph.compliance || '', encrypted: o.graph.encrypted || '', lastCheckIn: o.graph.lastCheckIn || '' } : null,
+    /* The sync sources that had the device and no longer list it (ls, ad, graph), as Gone from a source in the page. */
+    goneFrom: o.status === 'retired' ? [] : sourcesOfWith(o, s.lsPresence).filter(x => x.gone).map(x => x.src),
   };
 }
 export const csvCellApi = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };

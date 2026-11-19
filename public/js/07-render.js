@@ -1,7 +1,7 @@
 /* Drawing: the open tab, the status bar, back and forward, keyboard shortcuts. Saving, loading and signing in live in
    server-save.js, server-load.js and signin.js; their names are exported from here too, so importers need not change. */
 import { renderBell } from './06-topbar.js';
-import { evEl, $$, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
+import { evEl, $$, lsLive, LS_USED, SYNC, daysSince, withDrawCache, TYPE_KINDS, TYPES, tcol } from './01-core.js';
 import { updateSync, bindFullTextOnHover, fullTextTooltips, $, byId, objs, st } from './01-core.js';
 import { html } from './html.js';
 import { applyRole, isAdmin, ownOnly } from './04-settings.js';
@@ -34,7 +34,7 @@ let drawing = false, drawAgain = null;
 export function render(opts = {}){
   if (drawing){ drawAgain = { save: (drawAgain ? drawAgain.save : false) || opts.save !== false }; return; }
   drawing = true;
-  try { renderNow(opts); }
+  try { withDrawCache(() => renderNow(opts)); }
   finally { drawing = false; }
   if (drawAgain){ const again = drawAgain; drawAgain = null; render(again); }
 }
@@ -76,12 +76,13 @@ function renderNow({ save = true } = {}){
   renderBell(save);
   applyRole();
   noteNav();
+  followAddress();
   if (save) saveData();
 }
 /* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
    and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
-const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'seen', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids', 'handField'];
+const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'seen', 'gone', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids', 'handField'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
 let navRestoring = false;
 function noteNav(){
@@ -90,6 +91,15 @@ function noteNav(){
   if (!was) { history.replaceState(now_, ''); return; }
   if (NAV_KEYS.some(k => (was[k] ?? null) !== now_[k])) history.pushState(now_, '');
   else if (was.q !== now_.q) history.replaceState(now_, '');
+}
+/* The address names what is open, so it can be copied, bookmarked or reloaded: ?o=INV-0001 for a device (its page
+   opens), ?v=table for a view other than the first one; a page of Settings keeps its #settings/… after it. Only the
+   current step of the history is changed. */
+function followAddress(){
+  if (typeof history === 'undefined' || !st.meId) return;
+  const o = st.tab in FIXED_TABS ? null : byId(st.tab), home = ownOnly() ? 'mine' : 'cards';
+  const want = o ? '?o=' + encodeURIComponent(o.code || o.id) : st.tab && st.tab !== home && st.tab in FIXED_TABS ? '?v=' + encodeURIComponent(st.tab) : '';
+  if (location.search !== want) try { history.replaceState(history.state, '', location.pathname + want + location.hash); } catch { /* not kept */ }
 }
 /* After an Undo the view is drawn again from the data, so nothing shows the state that was undone. */
 document.addEventListener('ni:undone', () => view());
@@ -144,7 +154,7 @@ export function renderStatus(){
   sync.title = late ? `Lansweeper has not sent data for ${Math.floor(last.days)} days. Check the push on the Lansweeper server.` : 'The last time Lansweeper sent data.';
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
-const SHORTCUTS = [['N','New device'],['Click','On a device in the list: open it (its tick, Ctrl + click or Shift + click select)'],['↑ ↓','In the list: move between devices'],['Ctrl + A','Select every device shown'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','List'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Ports ↔ IP addresses, Contracts → Software → Contacts'],['M','Relations map'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog, or the open device'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relations map'],['?','This list']];
+const SHORTCUTS = [['N','New device'],['Click','On a device in the list: open it (its tick, Ctrl + click beside its name or Shift + click select)'],['↑ ↓','In the list: move between devices'],['Ctrl + A','Select every device shown'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search: a list\'s own search field (Software, Contracts, Contacts), else the one at the top (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','List'],['T','Table'],['V','Next view of the tab: List ↔ Table, Ports ↔ IP addresses, Contracts → Software → Contacts'],['M','Relations map'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog, or the open device'],['Ctrl + A','List and Table: select every device shown (Esc clears)'],['Ctrl + click','On a device\'s name, a view or a page of Settings: open it in a new browser tab (also the middle button). Beside a name in the list: select it; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relations map'],['?','This list']];
 /* What the colours of states mean: the same everywhere (badges, dots, chips, bars). */
 const COLOURS = [['', 'Green', 'There and fine: in AD, joined to Entra, compliant, Defender active, in use, synced'],
   ['warn', 'Amber', 'Needs a look: only registered in Entra, grace period, inactive, medium risk, ending soon'],
@@ -152,7 +162,10 @@ const COLOURS = [['', 'Green', 'There and fine: in AD, joined to Entra, complian
   ['off', 'Grey ring', 'Not there or off: not joined, not managed, not onboarded, in stock, a source turned off'],
   ['gone', 'Grey', 'Done: retired']];
 const coloursTable = () => html`<table class="grid mini colours keys" style="min-width:0"><tbody>${COLOURS.map(([c, l, t]) => html`<tr><td><span class="dot ${c}"></span> <b>${l}</b></td><td>${t}</td></tr>`)}</tbody></table>
-  <p class="note">Blue marks links, the selection and actions, never a state.</p>`;
+  <p class="note">Blue marks links, the selection and actions, never a state.</p>
+  <div class="hdr" style="margin-top:12px">Device types</div>
+  <p class="note">The colour of a type says its kind. A colour picked under Settings → Device types is shown as picked.</p>
+  <table class="grid mini colours" style="min-width:0"><tbody>${TYPE_KINDS.map(([kind, , list]) => html`<tr><td><b>${kind}</b></td><td class="tk-list">${list.filter(t => TYPES[t]).map(t => html`<span class="tk"><i style="background:${tcol(t)}"></i>${TYPES[t].label}</span>`)}</td></tr>`)}</tbody></table>`;
 export function coloursModal(){
   modal(html`<div class="mh">What the colours mean</div><div class="mb">${coloursTable()}</div>
     <div class="mf"><button id="clClose" class="primary">Done</button></div>`, 'sm');
@@ -177,7 +190,8 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
   /* / goes to the search, which also filters the list open. */
-  if (e.key === '/'){ e.preventDefault(); $('#search').focus(); return; }
+  /* A list with a search field of its own (Software, Contracts, Contacts): / goes there; elsewhere to the one at the top. */
+  if (e.key === '/'){ e.preventDefault(); const own = /** @type {HTMLInputElement|null} */ ($('#vq')); if (own){ own.focus(); own.select(); } else $('#search').focus(); return; }
   if (key === 'n' && isAdmin()){ e.preventDefault(); newObjModal(); return; }
   /* V: the next view of a tab that has a switch (Devices: Cards ↔ Table; Contracts: Contracts → Software → Contacts). */
   if (key === 'v'){ const b = [...$$('[data-vsw]')], i = b.findIndex(x => x.dataset.vsw === st.tab); if (b.length > 1 && i >= 0){ e.preventDefault(); b[(i + 1) % b.length].click(); } return; }

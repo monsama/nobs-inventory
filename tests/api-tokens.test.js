@@ -28,10 +28,11 @@ test('an API token reads the devices (people only when made with them), nothing 
     const j = await (await get('/api/v1/devices', plain.token)).json();
     assert.equal(j.count, 2, 'not the one waiting in Pending devices');
     assert.equal(j.devices[0].user, undefined, 'no names without the people choice');
+    assert.ok(j.devices.every(d => Array.isArray(d.goneFrom)), 'each device says which sources no longer list it');
     const k = await (await get('/api/v1/devices?status=active', named.token)).json();
     assert.deepEqual(k.devices.map(d => [d.code, d.user, d.department]), [['INV-0001', 'Anna Muster', 'Sales']]);
     const csv = await (await get('/api/v1/devices?format=csv', plain.token)).text();
-    assert.match(csv, /^\ufeff?id,code,name/); assert.match(csv, /'PC-=2|PC-=2/); assert.ok(!csv.includes(',=') , 'no formula at the start of a cell');
+    assert.match(csv, /^\ufeff?id,code,name/); assert.match(csv.split('\r\n')[0], /,goneFrom$/); assert.match(csv, /'PC-=2|PC-=2/); assert.ok(!csv.includes(',=') , 'no formula at the start of a cell');
     assert.equal((await (await get('/api/v1/devices/SN1', plain.token)).json()).code, 'INV-0001');
     assert.equal((await get('/api/v1/devices/INV-0003', plain.token)).status, 404);
     // contracts, licences, and people for a token made with them

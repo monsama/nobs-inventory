@@ -585,8 +585,8 @@ const defenderOf = (m, at) => ({ health: clean(m.healthStatus), onboarding: clea
   exposure: clean(m.exposureLevel), av: clean(m.defenderAvStatus), lastSeen: clean(m.lastSeen), seen: at });
 /* Each device gets the Defender machine that is it: by its Entra device id (from Graph), else by its name or the first
    part of the machine's DNS name. Of two machines with one name, the one seen last. A device named by a DNS name
-   (argonb35.corp.example, a docking station's second record) gets it by name only when no device is named by its
-   first part: like AD, Defender belongs to ARGONB35 itself. A device Defender does not have any more loses what Defender said.
+   (pc-nb35.corp.example, a docking station's second record) gets it by name only when no device is named by its
+   first part: like AD, Defender belongs to PC-NB35 itself. A device Defender does not have any more loses what Defender said.
    Returns how many devices Defender has. */
 export function applyDefender(s, machines, now = new Date()) {
   const at = stamp(now), byAad = new Map(), byName = new Map();

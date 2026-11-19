@@ -1,4 +1,5 @@
 import { pad2, stamp, stampTime } from './dates.js';
+import { goneAllWith, sourcesOfWith } from './gone.js';
 import { html } from './html.js';
 import { graphSeen, isIntune, otherManager } from './intune.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
@@ -48,26 +49,26 @@ export const svg = (t, cls='i') => {
 /* ---------- reference data ---------- */
 /* Object types are data: name, short name, colour and icon. Edited in Settings → Device types. */
 export const TYPES = {
-  pc:{label:'PC', short:'PC', color:'#1565c0', icon:'pc'},
-  notebook:{label:'Notebook', short:'NB', color:'#2563eb', icon:'laptop'},
-  server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
+  pc:{label:'PC', short:'PC', color:'#2563eb', icon:'pc'},
+  notebook:{label:'Notebook', short:'NB', color:'#1d4ed8', icon:'laptop'},
+  server:{label:'Server', short:'Server', color:'#6d28d9', icon:'server'},
   vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
   accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
-  sip:{label:'VoIP phone', short:'VoIP', color:'#15803d', icon:'sip'},
-  pbx:{label:'Telephone system', short:'PBX', color:'#0f766e', icon:'pbx'},
+  sip:{label:'VoIP phone', short:'VoIP', color:'#16a34a', icon:'sip'},
+  pbx:{label:'Telephone system', short:'PBX', color:'#15803d', icon:'pbx'},
   monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
-  switch:{label:'Switch', short:'Switch', color:'#c2410c', icon:'switch'},
-  printer:{label:'Printer', short:'Printer', color:'#a16207', icon:'printer'},
+  switch:{label:'Switch', short:'Switch', color:'#0d9488', icon:'switch'},
+  printer:{label:'Printer', short:'Printer', color:'#78716c', icon:'printer'},
   patch:{label:'Patch panel', short:'Patch', color:'#0f766e', icon:'patch'},
-  router:{label:'Router', short:'Router', color:'#1e3a8a', icon:'router'},
-  firewall:{label:'Firewall', short:'Firewall', color:'#b91c1c', icon:'firewall'},
-  modem:{label:'Modem', short:'Modem', color:'#78716c', icon:'modem'},
-  storage:{label:'Storage', short:'Storage', color:'#0891b2', icon:'storage'},
-  android:{label:'Android device', short:'Android', color:'#4d7c0f', icon:'mobile'},
-  ios:{label:'iOS device', short:'iOS', color:'#a21caf', icon:'mobile'},
-  mobile:{label:'Other mobile device', short:'Mobile', color:'#0d9488', icon:'mobile'},
-  plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
-  camera:{label:'Camera / Recorder', short:'Camera', color:'#9333ea', icon:'camera'},
+  router:{label:'Router', short:'Router', color:'#0e7490', icon:'router'},
+  firewall:{label:'Firewall', short:'Firewall', color:'#155e75', icon:'firewall'},
+  modem:{label:'Modem', short:'Modem', color:'#57534e', icon:'modem'},
+  storage:{label:'Storage', short:'Storage', color:'#5b21b6', icon:'storage'},
+  android:{label:'Android device', short:'Android', color:'#65a30d', icon:'mobile'},
+  ios:{label:'iOS device', short:'iOS', color:'#059669', icon:'mobile'},
+  mobile:{label:'Other mobile device', short:'Mobile', color:'#047857', icon:'mobile'},
+  plc:{label:'PLC / Controller', short:'PLC', color:'#86198f', icon:'plc'},
+  camera:{label:'Camera / Recorder', short:'Camera', color:'#52525b', icon:'camera'},
   bmc:{label:'iLO / iDRAC', short:'iLO', color:'#4f46e5', icon:'bmc'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
@@ -331,7 +332,7 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
-export const st = {scope:null, rvWhy:'', newWeek:false, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','prn','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
+export const st = {scope:null, rvWhy:'', newWeek:false, rvSrc:'', rvKnown:false, rvOld:false, gone:null, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','prn','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFocus:null, mapPos:{},
   policy:/** @type {Record<string, boolean>} */ ({ ...DEFAULT_POLICY }),
   ldap:/** @type {Record<string, any>} */ ({url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}), lansweeper:{}};
@@ -468,14 +469,15 @@ export const joinBadges = o => {
   const g = SYNC.graph && o.graph && !o.graph.gone ? o.graph : null, j = g ? joinOf(o) : o.inAd ? 'AD joined' : '';
   const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && isIntune(g.managed));
   const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
-  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b>${label}</b><small>${esc(state)}</small></span>`;
+  /* data-s: the short label the List's narrow Directory column shows (Def for Defender). */
+  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b data-s="${label === 'Defender' ? 'Def' : label}">${label}</b><small>${esc(state)}</small></span>`;
   const tips = [
     ad ? (o.inAd ? 'Active Directory: has a computer account' + (j === 'Hybrid joined' ? ', hybrid joined' : '') : 'Active Directory: hybrid joined') : 'Active Directory: no computer account found',
     en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
     it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? `Microsoft Intune: not managed${otherManager(g.managed) ? ' (' + otherManager(g.managed) + ')' : ''}` : 'Microsoft Intune: not managed',
   ];
   /* Without Microsoft Graph set up this app cannot know Entra or Intune: those two say so instead of "not joined". */
-  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b>${label}</b><small>not checked</small></span>`;
+  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b data-s="${label}">${label}</b><small>not checked</small></span>`;
   if (!SYNC.graph) { tips[1] = 'Microsoft Entra ID (Azure AD): not known, Microsoft Graph is not set up'; tips[2] = 'Microsoft Intune: not known, Microsoft Graph is not set up'; }
   /* Defender for Endpoint, once it has been read (Settings): active and low risk is green, inactive or medium risk amber,
      high risk red. */
@@ -505,7 +507,14 @@ export function defenderState(o){
    computer it has not scanned yet). */
 export const reviewStale = o => { const s = lastSeenOf(o); return !!s && s.days > REVIEW_STALE_DAYS; };
 /* The latest a source saw the device: {src, day, at, days}, days counted to today. null when no source has a date. */
-export function lastSeenOf(o){
+/* Worked out once per device while the page is drawn: the sidebar counts and the list ask the same of every device.
+   Only while drawing (withDrawCache), each draw afresh, so anything asked outside a draw is always worked out anew. */
+let drawGen = 0, cacheOn = false;
+/** @template T @param {() => T} fn @returns {T} */
+export function withDrawCache(fn){ const was = cacheOn; if (!was){ cacheOn = true; drawGen++; } try { return fn(); } finally { if (!was) cacheOn = false; } }
+const perDraw = fn => { let gen = -1, map = new WeakMap(); return o => { if (!cacheOn || !o || typeof o !== 'object') return fn(o); if (gen !== drawGen){ gen = drawGen; map = new WeakMap(); } if (map.has(o)) return map.get(o); const v = fn(o); map.set(o, v); return v; }; };
+export const lastSeenOf = perDraw(o => lastSeenNow(o));
+function lastSeenNow(o){
   /* Intune's date only for a device Intune manages, Entra's for its sign-in (intune.js graphSeen). */
   const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ...graphSeen(o.graph),
     ['Defender', o.defender && o.defender.lastSeen], ['Autopilot', o.autopilot && o.autopilot.lastContact]]
@@ -523,6 +532,21 @@ export const SEEN_FILTERS = {
   never: ['Never seen by a source', o => !lastSeenOf(o)],
   d30: ['Not seen for 30 days', o => { const s = lastSeenOf(o); return !!s && s.days > 30; }],
   d90: ['Not seen for 90 days', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
+};
+/* Gone from a source: the rule is in gone.js, shared with the server; here with the page's newest push day. */
+export { SOURCE_NAMES } from './gone.js';
+/** @returns {{src: string, name: string, gone: boolean, when: string}[]} */
+export const sourcesOf = perDraw(o => sourcesOfWith(o, st.lsPresence));
+export const goneFrom = o => o.status === 'retired' ? [] : sourcesOf(o).filter(x => x.gone);
+/* Gone from a source, under More filters: from one source in particular, from at least one, or from every source the
+   device was in (nothing lists it any more). [label, test]. */
+/** @type {Record<string, [string, (o: any) => boolean]>} */
+export const GONE_FILTERS = {
+  any: ['From any source', o => goneFrom(o).length > 0],
+  all: ['From every source it was in', o => goneAllWith(o, st.lsPresence)],
+  ls: ['From Lansweeper', o => goneFrom(o).some(x => x.src === 'ls')],
+  ad: ['From Active Directory', o => goneFrom(o).some(x => x.src === 'ad')],
+  graph: ['From Entra & Intune', o => goneFrom(o).some(x => x.src === 'graph')],
 };
 /* Data quality: what a device of the inventory lacks, or where its sources disagree. The Overview counts each, and a
    click lists them (st.quality). [name, what it means, test]. A responsible is asked for once there are internal contacts. */
@@ -599,8 +623,8 @@ export function sourceText(o, k, src = sourceOf(o, k)){
   if (src === 'unknown') return 'Where this value came from is not known: it was set before the sources were noted';
   return '';
 }
-/* The device a record named by a DNS name most likely stands for: argonb35.corp.example with no serial number, when a
-   device here is named ARGONB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
+/* The device a record named by a DNS name most likely stands for: pc-nb35.corp.example with no serial number, when a
+   device here is named PC-NB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
    adapter. A record marked as no duplicate (notTwin) has none, unless marked asks for the one it was marked against.
    Retired devices count on neither side; the device may also still wait in Pending devices. The names are indexed
    once per task, so a list of thousands stays quick. */
@@ -616,7 +640,7 @@ export function twinOf(o, { marked = false } = {}){
   const t = twinIdx.get(String(o.name).toLowerCase().split('.')[0]);
   return t && t.id !== o.id ? t : null;
 }
-/* The other way round: the probable second records of a device (argonb35.corp.example for ARGONB35), in the inventory or
+/* The other way round: the probable second records of a device (pc-nb35.corp.example for PC-NB35), in the inventory or
    still waiting in Pending devices. Indexed once per task, like twinOf. */
 let twinsIdx = null;
 export function twinsOf(o){
@@ -704,6 +728,10 @@ export const evEl = e => /** @type {El} */ (e.target);
 export const noMatchHtml = () => `${st.q && st.q.trim() ? `Nothing matches “${esc(st.q.trim())}”.` : 'Nothing matches these filters.'} <button type="button" class="link" data-clearall>Clear filters</button>`;
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* A type's colour goes into a style attribute: only a hex colour is used. */
+/* The built-in types by kind, as their colours group them (the help on colours and the map's key show it). */
+/** @type {[string, string, string[]][]} */
+export const TYPE_KINDS = [['Computers', 'blue', ['pc', 'notebook']], ['Servers', 'violet', ['server', 'vm', 'storage', 'bmc']], ['Network', 'teal', ['switch', 'router', 'firewall', 'accesspoint', 'patch']],
+  ['Phones', 'green', ['sip', 'pbx', 'android', 'ios', 'mobile']], ['The rest', 'neutral', ['monitor', 'printer', 'camera', 'plc', 'modem', 'rack', 'other']]];
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
 /* A type's icon; hovering it names the type (Notebook, PC, Server …). */
 export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" title="${esc(TYPES[t]?.label || t)}" style="--tc:${tcol(t)}">${svg(t)}</span>`;
@@ -828,7 +856,7 @@ const outletWords = o => {
 };
 export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
-export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
+export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.gone || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
 /* Why a device waits (15-review.js waitReason), set there: Pending devices is filtered by it. */
 let whyOf = null;
 export const setWhyOf = f => { whyOf = f; };
@@ -851,7 +879,7 @@ export function filtered(){
 }
 function filteredAsIs(q){
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.gone || !GONE_FILTERS[st.gone] || GONE_FILTERS[st.gone][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 

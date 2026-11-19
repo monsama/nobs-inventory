@@ -1,8 +1,8 @@
 /* Saved views: the device list's filters, search, columns and sort under a name, in the sidebar's Views. Admins save,
    edit and delete them (setting savedViews, shared by all), and can have one sent by mail as an Excel file
    (server/view-mail.js); everyone can open them. */
-import { VIEWS_MAX, VIEW_MAIL_EVERY, WEEKDAYS, applyViewFilters, hiddenFor, mailList, mailText, nextMail, removeView, renameView, sameView, serializeView, setViewMail, tableStateFor, upsertView, viewMailProblem } from './saved-views.js';
-import { $$, $, deleteButton, editButton, esc, rid, st, toast, toastUndo } from './01-core.js';
+import { VIEWS_MAX, VIEW_MAIL_EVERY, WEEKDAYS, isListView, applyViewFilters, hiddenFor, mailList, mailText, nextMail, removeView, renameView, sameView, serializeView, setViewMail, tableStateFor, upsertView, viewMailProblem } from './saved-views.js';
+import { $$, $, deleteButton, editButton, esc, menuHtml, rid, st, toast, toastUndo } from './01-core.js';
 import { flushSave, queueServerSave, render, view } from './07-render.js';
 import { dateTimeText, stamp } from './dates.js';
 import { html } from './html.js';
@@ -16,7 +16,7 @@ const TABLE_KEY = 'view:table:0';
 const views = () => Array.isArray(st.savedViews) ? st.savedViews : [];
 /* The view the device list shows now. */
 export const currentView = () => serializeView(st, { cols: tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k)).map(c => c.k), tv: TBL[TABLE_KEY] || null });
-const isShown = v => !st.scope && ['cards', 'table', 'map'].includes(st.tab) && sameView(currentView(), v);
+const isShown = v => !st.scope && ['cards', 'table', 'map', 'contracts', 'contacts'].includes(st.tab) && sameView(currentView(), v);
 
 /* The sidebar's Views: shown while there are any; the one the list shows now is marked, one sent by mail has an envelope
    (and says when it was last sent). */
@@ -27,7 +27,8 @@ const mailNote = v => {
   return `\nSent by mail ${mailText(v.mail)}${r ? `; last ${r.ok ? 'sent' : 'send failed'} ${dateTimeText(r.at)}` : ''}`;
 };
 export function renderSavedViews(){
-  const list = views(), hdr = $('#viewHdr'), box = $('#viewList');
+  /* The sidebar lists the views of the device lists; those of Contracts and Contacts are on their own toolbar. */
+  const list = views().filter(v => !isListView(v)), hdr = $('#viewHdr'), box = $('#viewList');
   if (!hdr || !box) return;
   hdr.hidden = box.hidden = !list.length;
   const admin = isAdmin();
@@ -36,6 +37,7 @@ export function renderSavedViews(){
 /* A view opened: every filter goes, then the view's filters, search, tab, columns, column filters and sort are put on. */
 export function restoreView(v){
   resetFilters();
+  if (isListView(v)){ applyViewFilters(v, st); view(); return; }
   st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set();
   applyViewFilters(v, st);
   setHiddenCols(hiddenFor(v, tableCols().filter(c => !c.fixed).map(c => c.k)));
@@ -58,9 +60,10 @@ function nameModal(title, name, note, ok){
 /* Save view…: the list as it is shown now, under a name; a view of that name is replaced. */
 export function saveViewModal(){
   const shown = views().find(isShown);
+  const listTab = ['contracts', 'contacts'].includes(st.tab);
   /* Another view of that name (not the one shown): said under the field first; Save again replaces it. */
   let sure = '';
-  nameModal('Save view', shown ? shown.name : '', 'Keeps the filters, the search, the columns shown, the column filters and the sort. Every user sees the view in the sidebar; a view of the same name is replaced.', name => {
+  nameModal('Save view', shown ? shown.name : '', listTab ? `Keeps the search and the filter of ${st.tab === 'contracts' ? 'Contracts' : 'Contacts'}. Every user finds the view under Views on this toolbar; a view of the same name is replaced.` : 'Keeps the filters, the search, the columns shown, the column filters and the sort. Every user sees the view in the sidebar; a view of the same name is replaced.', name => {
     const twin = views().find(v => v.name.toLowerCase() === name.toLowerCase());
     if (twin && twin !== shown && sure !== name.toLowerCase()){
       sure = name.toLowerCase();
@@ -179,3 +182,24 @@ if (side) side.addEventListener('click', e => {
     const v = views().find(x => x.id === open.dataset.savedview); if (v) restoreView(v);
   }
 });
+
+/* Views of Contracts and Contacts: a menu on their toolbar with the views saved for that tab (the one shown marked),
+   for admins Save view… and × to delete one. Hidden for a viewer while there is none. */
+export function listViewsMenuHtml(tab){
+  const list = views().filter(v => v.tab === tab), admin = isAdmin();
+  if (!list.length && !admin) return '';
+  const items = list.map(v => `<div class="svrow"><button type="button" class="${isShown(v) ? 'sel' : ''}" data-lvopen="${esc(v.id)}">${esc(v.name)}</button>${admin ? `<button type="button" class="icon ghost" data-lvdel="${esc(v.id)}" title="Delete the view ${esc(v.name)}" aria-label="Delete the view ${esc(v.name)}">×</button>` : ''}</div>`).join('');
+  const shown = list.find(isShown);
+  return menuHtml(shown ? esc(shown.name) : 'Views', `${items || '<p class="note" style="margin:6px 10px">No views yet.</p>'}${admin ? '<button type="button" id="lvSave">Save view…</button>' : ''}`, { id: 'lvMenu' });
+}
+export function bindListViews(){
+  const m = $('#lvMenu'); if (!m) return;
+  const close = () => { const box = m.querySelector('.menubox'); if (box) try { /** @type {HTMLElement} */ (box).hidePopover(); } catch { /* not open */ } };
+  m.addEventListener('click', e => {
+    const t = /** @type {HTMLElement} */ (e.target), open = t.closest('[data-lvopen]'), del = t.closest('[data-lvdel]');
+    if (t.closest('#lvSave')){ close(); saveViewModal(); return; }
+    if (del && isAdmin()){ const v = views().find(x => x.id === /** @type {HTMLElement} */ (del).dataset.lvdel); if (!v) return; close();
+      confirmModal('Delete view', html`Delete the view “${v.name}” for every user? Nothing else is touched.`, 'Delete', () => { st.savedViews = removeView(views(), v.id); queueServerSave(); render(); toast(`View “${v.name}” deleted`); }); return; }
+    if (open){ const v = views().find(x => x.id === /** @type {HTMLElement} */ (open).dataset.lvopen); close(); if (v) restoreView(v); }
+  });
+}

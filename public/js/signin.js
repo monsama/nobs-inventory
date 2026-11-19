@@ -63,10 +63,15 @@ async function loadFromServer(user){
   const m = /^#settings\/([\w-]+)$/.exec(location.hash);
   if (m && isAdmin() && SET_TABS.some(([k]) => k === m[1])){ st.setTab = m[1]; openSettings(); }
 }
-/* An address with ?o=INV-0001 (the link in a reported problem's e-mail): that device opens. */
+/* An address with ?o=INV-0001 (the link in a reported problem's e-mail, or a device opened in a new tab with Ctrl +
+   click): that device opens. ?v=table (a view opened in a new tab): that view. */
+/* The address as the page was opened: read once, after sign-in (the page's first drawing sets the address anew). */
+let linkedSearch = location.search;
 function openLinked(){
-  const code = linkedCode(location.search); if (!code) return;
-  history.replaceState(history.state, '', location.pathname + location.hash);
+  const search = linkedSearch; linkedSearch = '';
+  const v = /[?&]v=([\w-]+)/.exec(search);
+  if (v && st.tabIds.includes(v[1]) && !(ownOnly() && v[1] !== 'mine')){ st.tab = v[1]; render(); }
+  const code = linkedCode(search); if (!code) return;
   const o = objs.find(x => x.code === code) || objs.find(x => String(x.id) === code);
   if (o) openObjs([o.id]); else toast(`${code} is not in the inventory.`);
 }

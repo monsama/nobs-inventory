@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { NEW_DAYS, stampTime, addedRecently, SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen } from './01-core.js';
+import { NEW_DAYS, stampTime, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -12,7 +12,7 @@ import { USERS, isAdmin, ownOnly, seenSites } from './04-settings.js';
 import { sheetModal } from './08-sheets.js';
 import { handOutToModal, takeBackModal } from './27-handout.js';
 import { reviewDo, waitReason } from './15-review.js';
-import { QUALITY_FIX, qfix } from './views-table.js';
+import { QUALITY_FIX, qfix, tableShownList } from './views-table.js';
 import { renderSavedViews } from './views-saved.js';
 import { html, rawHtml } from './html.js';
 /* ---------- sidebar ---------- */
@@ -31,7 +31,8 @@ const MORE_KEY = 'ni-more-filters';
 const moreOpen = () => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } };
 /* Draws the sidebar: Pending devices, types, sites and rooms, More filters, the active one-off filters, status and the saved
    views, each with how many of the listed devices it holds. A click on an item is handled below. */
-export function renderSide(){
+export function renderSide(){ withDrawCache(drawSide); }
+function drawSide(){
   /* The left bar is the inventory's: Pending devices is a list of its own, with its filters over it (renderFilterBar). */
   $('#scopeHdr').hidden = $('#scopeList').hidden = true; $('#scopeList').innerHTML = '';
   /* The sidebar counts what the list shows: in Pending devices only while Cards, Table or the map show it. */
@@ -55,6 +56,12 @@ export function renderSide(){
   /* Warranty: devices whose warranty ends within 90 days, and those whose has ended. */
   $('#wtyList').innerHTML = html`${[['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'off'], ['ended', 'Ended', 'off']].map(([k, l, c]) => html`<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`)}`;
   $('#seenList').innerHTML = html`${Object.entries(SEEN_FILTERS).map(([k, [l, f]]) => html`<button class="item ${st.seen===k?'sel':''}" data-seen="${k}"><span class="dot ${k === 'd30' ? 'warn' : 'bad'}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(f)}</span></button>`)}`;
+  /* Gone from a source: one source in particular (only the sources some device has been in), any of them, or all of
+     the ones the device was in. Hidden while no device has ever been in a source. */
+  const inSrc = new Set(objs.flatMap(o => sourcesOf(o).map(x => x.src)));
+  const goneRows = Object.entries(GONE_FILTERS).filter(([k]) => k === 'any' || k === 'all' ? inSrc.size > 0 : inSrc.has(k));
+  $('#goneHdr').hidden = $('#goneList').hidden = !goneRows.length;
+  $('#goneList').innerHTML = html`${goneRows.map(([k, [l, f]]) => html`<button class="item ${st.gone===k?'sel':''}" data-gone="${k}"><span class="dot ${k === 'all' ? 'bad' : 'warn'}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(f)}</span></button>`)}`;
   /* Lansweeper: devices it has not scanned for three months, to be checked by hand. Shown while Lansweeper is in use. */
   const nOld = LS_USED() ? cnt(o => scanOld(o)) : 0;
   $('#chkHdr').hidden = $('#chkList').hidden = !LS_USED();
@@ -121,6 +128,7 @@ $('#side').addEventListener('click', e => {
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('seen' in b.dataset) st.seen = st.seen === b.dataset.seen ? null : b.dataset.seen;
+  if ('gone' in b.dataset) st.gone = st.gone === b.dataset.gone ? null : b.dataset.gone;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('newweek' in b.dataset) st.newWeek = !st.newWeek;
   if ('twins' in b.dataset) st.twins = !st.twins;
@@ -157,7 +165,7 @@ export function enterCheck(type = null){
   if (!LIST_TABS.includes(st.tab)) st.tab = 'cards';
 }
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.seen = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.seen = st.gone = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 /** A filter typed under a column of the device table counts too: Clear filters clears it. */
@@ -188,6 +196,7 @@ export function renderFilterBar(){
     st.live && ['live', '', 'Not retired'],
     st.warranty && ['warranty', 'Warranty', st.warranty === 'soon' ? `ends within ${WARRANTY_SOON_DAYS} days` : 'ended'],
     st.seen && SEEN_FILTERS[st.seen] && ['seen', 'Last seen', SEEN_FILTERS[st.seen][0].replace(/^Not seen/, 'not').replace(/^Never seen by a source/, 'never')],
+    st.gone && GONE_FILTERS[st.gone] && ['gone', 'Gone', GONE_FILTERS[st.gone][0].replace(/^From/, 'from')],
     st.scanOld && ['scanOld', '', 'Not scanned for 3 months'],
     st.twins && ['twins', 'Duplicates', 'by DNS name'],
     st.scope === 'review' && st.rvKnown && ['rvKnown', '', 'In AD or Entra'],
@@ -238,11 +247,17 @@ export function renderFilterBar(){
   const clear = list && st.scope === 'review' && isAdmin() ? filtered().filter(o => waitReason(o).clear) : [];
   const groups = typeSum(clear);
   const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait fb-ckrow"><b>Add at once</b><span class="muted">${clear.length} shown with nothing unclear</span>${groups.map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
-  bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar;
-  bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${scope}${addBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
+  /* Gone from a source: the devices listed can be retired in one go (admins, in the inventory's lists). */
+  const goneN = list && !st.scope && st.gone && isAdmin() ? goneShown().length : 0;
+  const goneBar = !goneN ? '' : html`<div class="fb-person fb-wait"><b>${goneN} ${goneN === 1 ? 'device' : 'devices'} gone</b><span class="muted">check where they are, then retire the ones no longer there</span><span class="grow"></span><button type="button" data-goneretire="1">Retire these ${goneN}…</button></div>`;
+  bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar && !goneBar;
+  bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${scope}${addBar}${goneBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
+/* The devices a Gone from list shows, not retired: in the Table only the rows its column filters leave. */
+const goneShown = () => ((st.tab === 'table' && tableShownList()) || filtered()).filter(o => o.status !== 'retired');
 $('#fbar').addEventListener('click', e => {
   if (e.target.closest('[data-gowait]')){ enterCheck(); view(); return; }
+  if (e.target.closest('[data-goneretire]')){ import('./gone-retire.js').then(m => m.retireGoneModal(goneShown())); return; }
   if (e.target.closest('[data-waitok]')){ markPendingSeen(); view(); return; }
   /* Pending devices's own filters: why they wait, which source found them, the ignored ones. */
   const ck = e.target.closest('[data-ckwhy], [data-cksrc], [data-ckign]');
@@ -305,7 +320,7 @@ export const sidePinned = () => { let v = null; try { v = localStorage.getItem('
 export function placeSide(){
   document.body.classList.toggle('side-drawer', !sidePinned());
   const pin = $('#sidePin'); if (pin) { pin.textContent = sidePinned() ? 'Hide' : 'Keep open'; pin.title = sidePinned() ? 'Show the filters only when Filters is pressed' : 'Keep the filters open beside the list'; }
-  const n = $('#sideN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; }
+  const n = $('#sideN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.gone, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; }
 }
 /* The Filters button says whether the drawer is open, however it closes (Escape, a tap beside it, a filter picked). */
 new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('aria-expanded', String(document.body.classList.contains('side-open'))); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });

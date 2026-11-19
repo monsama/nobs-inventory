@@ -1,10 +1,10 @@
 /* Settings → Data sources: who wins when several sources know a field, for all of them (All fields) and for one (Fields
    from this source, on its own tab), and what else each brings. Drawn from sync-map.js (the lists the syncs themselves
    use) and from the current settings, so it changes with them and is never out of date. */
-import { $$, $, DEFAULT_POLICY, FIELD_LABEL, SYNC, objs, st, toastUndo } from './01-core.js';
+import { $$, $, DEFAULT_POLICY, FIELD_LABEL, GONE_FILTERS, SYNC, dayText, objs, st, toastUndo } from './01-core.js';
 import { closeModal, modal } from './19-modal.js';
 import { LS_FILL, MODES, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldMode, fieldOrder, maySet } from './sync-map.js';
-import { queueServerSave, render } from './07-render.js';
+import { queueServerSave, render, view } from './07-render.js';
 import { isAdmin, renderSetPane } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { bindPolicy, policyGrid } from './03-object-modals.js';
@@ -179,6 +179,19 @@ function redraw(){ renderSetSources(); renderSourceFields(); }
 
 /* Settings → Data sources → All fields: the field rules of every source in one place, with the quick setups, and what
    else each source brings. Each source's own state and settings are on its own tab. */
+/* Gone devices, per source: how each one finds that a device has gone (since when for Lansweeper, the last full push
+   and its size, a push or an AD read set aside as short), how many are gone now, and a button to list them. */
+function goneHtml(on){
+  const P = st.lsPresence, live = objs.filter(o => o.status !== 'retired');
+  const n = k => live.filter(GONE_FILTERS[k][1]).length;
+  const rows = [
+    ['ls', 'Lansweeper', on.ls, !P ? 'Starts with the next push: each day notes the devices it brought.' : `Followed since ${dayText(P.since)}.${P.full ? ` Last full push ${dayText(P.full.day)}, ${P.full.n} devices.` : ' The first full push day is known once the next day starts.'}${P.short ? ` The push of ${dayText(P.short.day)} brought only ${P.short.n} of about ${P.short.of} devices and was set aside.` : ''} A device not in the full pushes of two days is gone.`],
+    ['ad', 'Active Directory', on.ad, `A device whose computer account is no longer found is gone, from the sync that sees it.${st.adShort ? ` The read of ${dayText(st.adShort.day)} found only ${st.adShort.n} of ${st.adShort.of} accounts and was set aside.` : ''}`],
+    ['graph', 'Entra & Intune', on.graph, 'A device the sync no longer finds in Entra or Intune is gone.'],
+  ].filter(r => r[2]);
+  if (!rows.length) return '';
+  return html`<div class="panelbox"><div class="hdr">Gone devices <span class="cnt">${n('any')} gone from a source · ${n('all')} from all</span></div><div class="ds-gone">${rows.map(([k, label, , how]) => html`<div class="ds-gonerow"><b>${label}</b><span class="note">${how}</span><button type="button" data-dsgone="${k}" ${n(k) ? '' : 'disabled'}>${n(k) ? `Show ${n(k)}` : 'None gone'}</button></div>`)}</div></div>`;
+}
 export function renderSetSources(){
   const root = $('#setSources'); if (!root) return;
   const on = sourcesOn(), edit = isAdmin();
@@ -196,11 +209,13 @@ export function renderSetSources(){
     <dl class="ds-dl">${list.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></div>`);
 
   root.innerHTML = html`<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">Where the inventory's data comes from. Each is optional and only read, never written to: set up the ones you have.</p><div class="ds-srcs">${srcs}</div></div>
+${goneHtml(on)}
     <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote(edit)}${presets}<details class="ds-adv" id="dsAdv" ${custom || advOpen ? 'open' : ''}><summary>Advanced: field by field</summary><div class="ds-scroll">${matrixHtml(on)}</div>${reset}</details></div>
     <details class="panelbox fold ds-beyond"><summary class="hdr">Beyond the fields <span class="cnt">what else each source brings</span></summary><div class="ds-cards ds-wide">${extras}</div></details>
     <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></div>
     <div class="panelbox"><div class="hdr">Never</div><ul class="ds-never">${NEVER.map(n => html`<li>${n}</li>`)}</ul></div>`;
 
+  root.querySelectorAll('[data-dsgone]').forEach(b => b.onclick = () => { closeModal(); resetFilters(); st.scope = null; st.gone = /** @type {HTMLElement} */ (b).dataset.dsgone; st.tab = 'cards'; view(); });
   root.querySelectorAll('[data-dstab]').forEach(b => b.onclick = () => { st.setTab = b.dataset.dstab; renderSetPane(); $('#setPane').scrollTop = 0; });
   bindMatrix(root, on);
   if (!edit) return;

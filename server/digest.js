@@ -9,6 +9,7 @@ import { writeDoc } from './db.js';
 import { dateText } from '../public/js/dates.js';
 import { WARRANTY_SOON_DAYS, attention } from '../public/js/notices.js';
 import { MAIL_ADDRESS } from '../public/js/saved-views.js';
+import { goneAllWith } from '../public/js/gone.js';
 
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
 const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
@@ -91,6 +92,9 @@ export function buildDigest(s, { link = '', backups = null, copy = null, health 
   const mLate = maint.filter(x => x.days < 0).length;
   if (maint.length) sections.push([`Maintenance: ${mLate ? `${mLate} overdue${maint.length > mLate ? `, ${maint.length - mLate} due within 14 days` : ''}` : `${maint.length} due within 14 days`}`,
     list(maint, x => `${x.o.name}${x.o.code ? ` (${x.o.code})` : ''}: ${x.m.what}, ${x.days < 0 ? 'overdue since' : 'due'} ${dateText(x.m.due)}`)]);
+  /* Devices no sync source lists any more (gone from every source they were in): likely gone for good. */
+  const gone = live.filter(o => goneAllWith(o, s.lsPresence));
+  if (gone.length) sections.push([`${gone.length} device${gone.length === 1 ? '' : 's'} no source lists any more`, list(gone, o => `${o.name}${o.code ? ` (${o.code})` : ''}`)]);
   if (reported.length) sections.push([`${reported.length} problem${reported.length === 1 ? '' : 's'} reported by users, not done yet`, list(reported, o => `${o.name}: ${o.reported.text} (${o.reported.by}, ${dateText(String(o.reported.at).slice(0, 10))})`)]);
   if (review) sections.push([`${review} pending device${review === 1 ? '' : 's'}`, ['Found by a sync, not in the inventory yet: accept or ignore them.']]);
   const bad = health.filter(c => c.state === 'bad');
