@@ -752,6 +752,14 @@ export function applyChanges(db, body, guard = () => {}) {
     else if (c.kind === 'setting') delete s[c.id];
   }
   const codes = {}, keptRels = new Set(), keptSoftware = [];
+  /* The packages a person removed on the page, by device: each removal leaves a new history line "Software removed: name"
+     in the same save. A package gone without one was never seen by that page. */
+  const removedHere = new Map();
+  for (const c of okPuts) if (c.kind === 'history' && Array.isArray(c.value)) {
+    const old = storedHistory.get(String(c.id)), stored = old ? JSON.parse(old.data) : [];
+    const names = newLines(c.value, Array.isArray(stored) ? stored : []).map(l => l && typeof l.msg === 'string' && l.msg.startsWith('Software removed: ') ? l.msg.slice(18) : null).filter(Boolean);
+    if (names.length) removedHere.set(String(c.id), new Set(names));
+  }
   for (const c of okPuts) {
     const v = c.value;
     if (c.kind === 'object') {
@@ -766,10 +774,12 @@ export function applyChanges(db, body, guard = () => {}) {
          (with any it added), the log says so and the page loads again. A sync writes software its own way. */
       if (i >= 0 && Array.isArray(v.software) && Array.isArray(s.objs[i].software)) {
         const key = p => (p && typeof p === 'object') ? `${p.name}\u0000${p.version}` : String(p);
-        const sent = new Set(v.software.map(key)), lost = s.objs[i].software.filter(p => !sent.has(key(p)));
+        /* Removed here on purpose (a history line says so): those go; only the others count as lost. */
+        const meant = removedHere.get(String(c.id)) || new Set();
+        const sent = new Set(v.software.map(key)), lost = s.objs[i].software.filter(p => !sent.has(key(p)) && !(p && meant.has(p.name)));
         if (lost.length >= 2) {
-          const had = new Set(s.objs[i].software.map(key));
-          v.software = [...s.objs[i].software, ...v.software.filter(p => !had.has(key(p)))];
+          const lostKeys = new Set(lost.map(key));
+          v.software = [...s.objs[i].software.filter(p => sent.has(key(p)) || lostKeys.has(key(p))), ...v.software.filter(p => !s.objs[i].software.some(q => key(q) === key(p)))];
           keptSoftware.push({ id: c.id, name: v.name || c.id, n: lost.length });
         }
       }

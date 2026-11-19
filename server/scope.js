@@ -10,7 +10,9 @@ export function scopeOf(u) {
 export const inScope = (o, sc) => !sc || (sc.own ? !!o && o.uid === sc.own && !o.review : sc.sites.includes(siteOf(o)));
 /* Whether a plan (by its site) is one the scope sc lets a viewer see. */
 export const planInScope = (plan, sc) => !sc || (!sc.own && !!plan && sc.sites.includes(plan.site));
-export const scopeKey = sc => (!sc ? '' : sc.own ? 'own' : 'sites:' + sc.sites.join('|'));
+/* Names a scope for keys of answers kept or tagged per scope: someone who sees only their own devices by their id (two
+   such viewers never share an answer). */
+export const scopeKey = sc => (!sc ? '' : sc.own ? 'own:' + sc.own : 'sites:' + JSON.stringify(sc.sites));
 /* Cuts an inventory down to what the scope sc (from scopeOf) lets a viewer see: changes s in place and returns it; no
    scope leaves it whole. Someone who sees only their own devices also gets no contracts or licences, and of the people
    only themselves and the admins. */

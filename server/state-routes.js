@@ -15,16 +15,22 @@ import { purgeOrphanImages } from './device-images.js';
    factory reset, clearing the connections, and the floor-plan images. Only admins change anything. */
 /* Answers that read every device (the whole inventory, the Software tab's index, the licences' use) are kept until the
    next change (the running number, stateSeq), per person's view of it (the key says whose): with many pages open,
-   each asking after every change, the work is done once. Small: the last few answers only. */
-const ANSWERS_BY_DB = new WeakMap(), ANSWERS_MAX = 24;
+   each asking after every change, the work is done once. Small: the last few answers only, and at most about 64 MB of
+   text in all (a whole inventory is several MB). */
+const ANSWERS_BY_DB = new WeakMap(), ANSWERS_MAX = 24, ANSWERS_BYTES = 64 * 1024 * 1024;
+const sizeOf = v => typeof v === 'string' ? v.length : v && typeof v.text === 'string' ? v.text.length * 1.3 : 1024;
 function answer(db, key, make){
   /* One store per database: a second one opened in the same process (tests, a restore check) never shares answers. */
   let ANSWERS = ANSWERS_BY_DB.get(db); if (!ANSWERS){ ANSWERS = new Map(); ANSWERS_BY_DB.set(db, ANSWERS); }
   const k = `${stateSeq(db)}|${key}`;
   if (ANSWERS.has(k)) { const v = ANSWERS.get(k); ANSWERS.delete(k); ANSWERS.set(k, v); return v; }
   const v = make();
+  /* Answers from before the last change can never be given again: they go at once. */
+  const seq = `${stateSeq(db)}|`;
+  for (const old of [...ANSWERS.keys()]) if (!old.startsWith(seq)) ANSWERS.delete(old);
   ANSWERS.set(k, v);
-  while (ANSWERS.size > ANSWERS_MAX) ANSWERS.delete(ANSWERS.keys().next().value);
+  let bytes = 0; for (const x of ANSWERS.values()) bytes += sizeOf(x);
+  while (ANSWERS.size > 1 && (ANSWERS.size > ANSWERS_MAX || bytes > ANSWERS_BYTES)){ const k0 = ANSWERS.keys().next().value; bytes -= sizeOf(ANSWERS.get(k0)); ANSWERS.delete(k0); }
   return v;
 }
 
@@ -313,7 +319,7 @@ function sendPacked(req, res, body, next){
   const kept = body && typeof body.text === 'string' ? body : null;
   const text = kept ? kept.text : JSON.stringify(body);
   res.vary('Accept-Encoding');
-  if (text.length < 32768 || !/\bgzip\b/.test(String(req.get('accept-encoding') || ''))) { res.type('json').send(text); return; }
+  if (text.length < 32768 || req.acceptsEncodings('gzip') !== 'gzip') { res.type('json').send(text); return; }
   if (kept && kept.gz) { res.set('Content-Encoding', 'gzip').type('json').send(kept.gz); return; }
   zlib.gzip(text, { level: 5 }, (err, buf) => {
     if (err) { next(err); return; }

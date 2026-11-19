@@ -175,12 +175,14 @@ function makeMovable(m){
 export function minimizeModal(){
   const m = $('#mdl'); if (!m) return;
   m.classList.add('minimized'); m.close(); keepToastOnTop();
+  const g = document.getElementById('mdlGhost'); if (g) g.hidden = true;
   const back = modalOpener; if (back && document.contains(back)) back.focus();
   renderTray();
 }
 export function restoreModal(){
   const m = $('#mdl'); if (!m) return;
   m.classList.remove('minimized'); m.showModal(); keepToastOnTop(); renderTray();
+  const g = document.getElementById('mdlGhost'); if (g) g.hidden = false;
   const first = m.querySelector('.mb input, .mb select, .mb textarea, .mb button, button'); if (first) first.focus();
 }
 /* The chip of a minimized dialog: its title restores it, the × closes it. */

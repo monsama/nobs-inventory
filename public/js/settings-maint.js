@@ -102,7 +102,7 @@ export async function loadBackups(){
   const r = await fetch('api/backups', {credentials: 'same-origin'});
   const x = await fetch('api/backup-export', {credentials: 'same-origin'}).catch(() => null);
   EXPORT = x && x.ok ? await x.json() : null;
-  if (r.ok){ const j = await r.json(); BACKUPS = j.backups; BACKUP_STORAGE = j.storage ?? null; if ($('#setMaint')) renderSetMaint(); }
+  if (r.ok){ const j = await r.json(); BACKUPS = j.backups; BACKUP_STORAGE = j.storage ?? null; if ($('#mdl #setMaint')) renderSetMaint(); }
 }
 /* The copy outside the server (server/backup-export.js), as the server says: set up, on, password set, last copy. */
 let EXPORT = null;
@@ -223,7 +223,7 @@ export async function loadHealth(){
   HEALTH_AT = Date.now();
   const r = await fetch('api/health/details', {credentials: 'same-origin'}).catch(() => null);
   HEALTH = r && r.ok ? await r.json() : { state: 'bad', checks: [{ area: 'Server', name: 'Health', state: 'bad', value: 'Could not be read', note: 'The server did not answer.' }] };
-  if ($('#setMaint')) renderSetMaint();
+  if ($('#mdl #setMaint')) renderSetMaint();
 }
 const HEALTH_CHIP = { ok: ['ok', 'OK'], warn: ['warn', 'Check'], bad: ['bad', 'Act now'], off: ['', 'Off'] };
 /* Where each Health row is dealt with: [Settings tab, element on it]. A row with none (the version, the disk) is text. */
@@ -326,7 +326,7 @@ function wireDigest(){
       const r = await fetch('api/digest/preview', { credentials: 'same-origin' }); const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'The preview could not be made.');
       modal(html`<div class="mh">${j.subject}</div><div class="mb"><p class="note">As it would be sent now${(DIGEST && DIGEST.to && DIGEST.to.length) ? ` to ${DIGEST.to.join(', ')}` : ''}.</p>
-        <iframe class="dg-frame" title="The e-mail" sandbox="allow-same-origin" srcdoc="${j.html || ''}"></iframe>
+        <iframe class="dg-frame" title="The e-mail" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc="${'<base target="_blank">' + (j.html || '')}"></iframe>
         <details class="dg-text"><summary>Plain text</summary><pre class="dg-pre">${j.text}</pre></details></div>
         <div class="mf"><button id="dgClose" class="primary">Close</button></div>`, 'wide');
       $('#dgClose').onclick = () => { closeModal(); };
@@ -377,7 +377,7 @@ function wirePhotosShrink(){
     }
     SHRINK.running = false; PHOTOS = null; forgetPhotos();
     toast(SHRINK.changed ? `${SHRINK.changed} photo${SHRINK.changed === 1 ? '' : 's'} made smaller, ${mbOf(SHRINK.saved)} saved` : 'The photos were already as small as they get');
-    if ($('#setMaint')) renderSetMaint();
+    if ($('#mdl #setMaint')) renderSetMaint();
   };
 }
 /* Draws the part of Settings → System that is open: Backups (with clearing the inventory and the factory reset),
@@ -388,9 +388,9 @@ export function renderSetMaint(){
   if (edit && BACKUPS === null) loadBackups();
   /* Read again when Maintenance is opened a minute or more after the last read. */
   if (edit && (HEALTH === null || (HEALTH && Date.now() - HEALTH_AT > 60000))) { HEALTH = undefined; loadHealth(); }
-  if (CERT === null) loadCert().then(() => { if ($('#setMaint')) renderSetMaint(); });
-  if (edit && DIGEST === null){ DIGEST = undefined; fetch('api/digest', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { DIGEST = j; if ($('#setMaint')) renderSetMaint(); }, () => { DIGEST = null; }); }
-  if (edit && PHOTOS === null){ PHOTOS = undefined; fetch('api/images', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { images: [] }).then(j => { PHOTOS = j.images; if ($('#setMaint')) renderSetMaint(); }, () => { PHOTOS = []; }); }
+  if (CERT === null) loadCert().then(() => { if ($('#mdl #setMaint')) renderSetMaint(); });
+  if (edit && DIGEST === null){ DIGEST = undefined; fetch('api/digest', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { DIGEST = j; if ($('#mdl #setMaint')) renderSetMaint(); }, () => { DIGEST = null; }); }
+  if (edit && PHOTOS === null){ PHOTOS = undefined; fetch('api/images', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { images: [] }).then(j => { PHOTOS = j.images; if ($('#mdl #setMaint')) renderSetMaint(); }, () => { PHOTOS = []; }); }
   /* Three tabs: Health (the checks, the certificate, the photos), Backups (with clearing the inventory and the factory
      reset, beside restoring), and E-mail (the mail server and the weekly e-mail). The API tokens are under Users. */
   const part = ['backups', 'mail'].includes(st.setTab) ? st.setTab : 'system';
@@ -406,7 +406,7 @@ export function renderSetMaint(){
   }
   if (part === 'mail'){ $('#setMaint').innerHTML = edit ? digestPanel() : '<p class="note" style="padding:12px">Only an admin sets up the e-mail.</p>'; if (edit) wireDigest(); return; }
   $('#setMaint').innerHTML = html`${edit ? healthPanel() : ''}${rawHtml(certPanel())}${edit ? rawHtml(photosShrinkPanel()) : ''}`;
-  wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
+  wireCertPanel(() => { if ($('#mdl #setMaint')) renderSetMaint(); });
   wirePhotosShrink();
   $('#setMaint').querySelectorAll('[data-hlgo]').forEach(b => b.onclick = () => { const [area, name] = b.dataset.hlgo.split('|'); const c = HEALTH && HEALTH.checks.find(x => x.area === area && x.name === name); healthGo(c || { area, name }); });
   const ha = $('#hlAgain'); if (ha) ha.onclick = () => { HEALTH = undefined; renderSetMaint(); loadHealth(); };

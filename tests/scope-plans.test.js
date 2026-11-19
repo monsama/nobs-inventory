@@ -64,3 +64,21 @@ test('floor plans are checked before they are kept: sizes, numbers and lengths',
   assert.notEqual(plansProblem([{ ...ok[0], labels: [{ id: 'l1', text: 'x', x: 1 }] }]), '', 'a text without its place');
   assert.notEqual(plansProblem('plans'), '');
 });
+
+test('two viewers who see only their own devices never share the Software index (each gets their own)', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const s = loadState(srv.db);
+    s.objs = [{ id: 'o1', code: 'INV-1', type: 'pc', name: 'PC-1', status: 'active', uid: 'v3', software: [{ name: 'Tool of Olga', version: '1' }] },
+      { id: 'o2', code: 'INV-2', type: 'pc', name: 'PC-2', status: 'active', uid: 'v4', software: [{ name: 'Tool of Otto', version: '2' }] }];
+    s.users.push({ id: 'v3', name: 'Olga Own', login: 'olga', role: 'viewer', source: 'manual', own: true });
+    s.users.push({ id: 'v4', name: 'Otto Own', login: 'otto', role: 'viewer', source: 'manual', own: true });
+    saveState(srv.db, s);
+    for (const id of ['v3', 'v4']) await srv.call('POST', `/api/users/${id}/password`, { cookie: a.cookie, body: { password: 'viewerpass123' } });
+    const olga = await signIn(srv, 'olga', 'viewerpass123'), otto = await signIn(srv, 'otto', 'viewerpass123');
+    const names = async c => (await srv.call('GET', '/api/software/packages', { cookie: c })).json.packages.map(p => p.name);
+    assert.deepEqual(await names(olga.cookie), ['Tool of Olga']);
+    assert.deepEqual(await names(otto.cookie), ['Tool of Otto'], 'not the answer kept for Olga');
+  } finally { await srv.close(); }
+});

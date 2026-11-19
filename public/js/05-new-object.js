@@ -9,6 +9,7 @@ import { HOST_KINDS, NET_GEAR, kindProblem, linkKind, relationProblem } from './
 import { html, rawHtml } from './html.js';
 import { anyOutlets } from './24-patch.js';
 import { findOutlet, outletLabel } from './cabling.js';
+import { locOptions } from './loc-pick.js';
 /* The New device and Link device dialogs: type, name, place, what it plugs into (a switch port, a panel port or a
    wall outlet), its person, and the checks before it is saved. */
 /* ---------- new object ---------- */
@@ -63,7 +64,7 @@ export function newObjModal(pre={}){
     <div class="mb"><div class="form" style="padding:0">
       <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => html`<option value="${k}">${v.label}</option>`)}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. PC-0151">
-      <label for="nLoc">Location</label><select id="nLoc"><option value="">No location</option>${LOCS.map(l => html`<option>${l}</option>`)}</select>
+      <label for="nLoc">Location</label><select id="nLoc" class="locpick">${rawHtml(locOptions(''))}</select>
       ${!LOCS.length && html`<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>`}
       <label for="nStatus">Status</label><select id="nStatus">${Object.entries(STATUS).filter(([k]) => k !== 'retired').map(([k, v]) => html`<option value="${k}">${v.label}</option>`)}</select>
       <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => html`<option value="${u.id}">${u.name}</option>`)}</select>

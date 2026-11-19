@@ -129,26 +129,30 @@ async function sendNow(){
         const v = JSON.parse(c.json); if (j.codes && j.codes[c.id]) v.code = j.codes[c.id];
         SERVER.base.set(key, JSON.stringify(v));
       }
-      /* The server kept software this save would have taken away (state.js applyChanges): the page loads it again. */
-      if (j.keptSoftware && j.keptSoftware.length){
-        toast(`Software kept on ${j.keptSoftware.map(k => k.name).join(', ')}: this page had an older list. Loaded again.`);
-        SERVER.busy = false;
-        await reloadFromServer({ flush: false, skip: [...j.keptSoftware.map(k => 'object|' + k.id), ...(j.conflicts || [])] });
-        setSave('saved'); return;
-      }
-      if (j.conflicts && j.conflicts.length){
+      /* The server kept software this save would have taken away (state.js applyChanges), and/or refused records someone
+         else changed meanwhile: one reload brings both back; the kept devices read their software again, the refused
+         records are listed to compare. */
+      const kept = j.keptSoftware && j.keptSoftware.length ? j.keptSoftware : [], conflicts = j.conflicts || [];
+      if (kept.length || conflicts.length){
         const KIND_NAME = { object: 'a device', rel: 'a connection', setting: 'a setting', user: 'a user', type: 'a device type', history: 'a history entry' };
-      const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : KIND_NAME[k.split('|')[0]] || k; });
-        const refused = j.conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
+        const names = conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : KIND_NAME[k.split('|')[0]] || k; });
+        const refused = conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
           .map(c => ({ id: c.id, name: c.value.name, mine: JSON.parse(c.json), base: JSON.parse(SERVER.base.get(c.key) || 'null') }));
-        toast('Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown.');
-        /* Only the records someone else changed take their version; edits made meanwhile stay and are saved next. */
-        await reloadFromServer({ flush: false, skip: j.conflicts });
+        const { SW, ensureDeviceSoftware } = await import('./server-load.js');
+        for (const k of kept) SW.map.delete(k.id);
+        toast([kept.length ? `Software kept on ${kept.map(k => k.name).join(', ')}: this page had an older list` : '',
+          conflicts.length ? 'Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown' : ''].filter(Boolean).join('. ') + '.');
+        SERVER.busy = false;
+        /* Only the records someone else changed (or whose software was kept) take the server's version; edits made
+           meanwhile to others stay and are saved next. */
+        await reloadFromServer({ flush: false, skip: [...kept.map(k => 'object|' + k.id), ...conflicts] });
+        for (const k of kept){ const o = byId(k.id); if (o && Object.hasOwn(o, 'software')) delete o.software; ensureDeviceSoftware(k.id); }
         const items = refused.map(r => {
           const now = byId(r.id);
           return { id: r.id, name: r.name, gone: !now, fields: now ? changedFields(r.mine, r.base).map(k => ({ k, mine: r.mine[k], theirs: now[k] })) : [] };
         }).filter(i => i.gone || i.fields.length);
         if (items.length) refusedModal(items);
+        if (kept.length && !conflicts.length){ setSave('saved'); return; }
       }
     }
     ok = true;
