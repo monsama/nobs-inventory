@@ -14,6 +14,7 @@ import { groupRolesProblem } from '../public/js/group-roles.js';
 import { MERGED } from '../public/js/people-match.js';
 import { audit } from './db.js';
 import { lifecycleProblem } from '../public/js/lifecycle.js';
+import { whereDaysProblem } from '../public/js/where.js';
 import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { savedViewsProblem } from '../public/js/saved-views.js';
 import { liftOvr } from './fill.js';
@@ -24,7 +25,7 @@ import { newLines } from '../public/js/history-merge.js';
    checked, the changes a page sends (with revisions against lost updates), and the deltas a page asks for. */
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'testRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'lsPresence', 'adShort', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'adLocAuto', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['whereDays', 'stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'testRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'lsPresence', 'adShort', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'adLocAuto', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
@@ -33,7 +34,7 @@ export const INTAKE_SOURCES = ['lansweeper', 'ad', 'graph'];
 /* New devices go straight into the inventory, as asset tools do: only what needs a person's decision waits (a second
    record, an address without a name, a device no source has seen for long). A source set to wait (Settings) waits. */
 export const intakeOf = (s, src) => ((s.intake || {})[src] === 'review' ? 'review' : 'direct');
-export const PAGE_SETTINGS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'adLocAuto', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame', 'groupRoles', 'lifecycle'];
+export const PAGE_SETTINGS = ['whereDays', 'stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'adLocAuto', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame', 'groupRoles', 'lifecycle'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 /* The largest inventory stored: generous (5000 devices with their software are about 11 MB), it only guards against a
    runaway import. A page save is limited to 30 MB before it gets here. The devices' history is not counted in it: it
@@ -271,6 +272,7 @@ function checkStateRules(s, size = true, newRels = null) {
   { const p = fieldModeProblem(s.fieldMode); if (p) bad(p); }
   if (s.groupRoles !== undefined && s.groupRoles !== null) { const p = groupRolesProblem(s.groupRoles); if (p) bad(p); }
   { const p = lifecycleProblem(s.lifecycle); if (p) bad(p); }
+  { const p = whereDaysProblem(s.whereDays); if (p) bad(p); }
   /* Inventory checks (the Inventory check view): started, finished, what they found. */
   { const p = stocktakesProblem(s.stocktakes); if (p) bad(p); }
   { const p = plansProblem(s.plans); if (p) bad(p); }
@@ -656,7 +658,7 @@ export function movePersonRows(db, keepId, dropId, keepHadLogin) {
 
 /* A line for the log saying what a save from the page changed: the objects added, changed and removed by name, and how
    many relations, users, types and which settings. The history lines that go with an object change are not counted. */
-export const SETTING_NAMES = { stockRooms: 'store rooms', savedViews: 'saved views', typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', lifecycle: 'lifetimes and replacement prices', groupRoles: 'roles from groups', company: 'company', locs: 'locations', sites: 'sites',
+export const SETTING_NAMES = { whereDays: 'limits of Where are they?', stockRooms: 'store rooms', savedViews: 'saved views', typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', lifecycle: 'lifetimes and replacement prices', groupRoles: 'roles from groups', company: 'company', locs: 'locations', sites: 'sites',
   vlans: 'VLANs', domains: 'domains', models: 'models', subnets: 'subnets', typeFields: 'type fields', fieldLayout: 'field layout', racks: 'racks',
   policy: 'feed fields', ldap: 'LDAP', plans: 'floor plans', mapPos: 'map layout', typeMap: 'Lansweeper type names', modelMap: 'model renames', fieldOrder: 'field sources', stocktakes: 'stocktakes',
   locMap: 'location texts', adLocMap: 'AD location texts', locFromOffice: 'location from the user\'s office', adLocAuto: 'rooms from AD\'s location', intake: 'new devices from the sources', fillGraph: 'Intune fills fields',

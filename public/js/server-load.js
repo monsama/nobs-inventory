@@ -37,33 +37,63 @@ export const HIST_FULL = new Set();
    copy the server sent without it (and the changes since) gets it back; a device the server sends with its software
    (a change since) has its own. Until it is read, the page shows it as loading and lets nobody change it; a save of a
    device without it leaves the stored software as it is (server state.js applyChanges). */
-export const SW = { loaded: false, loading: /** @type {Promise<void>|null} */ (null), map: new Map() };
+export const SW = { loaded: false, loading: /** @type {Promise<void>|null} */ (null), map: new Map(), one: new Map(), licUse: /** @type {Record<string, number>|null} */ (null) };
 const stateUrl = () => SW.loaded ? 'api/state?history=0' : 'api/state?history=0&software=0';
 const hasSw = o => Object.prototype.hasOwnProperty.call(o, 'software');
 /* Remembers the software the page's devices have now, then gives it to the devices that came without it. */
 function keepSoftware(list){ for (const o of list) if (hasSw(o)) SW.map.set(o.id, o.software); }
-function giveSoftware(list){ if (!SW.loaded) return; for (const o of list) if (!hasSw(o) && SW.map.has(o.id)) o.software = SW.map.get(o.id); }
+function giveSoftware(list){ for (const o of list) if (!hasSw(o) && SW.map.has(o.id)) o.software = SW.map.get(o.id); }
+/* A copy the server sent without software (swLean): its devices are given what the page knows. A device a change since
+   brought is sent whole, so one without software there has none. */
+function markDeltaSoftware(copy, d){
+  if (!copy || !copy.swLean) return;
+  for (const [kind, id, v] of d.puts || []) if (kind === 'object' && v && !hasSw(v)){ const o = (copy.objs || []).find(x => String(x.id) === id); if (o) o.software = []; }
+}
+/* Gives a device its software with the base moved along, so reading it is not a change to save; a device changed here
+   meanwhile keeps that change on top. */
+function attachSoftware(o, list){
+  if (hasSw(o)) return false;
+  const k = 'object|' + o.id, before = JSON.stringify(o), base = SERVER.base && SERVER.base.get(k);
+  o.software = list;
+  if (base === before) SERVER.base.set(k, JSON.stringify(o));
+  else if (base){ const b = JSON.parse(base); if (!hasSw(b)){ b.software = list; SERVER.base.set(k, JSON.stringify(b)); } }
+  return true;
+}
+/* The same package and version on many devices is held once (frozen: an entry is replaced, never changed). */
+const same = new Map();
+const one = p => { if (!p || typeof p !== 'object') return p; const k = JSON.stringify(p); let x = same.get(k); if (!x){ x = Object.freeze(p); same.set(k, x); } return x; };
+/* Every device's software, for the Software tab (packages, versions, licences): read when that tab opens. */
 export function ensureSoftware(){
   if (SW.loaded || SW.loading || !SERVER.base) return SW.loading;
   SW.loading = fetch('api/software', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
     if (!j || !j.software || typeof j.software !== 'object') return;
-    /* The same package and version on many devices is held once (frozen: an entry is replaced, never changed), so a
-       large inventory takes a fraction of the memory. */
-    const same = new Map(), one = p => { if (!p || typeof p !== 'object') return p; const k = JSON.stringify(p); let x = same.get(k); if (!x){ x = Object.freeze(p); same.set(k, x); } return x; };
-    for (const [id, list] of Object.entries(j.software)) if (!SW.map.has(id) && Array.isArray(list)) SW.map.set(id, list.map(one));
+    /* What the server says now replaces what the page knew of devices that came without it. */
+    const fresh = new Map(Object.entries(j.software).filter(([, list]) => Array.isArray(list)).map(([id, list]) => [id, list.map(one)]));
     SW.loaded = true;
-    /* Each device gets it with the base moved along, so reading it is not a change to save; a device changed here
-       meanwhile keeps that change on top. */
-    for (const o of [...objs, ...REVIEW]){
-      if (hasSw(o) || !SW.map.has(o.id)) continue;
-      const k = 'object|' + o.id, before = JSON.stringify(o), base = SERVER.base && SERVER.base.get(k);
-      o.software = SW.map.get(o.id);
-      if (base === before) SERVER.base.set(k, JSON.stringify(o));
-      else if (base){ const b = JSON.parse(base); if (!hasSw(b)){ b.software = o.software; SERVER.base.set(k, JSON.stringify(b)); } }
-    }
+    for (const o of [...objs, ...REVIEW]) if (!hasSw(o)){ const list = fresh.get(o.id) || []; SW.map.set(o.id, list); attachSoftware(o, list); }
     if (!heldBack()) render();
-  }).catch(() => { /* offline: asked again with the next load */ }).finally(() => { SW.loading = null; });
+  }).catch(() => { /* offline: asked again when the tab is drawn next */ }).finally(() => { SW.loading = null; });
   return SW.loading;
+}
+/* One device's software, for its page: read when the page opens, then its software panel is drawn again. */
+export function ensureDeviceSoftware(id){
+  const o = byId(id) || REVIEW.find(x => x.id === id);
+  if (!o || hasSw(o) || SW.one.has(id) || !SERVER.base) return;
+  SW.one.set(id, fetch(`api/software/${encodeURIComponent(id)}`, {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !Array.isArray(j.software)) return;
+    const list = j.software.map(one); SW.map.set(id, list);
+    const cur = byId(id) || REVIEW.find(x => x.id === id);
+    /* Drawn again with it; where the focus was (the title, a button) stays. */
+    if (cur && attachSoftware(cur, list) && st.tab === id && !heldBack()){ const f = document.activeElement && document.activeElement.id; render(); if (f) /** @type {HTMLElement|null} */ (document.getElementById(f))?.focus(); }
+  }).catch(() => { /* offline: asked again when the page is drawn next */ }).finally(() => SW.one.delete(id)));
+}
+/* How many devices use each licence, from the server, for the Overview while the software is not read. */
+function loadLicenceUse(){
+  fetch('api/licence-use', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.use) return;
+    const was = JSON.stringify(SW.licUse); SW.licUse = j.use;
+    if (was !== JSON.stringify(j.use) && st.tab === 'overview' && !heldBack()) render();
+  }).catch(() => { /* offline */ });
 }
 const histLoading = new Map();
 /* Reads device id's history once, when its page opens, and draws its history panels again with it. */
@@ -121,18 +151,24 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
     /* An edit made while the changes were loading was just saved: the copy loaded before it is older, so read again. */
     if (had.puts.length || had.dels.length) d = null;
   }
+  /* Fresh from the server: what the page knew of the software may be older, so it is forgotten; a load without it means
+     it is read again where needed. From the page's copy (the changes since applied to it): what it knows is current. */
+  let fresh = false;
   if (!d){
+    const lean = !SW.loaded;
     const r = await fetch(stateUrl(), {credentials: 'same-origin'});
     if (r.status === 401){ loginModal(); return false; }
     if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
-    d = await r.json();
+    d = await r.json(); fresh = true;
+    if (lean) d.swLean = true;
     keepServerCopy(d);
   }
+  if (discard || fresh){ SW.map.clear(); if (d.swLean) SW.loaded = false; }
   /* Taken just before the server's version replaces the page's, so an edit made while it loaded is kept too. */
   const keep = !discard && SERVER.base && isAdmin() ? pendingChanges() : null;
-  keepSoftware([...objs, ...REVIEW]);
+  if (!fresh && !discard && d.swLean) keepSoftware([...objs, ...REVIEW]);
   applyState(d);
-  giveSoftware([...objs, ...REVIEW]);
+  if (!fresh && !discard && d.swLean) giveSoftware([...objs, ...REVIEW]);
   SERVER.revs = d.revs || {};
   setBaseline();
   /* Settings changed here while it loaded (contracts, plans, locations …) go back on top too; the base stays the
@@ -142,7 +178,7 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
   if (keep && replayLocal(keep, skip)) queueServerSave();
   dropMissingTabs();
   render();
-  if (!SW.loaded) setTimeout(ensureSoftware, 0);
+  if (!SW.loaded) setTimeout(loadLicenceUse, 0);
   return true;
 }
 /* Puts unsaved records back after a reload: objects, connections, users, types and history. */
@@ -207,7 +243,7 @@ export async function checkForChanges(){
   if (d.delta){
     /* The page's own saves come back here too: the copy takes them, but only a record someone else wrote reloads. */
     const other = Object.keys(d.revs).some(k => (SERVER.revs[k] ?? 0) !== d.revs[k]);
-    applyDelta(SERVER.copy, d); SERVER.cseq = d.cseq;
+    applyDelta(SERVER.copy, d); markDeltaSoftware(SERVER.copy, d); SERVER.cseq = d.cseq;
     if (other) await reloadFromServer({ data: structuredClone(SERVER.copy) });
     return true;
   }
@@ -252,7 +288,7 @@ function applyState(d){
   st.lsPresence = d.lsPresence && typeof d.lsPresence === 'object' ? d.lsPresence : null;
   st.adShort = d.adShort && typeof d.adShort === 'object' ? d.adShort : null;   /* an AD read set aside as short */   /* the newest Lansweeper push day, for Gone from */
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
-  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.adLocAuto = typeof d.adLocAuto === 'string' ? d.adLocAuto : ''; st.stockRooms = d.stockRooms && typeof d.stockRooms === 'object' ? d.stockRooms : {}; st.savedViews = Array.isArray(d.savedViews) ? d.savedViews : []; st.fieldOrder = d.fieldOrder || null; st.fieldMode = d.fieldMode || null; st.syncChanges = d.syncChanges || {}; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.peopleNotSame = Array.isArray(d.peopleNotSame) ? d.peopleNotSame : []; st.groupRoles = Array.isArray(d.groupRoles) ? d.groupRoles : []; st.lifecycle = d.lifecycle && typeof d.lifecycle === 'object' ? d.lifecycle : {}; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.testRuns = d.testRuns && typeof d.testRuns === 'object' ? d.testRuns : {}; st.backupKeep = d.backupKeep || 10;
+  st.whereDays = d.whereDays && typeof d.whereDays === 'object' ? d.whereDays : {}; st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.adLocAuto = typeof d.adLocAuto === 'string' ? d.adLocAuto : ''; st.stockRooms = d.stockRooms && typeof d.stockRooms === 'object' ? d.stockRooms : {}; st.savedViews = Array.isArray(d.savedViews) ? d.savedViews : []; st.fieldOrder = d.fieldOrder || null; st.fieldMode = d.fieldMode || null; st.syncChanges = d.syncChanges || {}; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.peopleNotSame = Array.isArray(d.peopleNotSame) ? d.peopleNotSame : []; st.groupRoles = Array.isArray(d.groupRoles) ? d.groupRoles : []; st.lifecycle = d.lifecycle && typeof d.lifecycle === 'object' ? d.lifecycle : {}; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.testRuns = d.testRuns && typeof d.testRuns === 'object' ? d.testRuns : {}; st.backupKeep = d.backupKeep || 10;
   /* For an admin: the last restore test and copy of the backups (for the bell), the last mail of each saved view. */
   st.restoreTest = d.restoreTest || null; st.backupExportRun = d.backupExportRun || null; st.viewMailRuns = d.viewMailRuns && typeof d.viewMailRuns === 'object' ? d.viewMailRuns : {};
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */

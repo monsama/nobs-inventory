@@ -163,7 +163,7 @@ export function applyComputers(s, computers, now = new Date()) {
     const prev = was && Array.isArray(was.ns) ? was.ns : was ? [was.n] : [];
     const ns = was && was.day === day ? [...prev.slice(0, -1), found] : [...prev, found].slice(-7);
     const days = was && was.day === day ? (was.days || 1) : Math.min(7, (was ? (was.days || 1) : 0) + 1);
-    if (days >= 7 && ns.length >= 7 && Math.min(...ns) >= Math.max(...ns) / 2) short = false;
+    if (days >= 7 && ns.length >= 7 && Math.min(...ns) >= Math.max(...ns) / 2 && Math.min(...ns) >= inAd.length / 4) short = false;   /* under a quarter: a base set wrong, stays aside */
     if (short) s.adShort = { day, n: found, of: inAd.length, ns, days }; else delete s.adShort;
   } else delete s.adShort;
   let n = 0;

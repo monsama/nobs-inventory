@@ -1,4 +1,4 @@
-import { SW_TYPES, bindSoftware, softwarePanel } from './views-software.js';
+import { SW_TYPES, bindSoftware, softwarePanel, swWaiting } from './views-software.js';
 import { bindPrinters, printerUsersPanel, printersPanel } from './printers-panel.js';
 import { closeModal, modal } from './19-modal.js';
 import { sourcesPanel } from './18-sources.js';
@@ -219,7 +219,7 @@ function extras(o){
     ['links', 'Link', deviceLinksPanel(o), !(o.urls || []).length],
     ['maint', 'Maintenance', o.review ? '' : maintPanel(o), !(o.maint || []).length],
     ['photos', 'Photo', photosPanel(o), photoCount(o.id) === 0],
-    ['software', 'Software', SW_TYPES.includes(o.type) ? softwarePanel(o) : '', !(o.software || []).length],
+    ['software', 'Software', SW_TYPES.includes(o.type) ? softwarePanel(o) : '', !(o.software || []).length && !swWaiting(o)],
     /* Lansweeper's printers of a computer, and the computers using a printer: only when there are some. */
     ['printers', 'Printers', printersPanel(o) + printerUsersPanel(o), false],
     ['resp', 'Responsible', deviceRespPanel(o), !o.respIn && !o.respEx],

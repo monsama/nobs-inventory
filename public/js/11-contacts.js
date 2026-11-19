@@ -1,7 +1,7 @@
 /* Contacts: the company's own IT people and the people at its IT partners who look after the devices. The Contacts tab
    lists them, the company's own first, then each partner company; a device names one internal and one external
    responsible, on its page or for many devices at once in the table. */
-import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast , byId, menuHtml, noMatchHtml } from './01-core.js';
+import { REVIEW, $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast , byId, menuHtml, noMatchHtml } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
@@ -160,13 +160,14 @@ function moveContactsModal(list){
     /* An internal contact moved out is no longer anyone's internal responsible: those devices lose them, as when one
        contact changes kind, with a history line each; Undo gives it back. */
     const leaving = new Set(list.filter(c => c.kind === 'internal').map(c => c.id));
-    const resp = objs.filter(o => leaving.has(o.respIn)).map(o => [o.id, o.respIn]);
-    for (const [id, cid] of resp){ const o = byId(id), c = contactOf(cid); if (!o) continue; Reflect.deleteProperty(o, 'respIn'); hist(o, now(), `Responsible ${c ? c.name : ''} removed (now external, ${co}) by ${who()}`); }
+    const resp = [...objs, ...REVIEW].filter(o => leaving.has(o.respIn)).map(o => [o.id, o.respIn]);
+    const find = id => byId(id) || REVIEW.find(x => x.id === id);
+    for (const [id, cid] of resp){ const o = find(id), c = contactOf(cid); if (!o) continue; Reflect.deleteProperty(o, 'respIn'); hist(o, now(), `Responsible ${c ? c.name : ''} removed (now external, ${co}) by ${who()}`); }
     for (const c of list) Object.assign(c, { kind: 'external', company: co });
     closeModal(); (st.cnSel || new Set()).clear(); queueServerSave(); render();
     toastUndo(`${list.length} moved to ${co}`, () => {
       for (const [id, kind, company] of was){ const c = contactOf(id); if (!c) continue; c.kind = kind; if (company) c.company = company; else Reflect.deleteProperty(c, 'company'); }
-      for (const [id, cid] of resp){ const o = byId(id); if (o && !o.respIn && contactOf(cid)){ o.respIn = cid; hist(o, now(), `Responsible back (move undone) by ${who()}`); } }
+      for (const [id, cid] of resp){ const o = find(id); if (o && !o.respIn && contactOf(cid)){ o.respIn = cid; hist(o, now(), `Responsible back (move undone) by ${who()}`); } }
       queueServerSave(); render(); }, { anyEpoch: true });
   };
   $('#mvOk').onclick = go;

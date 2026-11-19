@@ -25,7 +25,7 @@ export function viewDevices(s, view, { graphOn = false } = {}) {
     core.CONTACTS.list = s.contacts || [];
     core.setPeople(s.users || []);
     core.SYNC.graph = !!graphOn;
-    Object.assign(core.st, { lsPresence: s.lsPresence || null, useLansweeper: s.useLansweeper !== false, feedOn: s.feedOn ?? true, graphAmbiguous: s.graphAmbiguous || [], stocktakes: s.stocktakes || [],
+    Object.assign(core.st, { lsPresence: s.lsPresence || null, whereDays: s.whereDays || {}, useLansweeper: s.useLansweeper !== false, feedOn: s.feedOn ?? true, graphAmbiguous: s.graphAmbiguous || [], stocktakes: s.stocktakes || [],
       scope: null, rvSrc: '', ids: null, quality: null, handField: null });
     applyViewFilters(view, core.st);
     return core.filtered();

@@ -149,7 +149,7 @@ function withUndo(list, msg, change, { reload = false } = {}){
   toastUndo(msg, () => {
     for (const [id, before, inObjs] of was){
       const o = objs.find(x => x.id === id) || REVIEW.find(x => x.id === id); if (!o) continue;
-      for (const k of Object.keys(o)) if (k !== 'user' && !(k in before)) delete o[k];
+      for (const k of Object.keys(o)) if (k !== 'user' && k !== 'software' && !(k in before)) delete o[k];   /* software: read later, see restoreSnapshot */
       Object.assign(o, before);
       for (const a of [objs, REVIEW]){ const i = a.indexOf(o); if (i >= 0) a.splice(i, 1); }
       (inObjs ? objs : REVIEW).push(o);

@@ -105,7 +105,7 @@ try {
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
   await page.click('[data-otabgo="sources"]');   // that part of the device page is a tab of its own
   await page.waitForSelector('.lsbox');
-  assert.match(await page.textContent('.lsbox'), /Status\s*Check by hand.*Last scanned.*has not scanned it for over three months/s);
+  assert.match(await page.textContent('.lsbox'), /Status\s*Check by hand.*Last scanned.*has not scanned it for over 3 months/s);
   // one Lansweeper tries to scan but never has (known only from AD) is flagged too, past a week's grace; the page says
   // which day is whose: Lansweeper's last attempt and first find, this app's receipt and when it was linked
   await page.evaluate(async () => {

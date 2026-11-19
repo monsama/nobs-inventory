@@ -61,14 +61,13 @@ const CHECK = () => {
 };
 const views = [['overview'], ['cards'], ['table'], ['plans'], ['net', { portsDevice: 'o1', portNo: 3 }], ['ips'], ['prn'], ['rack', { rackId: 'R-SRV' }], ['sw', { swOpen: ['7-Zip 24.08 (x64)', 'Mozilla Firefox (x64 de)'] }], ['contracts'], ['contacts'], ['o2'], ['o1']];
 try {
-  for (const [vp, tag] of [[{ width: 1440, height: 900 }, 'wide'], [{ width: 390, height: 844 }, 'phone']]) {
-    const ctx = await browser.newContext({ viewport: vp, ...(tag === 'phone' ? { isMobile: true, hasTouch: true } : {}) });
+  for (const [vp, tag, scheme] of [[{ width: 1440, height: 900 }, 'wide', 'light'], [{ width: 1440, height: 900 }, 'wide dark', 'dark'], [{ width: 390, height: 844 }, 'phone', 'light']]) {
+    const ctx = await browser.newContext({ viewport: vp, colorScheme: scheme, ...(tag === 'phone' ? { isMobile: true, hasTouch: true } : {}) });
     await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); localStorage.setItem('ni-card-join', '1'); } catch { /* none */ } });
     const p = await ctx.newPage(); p.on('pageerror', e => report.push(`${tag} page error ${e.message}`));
     await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
     await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
     await p.waitForSelector('#cards .lrow');
-    await p.waitForFunction(async () => (await import('/js/07-render.js')).SW.loaded);
     for (const [tab, extra] of views) {
       await p.evaluate(async ([t, ex]) => { const c = await import('/js/01-core.js'); if (c.byId(t)) { (await import('/js/02-views.js')).openObj(t); return; } c.st.tab = t; if (ex) Object.assign(c.st, ex); (await import('/js/07-render.js')).render(); }, [tab, extra || null]);
       await p.waitForTimeout(250);
@@ -82,6 +81,25 @@ try {
       if (bad.length) report.push(`${tag} settings/${st}: ` + bad.join(' || '));
       await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
     }
+    /* The dialogs people use most. */
+    const dialogs = [
+      ['new device', async () => (await import('/js/05-new-object.js')).newObjModal({ type: 'pc' })],
+      ['retire', async () => { const c = await import('/js/01-core.js'); (await import('/js/03-object-modals.js')).retireModal(c.byId('o2')); }],
+      ['hand out', async () => (await import('/js/27-handout.js')).handOutModal(['o3'])],
+      ['bulk edit', async () => (await import('/js/views-bulk-edit.js')).bulkEditModal(['o2', 'o3'])],
+      ['contract', async () => { const c = await import('/js/01-core.js'); (await import('/js/09-costs.js')).contractModal(c.COSTS.contracts[0]); }],
+      ['licence', async () => { const c = await import('/js/01-core.js'); (await import('/js/09-costs.js')).licenceModal(c.COSTS.licences[0]); }],
+      ['contact', async () => { const c = await import('/js/01-core.js'); (await import('/js/11-contacts.js')).contactModal(c.CONTACTS.list[0]); }],
+      ['retire several', async () => { const c = await import('/js/01-core.js'); (await import('/js/gone-retire.js')).retireGoneModal([c.byId('o2'), c.byId('o3')]); }],
+    ];
+    for (const [label, open] of dialogs) {
+      await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
+      await p.evaluate(open);
+      await p.waitForTimeout(250);
+      const bad = await p.evaluate(CHECK);
+      if (bad.length) report.push(`${tag} dialog ${label}: ` + bad.join(' || '));
+    }
+    await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
     await ctx.close();
   }
   assert.deepEqual(report, [], 'alignment');

@@ -81,6 +81,15 @@ test('the weekly e-mail names the devices that may no longer be there, as the Ov
   assert.match(d.text, /Where are they\? 3 devices: 1 gone from every source, 1 not seen for 90 days, 1 not scanned by Lansweeper for 3 months/);
   assert.match(d.text, /- PC-GONE \(INV-1\): gone from every source\n\s+- PC-QUIET \(INV-4\): not seen for 90 days\n\s+- PC-NOSCAN \(INV-5\): not scanned by Lansweeper for 3 months/);
   assert.doesNotMatch(d.text, /PC-HERE|PC-OLD/);
+  /* The limits set in Settings: not seen counts after a year here, so PC-QUIET (about 170 days) is not listed. */
+  const yr = buildDigest({ ...s, whereDays: { unseen: 365, scan: 120 } }, {}, new Date('2026-11-18T08:00:00Z')).text;
+  assert.doesNotMatch(yr, /PC-QUIET/); assert.match(yr, /PC-NOSCAN \(INV-5\): not scanned by Lansweeper for 4 months/);
+  assert.throws(() => checkState({ ...s, whereDays: { unseen: 12 } }), /limits of Where are they/);
+  assert.doesNotThrow(() => checkState({ ...s, objs: [], whereDays: { unseen: 180 } }));
+  const { serializeView, applyViewFilters } = await import('../public/js/saved-views.js');
+  const v = serializeView({ tab: 'table', where: true });
+  assert.equal(v.filters.where, true, 'a saved view keeps Where are they?');
+  assert.equal(applyViewFilters(v, { tab: 'cards' }).where, true);
   /* Lansweeper switched off: its scan dates no longer count. */
   assert.doesNotMatch(buildDigest({ ...s, useLansweeper: false }, {}, new Date('2026-11-18T08:00:00Z')).text, /PC-NOSCAN/);
 });
@@ -130,6 +139,15 @@ test('a week of short push days of about the same size becomes the new full day'
   mergeRecords(s, recordsFromJson([{ ref: 'r-a', name: 'PC-A', serial: 'S-a' }]), new Date('2026-11-12T08:00:00Z'));
   assert.deepEqual(s.lsPresence.full, { day: '2026-11-11', n: 4 });
   assert.equal(s.lsPresence.short, undefined);
+});
+
+test('a week of tiny push days (under a quarter of the full day) is a broken query: it stays set aside', () => {
+  const s = base([ls('a', 'PC-A')]);
+  const days = Array.from({ length: 7 }, (_, i) => ({ day: `2026-11-${String(10 - i).padStart(2, '0')}`, n: 2 }));
+  s.lsPresence = { day: '2026-11-11', n: 2, since: '2026-10-01', full: { day: '2026-11-03', n: 10 }, short: { day: '2026-11-10', n: 2, of: 10 }, days };
+  mergeRecords(s, recordsFromJson([{ ref: 'r-a', name: 'PC-A', serial: 'S-a' }]), new Date('2026-11-12T08:00:00Z'));
+  assert.deepEqual(s.lsPresence.full, { day: '2026-11-03', n: 10 });
+  assert.deepEqual(s.lsPresence.short, { day: '2026-11-11', n: 2, of: 10 });
 });
 
 test('a device a file uploaded by hand brought is not gone from Lansweeper before it was there', async () => {

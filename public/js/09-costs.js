@@ -252,8 +252,9 @@ export function licenceMark(l){
   const u = licenceUse(l, objs);
   return String(html`<span class="lic-mark${u.over ? ' over' : ''}" title="Counted by the licence ${l.name}: ${u.used} of ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'} used${u.over ? `, ${u.used - l.seats} over` : ''}">Licence</span>`);
 }
-/* None while the software is still being read (server-load.js): the Overview is drawn again once it is there. */
-export const licencesOver = () => !SW.loaded ? [] : COSTS.licences.filter(l => licenceUse(l, objs).over);
+/* Until every device's software is read (the Software tab), the use the server counted (api/licence-use). */
+export const licencesOver = () => SW.loaded ? COSTS.licences.filter(l => licenceUse(l, objs).over)
+  : COSTS.licences.filter(l => SW.licUse && (SW.licUse[l.id] || 0) > l.seats);
 /* The licences that count a package, for its row in the Software view. */
 export const licencesFor = pkg => COSTS.licences.filter(l => pkg.toLowerCase().includes(String(l.name).trim().toLowerCase()));
 

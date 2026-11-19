@@ -2,7 +2,7 @@ import { pad2, stamp, stampTime } from './dates.js';
 import { goneAllWith, sourcesOfWith } from './gone.js';
 import { html } from './html.js';
 import { graphSeen, isIntune, otherManager } from './intune.js';
-import { neverScannedWith, scanOldWith, seenDates, whereAreThey, whereSign } from './where.js';
+import { span, SCAN_OLD_DAYS as SCAN_DAYS_DEFAULT, neverScannedWith, scanOldWith, seenDates, whereAreThey, whereCtxOf, whereSign } from './where.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
@@ -164,10 +164,13 @@ export { WARRANTY_SOON_DAYS, warrantyState };
    none of its details come from a scan. The rules are in where.js, shared with the server's weekly mail. */
 export { SCAN_OLD_DAYS, NEVER_SCANNED_GRACE_DAYS } from './where.js';
 export const neverScanned = (o, today = new Date()) => neverScannedWith(o, lsLive(), today);
-export const scanOld = (o, today = new Date()) => scanOldWith(o, lsLive(), today);
-/* The strongest sign that a device in use may be missing (where.js), with this page's newest push day. */
-export const whereOf = (/** @type {any[]} */ list) => whereAreThey(list, { lsPresence: st.lsPresence, lsLive: lsLive() });
-export const whereSignOf = o => whereSign(o, { lsPresence: st.lsPresence, lsLive: lsLive() });
+export const scanOld = (o, today = new Date()) => scanOldWith(o, lsLive(), today, (st.whereDays && st.whereDays.scan) || SCAN_DAYS_DEFAULT);
+/* The strongest sign that a device in use may be missing (where.js), with this page's newest push day and day limits. */
+export const whereCtx = () => whereCtxOf(st, lsLive());
+/* How long without a Lansweeper scan counts, in words (3 months, 6 months …), as set. */
+export const scanSpan = () => span(whereCtx().scanDays);
+export const whereOf = (/** @type {any[]} */ list) => whereAreThey(list, whereCtx());
+export const whereSignOf = o => whereSign(o, whereCtx());
 export const scanChip = o => !scanOld(o) ? '' : neverScanned(o)
   ? `<span class="chip warn lsst" title="Lansweeper has tried to scan it (last on ${dayText(o.feed.tried)}) but has never scanned it. Check by hand that it is there, and why Lansweeper cannot scan it.">Never scanned</span>`
   : `<span class="chip warn lsst" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>`;
@@ -803,7 +806,8 @@ export function restoreSnapshot(snap, why = 'Undone'){
   for (const [o, was] of snap){
     /* The user is read from uid (and hotdesk); writing its name back would look the person up again, or make one. */
     const rest = { ...was }; delete rest.user;
-    for (const k of Object.keys(o)) if (k !== 'user' && !(k in rest)) delete o[k];
+    /* Nor its software: read after the inventory (server-load.js), a snapshot taken before has none, which is not none. */
+    for (const k of Object.keys(o)) if (k !== 'user' && k !== 'software' && !(k in rest)) delete o[k];
     Object.assign(o, rest);
     hist(o, now(), why);
   }
@@ -851,7 +855,7 @@ const outletWords = o => {
 };
 export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
-export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.gone || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
+export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.gone || st.where || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
 /* Why a device waits (15-review.js waitReason), set there: Pending devices is filtered by it. */
 let whyOf = null;
 export const setWhyOf = f => { whyOf = f; };
@@ -874,7 +878,7 @@ export function filtered(){
 }
 function filteredAsIs(q){
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.gone || !GONE_FILTERS[st.gone] || GONE_FILTERS[st.gone][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.gone || !GONE_FILTERS[st.gone] || GONE_FILTERS[st.gone][1](o)) && (!st.where || !!whereSignOf(o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 
