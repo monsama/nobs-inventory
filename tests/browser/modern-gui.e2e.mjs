@@ -61,20 +61,18 @@ try {
   await bad.waitForSelector('#cards .lrow');
   assert.equal(await bad.locator('#setPane').count(), 0);
 
-  // a smaller screen: the filters are a drawer, with the number in force on the button; Keep open docks them
+  // a smaller screen: the filters start folded into the strip at the left, which shows the number in force and opens them
   const d = await signIn({ width: 1100, height: 800 });
   await d.waitForSelector('#cards .lrow');
   assert.equal(await d.isVisible('#side'), false);
-  await d.click('#sideBtn'); await d.waitForSelector('#side', { state: 'visible' });
-  await d.click('#typeList [data-type="pc"]');
-  await until(d, () => document.querySelector('#sideN').textContent === '1');
-  // picking a filter closes the drawer, as on a phone; open it again to keep it open
-  if (!(await d.isVisible('#side'))) await d.click('#sideBtn');
-  await d.click('#sidePin');
-  assert.equal(await d.isVisible('#side'), true, 'kept open');
+  assert.equal(await d.isVisible('#sideBtn'), false, 'no Filters button in the bar');
+  await d.click('#sideRail'); await d.waitForSelector('#side', { state: 'visible' });
   assert.equal(await d.evaluate(() => localStorage.getItem('ni-side-pin')), '1');
+  await d.click('#typeList [data-type="pc"]');
+  assert.equal(await d.isVisible('#side'), true, 'a filter picked leaves them open beside the list');
   await d.click('#sidePin');
-  assert.equal(await d.isVisible('#side'), false, 'a drawer again');
+  assert.equal(await d.isVisible('#side'), false, 'folded away');
+  assert.equal(await d.textContent('#sideRailN'), '1', 'the strip shows the filter in force');
 
   // the bar for the selected floats at the bottom
   await p.click('#tabsbar [data-tab=cards]').catch(() => {});

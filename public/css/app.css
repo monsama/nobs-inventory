@@ -2679,3 +2679,22 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
 .lr-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--warn-bd,var(--bd));border-left:3px solid var(--warn,#c08a00);border-radius:var(--r-m);background:var(--panel)}
 .lr-say{flex:1;min-width:220px}
 .lr-acts{display:flex;gap:6px;flex-wrap:wrap}
+/* The filters beside the list (wider than a phone): as wide as their edge is dragged; folded away, a thin strip at the
+   left that opens them again (click or drag) and shows how many filters are in force. No Filters button in the bar. */
+#sideRail,#sideGrip{display:none}
+@media (min-width:821px){
+  body:not(.noside) #sideBtn{display:none!important}
+  #side{width:var(--sidew,250px)}
+  body.side-shut #side{display:none}
+  body:not(.noside):not(.side-shut) #sideGrip{display:block;flex:none;width:7px;margin-left:-4px;margin-right:-3px;position:relative;z-index:6;cursor:col-resize;touch-action:none;outline:0}
+  #sideGrip::after{content:'';position:absolute;inset:0 3px 0 3px;background:transparent;transition:background .12s}
+  #sideGrip:hover::after,#sideGrip:focus-visible::after,body.side-dragging #sideGrip::after{background:var(--accent)}
+  body:not(.noside).side-shut #sideRail{display:flex;flex:none;align-self:stretch;height:auto;max-height:none;flex-direction:column;align-items:center;gap:6px;width:14px;padding:10px 0;margin:0;border:0;border-right:1px solid var(--bd);border-radius:0;background:var(--bg);color:var(--muted);cursor:col-resize;touch-action:none;min-height:0}
+  #sideRail:hover,#sideRail:focus-visible{background:var(--sub);color:var(--fg)}
+  #sideRail:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  #sideRail .i{width:12px;height:12px}
+  #sideRail .rail-n:not([hidden]){display:inline-flex;align-items:center;justify-content:center;min-width:14px;height:14px;border-radius:7px;background:var(--accent);color:#fff;font-size:10px;font-weight:600}
+  body.side-dragging,body.side-dragging *{cursor:col-resize!important;user-select:none}
+  body.side-snap #side{opacity:.45}
+  .side-pinrow{display:flex;justify-content:flex-end;padding:6px 10px 0}
+}

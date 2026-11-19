@@ -312,28 +312,71 @@ export function bindHiddenHits(){
   const b = $('#searchAllBtn');
   if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; view(); };
 }
-/* Filters: a click opens or closes the drawer; a double-click keeps them open beside the list, and another double-click
-   puts them away again, as in other apps (on a wide screen; a phone has only the drawer). Kept open, a single click does
-   nothing, so the two clicks of a double-click do not fight it. */
+/* On a phone the filters are a drawer, opened with Filters in the bar. On a wider screen they sit beside the list, as
+   wide as their edge is dragged (kept in this browser); dragged to the left edge they fold away into a thin strip, which
+   a click or a drag to the right opens again, as wide as before. The strip shows how many filters are in force. */
 const wide = () => window.innerWidth > 820;
-$('#sideBtn').onclick = () => { if (wide() && sidePinned()) return; document.body.classList.toggle('side-open'); };
-$('#sideBtn').ondblclick = e => { if (!wide()) return; e.preventDefault(); setSidePin(!sidePinned()); };
-/* On a wide screen the filters can be a drawer too, or kept open beside the list (the choice is kept in this browser):
-   the list gets the room, the filters in force show as chips above it and as a number on the Filters button. */
-/* Not chosen yet: kept open on a screen with room for it (1280 px and wider), a drawer below that. */
-/* Worked out once when the page loads, so making the window a little narrower does not take the filters away. */
+$('#sideBtn').onclick = () => { document.body.classList.toggle('side-open'); };
+/* Not chosen yet: open on a screen with room for it (1280 px and wider), folded away below that. Worked out once when
+   the page loads, so making the window a little narrower does not take the filters away. */
 const SIDE_DEFAULT = window.innerWidth >= 1280;
 export const sidePinned = () => { let v = null; try { v = localStorage.getItem('ni-side-pin'); } catch { /* not kept */ } return v === null ? SIDE_DEFAULT : v === '1'; };
+const SIDE_MIN = 180, SIDE_MAX = 480, SIDE_SNAP = 140;
+const sideWidth = () => { let v = NaN; try { v = Number(localStorage.getItem('ni-side-w')); } catch { /* not kept */ } return v >= SIDE_MIN && v <= SIDE_MAX ? v : 250; };
+const keepWidth = w => { try { localStorage.setItem('ni-side-w', String(Math.round(w))); } catch { /* not kept */ } };
 export function placeSide(){
-  document.body.classList.toggle('side-drawer', !sidePinned());
-  const sb = $('#sideBtn'); if (sb){ sb.setAttribute('aria-pressed', String(sidePinned())); sb.title = sidePinned() ? 'Filters kept open: double-click to hide them' : 'Filters: click to open, double-click to keep them open'; }
-  const pin = $('#sidePin'); if (pin) { pin.textContent = sidePinned() ? 'Hide' : 'Keep open'; pin.title = sidePinned() ? 'Show the filters only when Filters is pressed' : 'Keep the filters open beside the list'; }
-  const n = $('#sideN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.gone, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; if (sb) sb.setAttribute('aria-label', `Filters${k ? `, ${k} in force` : ''}${sidePinned() ? ', kept open' : ''}`); }
+  document.body.classList.remove('side-drawer');
+  document.body.classList.toggle('side-shut', !sidePinned());
+  document.documentElement.style.setProperty('--sidew', sideWidth() + 'px');
+  const g = $('#sideGrip'); if (g){ g.setAttribute('aria-valuenow', String(sidePinned() ? sideWidth() : 0)); g.setAttribute('aria-valuemin', '0'); g.setAttribute('aria-valuemax', String(SIDE_MAX)); }
+  const rail = $('#sideRail'); if (rail) rail.setAttribute('aria-expanded', String(sidePinned()));
+  const sb = $('#sideBtn');
+  const n = $('#sideN'), rn = $('#sideRailN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.gone, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; if (rn){ rn.textContent = String(k); rn.hidden = !k; } const rl = $('#sideRail'); if (rl) rl.setAttribute('aria-label', `Show the filters${k ? `, ${k} in force` : ''}`); if (sb) sb.setAttribute('aria-label', `Filters${k ? `, ${k} in force` : ''}${sidePinned() ? ', kept open' : ''}`); }
 }
 /* The Filters button says whether the drawer is open, however it closes (Escape, a tap beside it, a filter picked). */
 new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('aria-expanded', String(document.body.classList.contains('side-open'))); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 function setSidePin(on){ try { localStorage.setItem('ni-side-pin', on ? '1' : '0'); } catch { /* not kept */ } document.body.classList.remove('side-open'); placeSide(); }
-$('#sidePin').onclick = () => setSidePin(!sidePinned());
+$('#sidePin').onclick = () => { setSidePin(false); $('#sideRail')?.focus(); };
+/* Dragging the edge (or the strip): the width follows the pointer; let go nearer the left edge than SIDE_SNAP, the
+   filters fold away (the width before is kept for when they open again). A click on the strip opens them. */
+function dragSide(e, fromRail){
+  if (!wide() || e.button !== 0) return;
+  e.preventDefault();
+  const left = $('#main').getBoundingClientRect().left, startX = e.clientX, was = sideWidth();
+  let moved = false, w = sidePinned() ? was : 0;
+  document.body.classList.add('side-dragging');
+  const move = ev => {
+    if (Math.abs(ev.clientX - startX) > 3) moved = true;
+    if (!moved) return;
+    w = Math.max(0, Math.min(SIDE_MAX, ev.clientX - left));
+    if (w >= SIDE_SNAP && !sidePinned()) setSidePin(true);
+    document.body.classList.toggle('side-snap', w < SIDE_SNAP);
+    document.documentElement.style.setProperty('--sidew', Math.max(w, SIDE_MIN) + 'px');
+  };
+  const up = () => {
+    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    document.body.classList.remove('side-dragging', 'side-snap');
+    if (!moved){ if (fromRail) setSidePin(true); return; }
+    if (w < SIDE_SNAP){ keepWidth(was); setSidePin(false); return; }
+    keepWidth(Math.max(SIDE_MIN, w)); setSidePin(true);
+  };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}
+$('#sideGrip').addEventListener('pointerdown', e => dragSide(e, false));
+$('#sideRail').addEventListener('pointerdown', e => dragSide(e, true));
+$('#sideRail').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setSidePin(true); $('#sideGrip')?.focus(); } });
+/* The edge by keyboard: ← and → by 20 px (Shift: 60), Home the narrowest, Enter folds away or opens. */
+$('#sideGrip').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setSidePin(!sidePinned()); return; }
+  const step = e.shiftKey ? 60 : 20, d = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+  if (e.key === 'Home'){ e.preventDefault(); keepWidth(SIDE_MIN); placeSide(); return; }
+  if (!d) return;
+  e.preventDefault();
+  if (!sidePinned()){ if (d > 0) setSidePin(true); return; }
+  const next = sideWidth() + d;
+  if (next < SIDE_MIN){ setSidePin(false); return; }
+  keepWidth(Math.min(SIDE_MAX, next)); placeSide();
+});
 /* The filter drawer on a phone closes like a menu: Escape, or a tap beside it. */
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('side-open') && !$('#modalHost').childElementCount){ document.body.classList.remove('side-open'); $('#sideBtn').focus(); } });
 document.addEventListener('pointerdown', e => { if (!document.body.classList.contains('side-open')) return; const t = evEl(e); if (t.closest && !t.closest('#side, #sideBtn')) document.body.classList.remove('side-open'); }, true);

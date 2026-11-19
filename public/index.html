@@ -29,8 +29,9 @@
 </header>
 
 <div id="main">
+  <button type="button" id="sideRail" aria-label="Show the filters" aria-controls="side" title="Show the filters: click, or drag to the right"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="rail-n" id="sideRailN" hidden></span></button>
   <aside id="side" aria-label="Filters">
-    <div class="side-pinrow"><button type="button" id="sidePin" class="link" title="Keep the filters open beside the list">Keep open</button></div>
+    <div class="side-pinrow"><button type="button" id="sidePin" class="link" title="Hide the filters (or drag their edge to the left)">Hide</button></div>
     <section class="sidesec" data-sec="review"><div class="hdr sechdr" id="scopeHdr" hidden><button type="button" class="sec-t">Pending devices</button></div>
     <div class="sidegroup" id="scopeList" hidden></div></section>
     <section class="sidesec" data-sec="views"><div class="hdr sechdr" id="viewHdr" hidden><button type="button" class="sec-t">Views</button></div>
@@ -62,6 +63,7 @@
     <section class="sidesec" data-sec="adg"><div class="hdr sechdr" id="adgHdr" hidden><button type="button" class="sec-t">AD group</button></div>
     <div class="sidegroup" id="adgList" hidden></div></section>
   </aside>
+  <div id="sideGrip" role="separator" aria-orientation="vertical" aria-controls="side" aria-label="Width of the filters: drag, or use the arrow keys; Enter hides or shows them" tabindex="0" title="Drag to change the width; drag to the left edge to hide"></div>
 
   <main id="content">
     <nav id="tabsbar" aria-label="Views"></nav>

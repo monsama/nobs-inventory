@@ -161,13 +161,10 @@ try {
   await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
   await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
 
-  // Filters: a double-click on the button puts kept-open filters away, another keeps them open again
-  await go('cards'); await p.waitForSelector('#sideBtn[aria-pressed="true"]');
-  await p.dblclick('#sideBtn');
-  await until(p, () => document.body.classList.contains('side-drawer') && !document.body.classList.contains('side-open'));
-  await p.click('#sideBtn'); await until(p, () => document.body.classList.contains('side-open'));
-  await p.dblclick('#sideBtn');
-  await until(p, () => !document.body.classList.contains('side-drawer') && document.querySelector('#sideBtn').getAttribute('aria-pressed') === 'true');
+  // Filters: Hide folds them into the strip at the left, a click on it opens them again (side-resize.e2e.mjs: dragging)
+  await go('cards'); await p.waitForSelector('#sidePin');
+  await p.click('#sidePin'); await until(p, () => document.body.classList.contains('side-shut'));
+  await p.click('#sideRail'); await until(p, () => !document.body.classList.contains('side-shut'));
 
   assert.deepEqual(errors, [], 'page errors');
   console.log('bulk lists, licences, lazy software, push sizes and Where are they?: all checks passed');
