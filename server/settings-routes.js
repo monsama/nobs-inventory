@@ -113,7 +113,7 @@ export function registerSettingsRoutes(app, ctx) {
       res.json(digestInfo());
     } catch (e) { next(e.status ? new HttpError(e.status, e.message) : e); }
   });
-  app.get('/api/digest/preview', requireUser, requireAdmin, (req, res) => { const m = digestNow(); res.set('Cache-Control', 'no-store').json({ subject: m.subject, text: m.text }); });
+  app.get('/api/digest/preview', requireUser, requireAdmin, (req, res) => { const m = digestNow(); res.set('Cache-Control', 'no-store').json({ subject: m.subject, text: m.text, html: m.html }); });
   app.post('/api/digest/send', requireUser, requireAdmin, async (req, res, next) => {
     try { await app.locals.sendDigest(); res.json(digestInfo()); }
     catch (e) { audit(db, req.user.id, 'weekly e-mail failed: ' + e.message); next(new HttpError(400, e.message)); }

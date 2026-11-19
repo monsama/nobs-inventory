@@ -3,7 +3,8 @@ import { subnetSpan, ipInt, subnetProblem, overlapProblem } from './net.js';
 import { queueServerSave, render } from './07-render.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { html, rawHtml } from './html.js';
-import { fieldOrder, fieldMode } from './sync-map.js';
+import { SOURCES_OF, fieldOrder, fieldMode } from './sync-map.js';
+import { setOrderNow } from './settings-sources.js';
 import { roomFor } from './room-name.js';
 import { REVIEW, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
@@ -295,13 +296,28 @@ const locMap = () => ({ ...(st.adLocMap || {}), ...(st.locMap || {}) });
 const locTarget = t => LOCS.find(l => lc(l) === lc(t)) || (Object.entries(locMap()).find(([k]) => lc(k) === lc(t)) || [])[1] || '';
 /* The Location texts from the sources panel: each text with its sources and device count, and what it is used as.
    An admin can pick an existing room or a new one for it, or remove that again. */
+/* The sources whose texts are listed: those that fill the location now (and the user's office while it is used). */
+const usedSrc = () => new Set([...fieldOrder(st, 'loc'), ...(st.locFromOffice ? ['office'] : [])]);
+const shownTexts = () => { const use = usedSrc(); return locTexts().map(e => ({ ...e, src: new Set([...e.src].filter(x => use.has(x))) })).filter(e => e.src.size); };
 function adLocsHtml(){
-  const list = locTexts();
-  const office = html`<label class="pchk adloc-office" title="A user's office comes from AD or Entra; on a laptop or for remote work it may not be where the device is"><input type="checkbox" id="locOffice" ${st.locFromOffice ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Use the office of the device's user, for devices without a location</label>`;
-  if (!list.length) return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources</div><p class="note lnote">No source has sent a location text yet. Active Directory's location, Lansweeper's building and location, and the office of a device's user show here, to use as rooms.</p><div class="lnote">${office}</div></section>`;
-  /* Which sources fill a device's location, in order, and how: changed in Settings → Data sources. */
-  const SHORT_SRC = { ls: 'Lansweeper', ad: 'AD', graph: 'Entra' }, order = fieldOrder(st, 'loc');
-  const orderLine = html`<div class="lnote adloc-order"><span>Fills the location: ${order.length ? html`<b>${order.map(x => SHORT_SRC[x] + (fieldMode(st, 'loc', x) === 'fill' ? ' (only if empty)' : '')).join(' → ')}</b>` : html`<b>no source</b>`}${order.length < 2 ? '' : html`<span class="muted">, the first that has a room for the device</span>`}</span>${isAdmin() ? html`<button type="button" class="link" data-locorder>Change order or leave a source out</button>` : ''}</div>`;
+  const list = shownTexts();
+  /* Which sources fill a device's location, in order: set here at once. Each source has its place (1 first; a source
+     higher up replaces what one lower down wrote), arrows to move it and a switch; the user's office (from AD or Entra)
+     is the fallback for devices without one. A source switched off fills nothing, and its texts are not listed below. */
+  const order = fieldOrder(st, 'loc'), all = SOURCES_OF('loc'), off = all.filter(x => !order.includes(x)), ed = isAdmin();
+  const NAME = { ad: 'Active Directory', ls: 'Lansweeper' };
+  const srcItem = (x, i) => { const on = order.includes(x), mode = fieldMode(st, 'loc', x);
+    return html`<li class="ls-item${on ? ' on' : ''}"><span class="ls-num" aria-hidden="true">${on ? i + 1 : ''}</span>
+      <span class="ls-name"><b>${NAME[x]}</b><small>${on ? (mode === 'fill' ? 'only if empty' : 'keeps it up to date') : 'off'}</small></span>
+      ${ed && on && order.length > 1 ? html`<span class="ls-move"><button type="button" class="icon ghost" data-locmv="${x}|-1" ${i === 0 ? 'disabled' : ''} aria-label="${`Move ${NAME[x]} up`}" title="Higher: replaces what the others wrote">▲</button><button type="button" class="icon ghost" data-locmv="${x}|1" ${i === order.length - 1 ? 'disabled' : ''} aria-label="${`Move ${NAME[x]} down`}">▼</button></span>` : html`<span class="ls-move"></span>`}
+      <label class="switch" title="${on ? `Switch ${NAME[x]} off: it fills no location` : `Switch ${NAME[x]} on`}"><input type="checkbox" data-locon="${x}" ${on ? 'checked' : ''} ${ed ? '' : 'disabled'} aria-label="${`${NAME[x]} fills the location`}"><span aria-hidden="true"></span></label></li>`; };
+  const officeItem = html`<li class="ls-item ls-fallback${st.locFromOffice ? ' on' : ''}"><span class="ls-num" aria-hidden="true">${st.locFromOffice ? '↳' : ''}</span>
+      <span class="ls-name"><b>User's office</b><small>${st.locFromOffice ? 'from AD or Entra, for devices still without one' : 'off'}</small></span><span class="ls-move"></span>
+      <label class="switch" title="A user's office comes from AD or Entra; on a laptop or for remote work it may not be where the device is"><input type="checkbox" id="locOffice" ${st.locFromOffice ? 'checked' : ''} ${ed ? '' : 'disabled'} aria-label="The office of the device's user fills the location"><span aria-hidden="true"></span></label></li>`;
+  const orderLine = html`<div class="locsrc"><div class="locsrc-h"><b>Location comes from</b><span class="muted">first in the list wins</span></div>
+    <ol class="locsrc-list">${[...order, ...off].map((x, i) => srcItem(x, i))}${officeItem}</ol></div>`;
+  /* Nothing to list: either nothing was sent, or only by sources switched off. The row of sources stays, to switch one on. */
+  if (!list.length) return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources</div>${orderLine}<p class="note lnote">${locTexts().length ? 'The sources in use have sent no location text; switch one on above to see its texts.' : 'No source has sent a location text yet. Active Directory\'s location, Lansweeper\'s building and location, and the office of a device\'s user show here, to use as rooms.'}</p></section>`;
   /* AD's location is often kept by hand: its texts can become rooms of a site by themselves. Off by default. */
   const auto = html`<label class="adloc-auto">Rooms from AD's location<select id="adLocAuto" ${isAdmin() ? '' : 'disabled'} aria-label="Rooms from AD's location"><option value="">Off: I pick them here</option>${SITES.map(x => html`<option value="${x}" ${st.adLocAuto === x ? 'selected' : ''}>Made at each AD sync, in ${x}</option>`)}</select></label>`;
   const free = list.map((e, i) => [e, i]).filter(([e]) => !LOCS.some(l => lc(l) === lc(e.text)) && !locTarget(e.text));
@@ -321,7 +337,7 @@ function adLocsHtml(){
   return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources <span class="cnt">${list.length}</span></div>
     <p class="note lnote">What the sources call a device's location. Use a text as a room here, existing or new, and the syncs fill it in on devices without a location. A text alone never becomes a location.</p>
     ${orderLine}
-    <div class="lnote adloc-opts">${office}${auto}</div>
+    <div class="lnote adloc-opts">${auto}</div>
     ${bulk}
     <div class="lrows"><div class="lrow adloc head${isAdmin() ? ' pick' : ''}">${isAdmin() ? html`<span></span>` : ''}<span>Location text</span><span>Source</span><span class="n">Devices</span><span></span></div>${list.map((e, i) => row(e, i))}</div></section>`;
 }
@@ -353,7 +369,20 @@ let adSite = '';
 const bulkSite = () => SITES.includes(adSite) ? adSite : SITES[0] || '';
 const roomName = (site, t) => cleanLoc(roomFor(site, t));
 function bindAdLocs(root){
-  const list = locTexts();
+  const list = shownTexts();
+  /* The row of sources: a switch takes one out (or puts it back, last); the arrows change its place. */
+  const order = fieldOrder(st, 'loc'), NAME = { ad: 'AD', ls: 'Lansweeper' };
+  const say = list2 => list2.length ? `from ${list2.map(x => NAME[x]).join(' › ')}` : 'from no source';
+  root.querySelectorAll('[data-locon]').forEach(cb => cb.onchange = () => {
+    const x = cb.dataset.locon, next = cb.checked ? [...order.filter(y => y !== x), x] : order.filter(y => y !== x);
+    setOrderNow('loc', next, say(next), renderSetLocs);
+  });
+  root.querySelectorAll('[data-locmv]').forEach(b => b.onclick = () => {
+    const [x, d] = b.dataset.locmv.split('|'), i = order.indexOf(x), j = i + Number(d);
+    if (i < 0 || j < 0 || j >= order.length) return;
+    const next = [...order]; [next[i], next[j]] = [next[j], next[i]];
+    setOrderNow('loc', next, say(next), () => { renderSetLocs(); /** @type {HTMLElement|null} */ (document.querySelector(`[data-locmv="${CSS.escape(b.dataset.locmv)}"]`) || document.querySelector(`[data-locon="${x}"]`))?.focus(); });
+  });
   root.querySelectorAll('[data-adpick]').forEach(cb => cb.onchange = () => { const k = lc(list[+cb.dataset.adpick].text); if (cb.checked) adPicked.add(k); else adPicked.delete(k); renderSetLocs(); });
   const all = $('#adPickAll'); if (all) all.onchange = () => { adPicked.clear(); if (all.checked) for (const e of list) if (!LOCS.some(l => lc(l) === lc(e.text)) && !locTarget(e.text)) adPicked.add(lc(e.text)); renderSetLocs(); };
   const go = $('#adBulkGo'); if (go) go.onclick = () => {
@@ -363,7 +392,8 @@ function bindAdLocs(root){
   const bs = $('#adBulkSite'); if (bs) bs.onchange = () => { adSite = bs.value; renderSetLocs(); };
   const auto = $('#adLocAuto'); if (auto) auto.onchange = () => { st.adLocAuto = auto.value; queueServerSave(); toast(auto.value ? `AD's location texts become rooms in ${auto.value} at each AD sync` : 'Rooms from AD\'s location: off'); };
   const ord = root.querySelector('[data-locorder]'); if (ord) ord.onclick = async () => { (await import('./settings-find.js')).openSetting('sources'); requestAnimationFrame(() => { const b = /** @type {HTMLElement|null} */ (document.querySelector('[data-dsedit="loc"]')); if (b){ b.click(); st.setTab = 'locations'; } }); };
-  const oc = $('#locOffice'); if (oc) oc.onchange = () => { st.locFromOffice = oc.checked; queueServerSave(); toast(oc.checked ? 'Devices without a location take their user\'s office at the next sync' : 'The office of a user is no longer used'); };
+  const oc = $('#locOffice'); if (oc) oc.onchange = () => { const was = !!st.locFromOffice; st.locFromOffice = oc.checked; queueServerSave(); renderSetLocs();
+    toastUndo(oc.checked ? 'Devices without a location take their user\'s office at the next sync' : 'The office of a user is no longer used', () => { st.locFromOffice = was; queueServerSave(); renderSetLocs(); }); };
   root.querySelectorAll('[data-admap]').forEach(sel => sel.onchange = () => {
     const t = list[+sel.dataset.admap].text, v = sel.value; if (!v) return;
     if (v.startsWith('loc:')) useAdLoc(t, v.slice(4), `${t} is used as ${v.slice(4)}`);

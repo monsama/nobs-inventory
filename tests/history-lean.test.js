@@ -185,6 +185,20 @@ test('the inventory without its software, the software on its own, and saves tha
     assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'a'), { ...obj, name: 'PC-A2', software: sw });
     r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'object', id: 'a', value: { ...obj, software: [] }, base: r.json.revs['object|a'] }], dels: [] } });
     assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'a').software, []);
+    /* The safety net: a save that would take two or more packages away at once keeps the stored ones, and says so. */
+    const s2 = loadState(srv.db); s2.objs.find(o => o.id === 'b').software = [...sw, { name: 'Viewer', version: '2' }, { name: 'Zip', version: '9' }]; saveState(srv.db, s2);
+    const lb = (await srv.call('GET', '/api/state?history=0', { cookie: a.cookie })).json, bo = lb.objs.find(o => o.id === 'b');
+    r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'object', id: 'b', value: { ...bo, software: [{ name: 'New', version: '1' }] }, base: lb.revs['object|b'] }], dels: [] } });
+    assert.equal(r.status, 200); assert.deepEqual(r.json.keptSoftware, [{ id: 'b', name: 'PC-b', n: 3 }]);
+    assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'b').software.map(p => p.name), ['Office Suite', 'Viewer', 'Zip', 'New']);
+    const lb2 = (await srv.call('GET', '/api/state?history=0', { cookie: a.cookie })).json, bo2 = lb2.objs.find(o => o.id === 'b');
+    r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'object', id: 'b', value: { ...bo2, software: bo2.software.filter(p => p.name !== 'Zip') }, base: lb2.revs['object|b'] }], dels: [] } });
+    assert.equal(r.json.keptSoftware, undefined, 'one package removed is fine');
+    assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'b').software.map(p => p.name), ['Office Suite', 'Viewer', 'New']);
+    s2.objs.find(o => o.id === 'b').software = sw; saveState(srv.db, { ...loadState(srv.db), objs: loadState(srv.db).objs.map(o => o.id === 'b' ? { ...o, software: sw } : o) });
+    /* The Software tab's index: packages, versions and device ids, no device's whole list. */
+    const pk = (await srv.call('GET', '/api/software/packages', { cookie: a.cookie })).json.packages;
+    assert.deepEqual(pk.find(x => x.name === 'Office Suite').versions, [['16.0', ['b']]]);
     /* One device's software, and the licences' use counted on the server. */
     assert.deepEqual((await srv.call('GET', '/api/software/b', { cookie: a.cookie })).json, { id: 'b', software: sw });
     assert.deepEqual((await srv.call('GET', '/api/software/c', { cookie: a.cookie })).json.software, []);
@@ -195,6 +209,7 @@ test('the inventory without its software, the software on its own, and saves tha
     const v = await signIn(srv, 'vbern', 'vbernpass12345');
     assert.deepEqual(Object.keys((await srv.call('GET', '/api/software', { cookie: v.cookie })).json.software), []);
     assert.equal((await srv.call('GET', '/api/software/b', { cookie: v.cookie })).status, 404, 'a device of another site');
+    assert.deepEqual((await srv.call('GET', '/api/software/packages', { cookie: v.cookie })).json.packages, [], 'no other site\'s packages');
     assert.deepEqual((await srv.call('GET', '/api/licence-use', { cookie: v.cookie })).json.use, { l1: 0 }, 'only their devices counted');
     const vs = (await srv.call('GET', '/api/state?history=0', { cookie: v.cookie })).json;
     assert.deepEqual(vs.lsPresence, { day: '2026-11-19', since: '2026-11-01', full: { day: '2026-11-18' } });

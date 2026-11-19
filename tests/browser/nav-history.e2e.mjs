@@ -75,6 +75,36 @@ try {
   await p.goBack(); await until(p, () => !document.querySelector('#mdl'));
   assert.equal((await st()).tab, 'cards', 'the view behind the dialog stays');
 
+  // back with a dialog open on a device's page: the address still names that device
+  await tab('table');
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('b'));
+  await until(p, async () => (await import('/js/01-core.js')).st.tab === 'b');
+  await p.evaluate(async () => (await import('/js/04-settings.js')).openSettings());
+  await p.waitForSelector('#mdl');
+  await p.goBack(); await until(p, () => !document.querySelector('#mdl'));
+  assert.equal((await st()).tab, 'b');
+  assert.equal(new URL(p.url()).search, '?o=INV-0002', 'the address names the device still shown');
+
+  // a dialog opened from Settings: back closes it and Settings comes back; back again closes Settings
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'sources'; (await import('/js/04-settings.js')).openSettings(); });
+  await p.waitForSelector('[data-dsedit="loc"]', { state: 'attached' });
+  await p.evaluate(() => document.querySelectorAll('details').forEach(d => { if (d.querySelector('[data-dsedit]')) d.open = true; }));
+  await p.click('[data-dsedit="loc"]');
+  await p.waitForSelector('#mdl:not(:has(#setPane)) .mh');
+  await p.goBack(); await p.waitForSelector('#mdl #setPane');
+  assert.equal(await p.$$eval('#mdlGhost', g => g.length), 0);
+  await p.goBack(); await until(p, () => !document.querySelector('#mdl'));
+  assert.equal((await st()).tab, 'b', 'still the device page');
+
+  // the Where are they? filter is a step too
+  await tab('table');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.where = true; (await import('/js/07-render.js')).view(); });
+  await tab('cards');
+  await p.goBack(); await until(p, async () => (await import('/js/01-core.js')).st.tab === 'table');
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).st.where), true, 'back: the filter as it was');
+  await p.goBack(); await until(p, async () => !(await import('/js/01-core.js')).st.where);
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.where = false; (await import('/js/07-render.js')).view(); });
+
   // V goes to the next view of the tab: Cards ↔ Table
   await tab('cards');
   await p.evaluate(() => document.activeElement && document.activeElement.blur());

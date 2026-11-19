@@ -275,11 +275,13 @@ function deleteLicence(l){
 }
 /* The Licences box over the Software tab, as HTML: each licence with its seats used, a bar, its cost and end. New
    licence is for admins. */
+/* A licence's use: counted here when every device's software is read, else as the server counted it (api/licence-use). */
+const useOf = l => { if (SW.loaded || !SW.licUse) return licenceUse(l, objs); const used = SW.licUse[l.id] || 0; return { used, free: l.seats - used, over: used > l.seats, devices: [] }; };
 export function licencesPanel(){
   /* Admins tick licences to change their end or cost period, or delete them, several at once (one Undo). */
   const admin = isAdmin(), lsel = st.licSel = new Set([...(st.licSel || [])].filter(id => COSTS.licences.some(l => l.id === id)));
   const rows = COSTS.licences.map(l => {
-    const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
+    const u = useOf(l), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
     return html`<tr${lsel.has(l.id) ? html` class="picked"` : ''}>${admin ? html`<td class="selcol"><input type="checkbox" data-licsel="${l.id}" aria-label="${`Select ${l.name}`}" ${lsel.has(l.id) ? 'checked' : ''}></td>` : ''}<td><button class="link" data-lic="${l.id}"><b>${l.name}</b></button></td>
       <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
       <td class="num">${l.cost > 0 ? html`${rawHtml(money(l.cost))} <span class="muted">${PERIODS[l.per || 'year']}</span>` : ''}</td><td>${l.end ? dayText(l.end) : ''}</td><td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-lic="${l.id}"`), l.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-licdel="${l.id}"`), l.name)) : ''}</span></td></tr>`;

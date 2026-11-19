@@ -129,6 +129,13 @@ async function sendNow(){
         const v = JSON.parse(c.json); if (j.codes && j.codes[c.id]) v.code = j.codes[c.id];
         SERVER.base.set(key, JSON.stringify(v));
       }
+      /* The server kept software this save would have taken away (state.js applyChanges): the page loads it again. */
+      if (j.keptSoftware && j.keptSoftware.length){
+        toast(`Software kept on ${j.keptSoftware.map(k => k.name).join(', ')}: this page had an older list. Loaded again.`);
+        SERVER.busy = false;
+        await reloadFromServer({ flush: false, skip: [...j.keptSoftware.map(k => 'object|' + k.id), ...(j.conflicts || [])] });
+        setSave('saved'); return;
+      }
       if (j.conflicts && j.conflicts.length){
         const KIND_NAME = { object: 'a device', rel: 'a connection', setting: 'a setting', user: 'a user', type: 'a device type', history: 'a history entry' };
       const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : KIND_NAME[k.split('|')[0]] || k; });

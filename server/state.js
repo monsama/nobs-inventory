@@ -751,7 +751,7 @@ export function applyChanges(db, body, guard = () => {}) {
     else if (c.kind === 'history') delete s.history[c.id];
     else if (c.kind === 'setting') delete s[c.id];
   }
-  const codes = {}, keptRels = new Set();
+  const codes = {}, keptRels = new Set(), keptSoftware = [];
   for (const c of okPuts) {
     const v = c.value;
     if (c.kind === 'object') {
@@ -761,6 +761,18 @@ export function applyChanges(db, body, guard = () => {}) {
       const i = s.objs.findIndex(o => o.id === c.id);
       /* A page that has not read the software yet (api/software) sends the device without it: the stored list stays. */
       if (i >= 0 && !Object.hasOwn(v, 'software') && Array.isArray(s.objs[i].software)) v.software = s.objs[i].software;
+      /* A safety net under the page: on the page software is added or removed one package at a time, so a save that
+         would take two or more away at once is a page working from an old or partial list. The stored packages stay
+         (with any it added), the log says so and the page loads again. A sync writes software its own way. */
+      if (i >= 0 && Array.isArray(v.software) && Array.isArray(s.objs[i].software)) {
+        const key = p => (p && typeof p === 'object') ? `${p.name}\u0000${p.version}` : String(p);
+        const sent = new Set(v.software.map(key)), lost = s.objs[i].software.filter(p => !sent.has(key(p)));
+        if (lost.length >= 2) {
+          const had = new Set(s.objs[i].software.map(key));
+          v.software = [...s.objs[i].software, ...v.software.filter(p => !had.has(key(p)))];
+          keptSoftware.push({ id: c.id, name: v.name || c.id, n: lost.length });
+        }
+      }
       if (i >= 0) s.objs[i] = v; else s.objs.push(v);
     } else if (c.kind === 'rel') {
       const rid = String(c.id); const v2 = { ...v, id: rid };
@@ -823,5 +835,5 @@ export function applyChanges(db, body, guard = () => {}) {
   if (Object.keys(codes).length) { const r = revOf.get('setting', 'codeN'); if (r) applied[docKey('setting', 'codeN')] = r.rev; }
   /* So is the history that went with a deleted device. */
   for (const id of goneHistory) { const r = revOf.get('history', id); if (r) applied[docKey('history', id)] = r.rev; }
-  return { revs: applied, codes, conflicts };
+  return { revs: applied, codes, conflicts, ...(keptSoftware.length ? { keptSoftware } : {}) };
 }

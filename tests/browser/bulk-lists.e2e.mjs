@@ -151,6 +151,16 @@ try {
   await p.click('#grOk');
   await stored(st => st.objs.find(o => o.id === 'g').status === 'retired' && st.objs.find(o => o.id === 'b').status === 'active');
 
+  // the weekly e-mail's preview, also without a mail server: the mail as it would go out, with Where are they?
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'mail'; (await import('/js/04-settings.js')).openSettings(); });
+  await p.waitForSelector('#dgPreview'); await p.click('#dgPreview');
+  await p.waitForSelector('iframe.dg-frame');
+  const mail = await p.$eval('iframe.dg-frame', f => f.contentDocument.body.textContent);
+  assert.match(mail, /Where are they\?/); assert.match(mail, /PC-OLD/);
+  assert.equal(await p.getAttribute('iframe.dg-frame', 'sandbox'), 'allow-same-origin', 'the mail runs nothing (no scripts allowed)');
+  await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
+  await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
+
   // Filters: a double-click on the button puts kept-open filters away, another keeps them open again
   await go('cards'); await p.waitForSelector('#sideBtn[aria-pressed="true"]');
   await p.dblclick('#sideBtn');

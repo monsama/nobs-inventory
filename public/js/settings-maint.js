@@ -312,22 +312,31 @@ function digestPanel(){
       <span></span><label class="pchk" style="width:auto"><input type="checkbox" id="dgRep" ${d.reports ? 'checked' : ''}> Also send each problem a device's user reports, at once</label>
       </div>
       <div class="addrel" style="padding:10px 12px"><span class="note" style="flex:1">${!l ? 'Not sent yet.' : l.ok ? `Last sent ${esc(pushDate(l.at))} to ${l.to} address${l.to === 1 ? '' : 'es'}.` : `<span class="warn">Last try ${esc(pushDate(l.at))} failed: ${esc(l.error || '')}</span>`}</span>
-        <button id="dgPreview">Preview</button><button id="dgSend">Send now</button><button id="dgSave" class="primary">Save</button></div>` : ''}${mailHtml(d.mail || {})}</div>`;
+        <button id="dgPreview">Preview</button><button id="dgSend">Send now</button><button id="dgSave" class="primary">Save</button></div>` : `<div class="addrel" style="padding:0 12px 10px"><span class="note" style="flex:1">Set up the mail server below to send it. What it would say this week can be seen now.</span><button id="dgPreview">Preview this week's e-mail</button></div>`}${mailHtml(d.mail || {})}</div>`;
 }
 /* Wires the weekly e-mail: Save, Send now (which saves first) and Preview, which shows the e-mail in a dialog; also
    the mail server form. */
 function wireDigest(){
   wireMail();
+  /* Preview: the mail as it would go out today, as the recipients see it (in a frame that runs nothing and opens no
+     link), with its plain text one click away. Also before a mail server is set up. */
+  const pv = $('#dgPreview');
+  if (pv) pv.onclick = async () => {
+    try {
+      const r = await fetch('api/digest/preview', { credentials: 'same-origin' }); const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'The preview could not be made.');
+      modal(html`<div class="mh">${j.subject}</div><div class="mb"><p class="note">As it would be sent now${(DIGEST && DIGEST.to && DIGEST.to.length) ? ` to ${DIGEST.to.join(', ')}` : ''}.</p>
+        <iframe class="dg-frame" title="The e-mail" sandbox="allow-same-origin" srcdoc="${j.html || ''}"></iframe>
+        <details class="dg-text"><summary>Plain text</summary><pre class="dg-pre">${j.text}</pre></details></div>
+        <div class="mf"><button id="dgClose" class="primary">Close</button></div>`, 'wide');
+      $('#dgClose').onclick = () => { closeModal(); };
+    } catch (e) { toast(e.message); }
+  };
   const sv = $('#dgSave'); if (!sv) return;
   const body = () => ({ to: $('#dgTo').value, day: Number($('#dgDay').value), hour: Number($('#dgHour').value), on: $('#dgOn').checked, reports: $('#dgRep').checked, link: location.origin + location.pathname.replace(/[^/]*$/, '') });
   const call = async (method, url, b) => { const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); return j; };
   sv.onclick = () => call('PUT', 'api/digest', body()).then(j => { DIGEST = j; renderSetMaint(); toast(j.on ? 'The weekly e-mail is on' : 'Saved'); }, e => toast(e.message));
   $('#dgSend').onclick = async () => { try { await call('PUT', 'api/digest', body()); DIGEST = await call('POST', 'api/digest/send'); toast('Sent'); } catch (e) { toast(e.message); DIGEST = null; } renderSetMaint(); };
-  $('#dgPreview').onclick = async () => {
-    try { const j = await call('GET', 'api/digest/preview');
-      modal(html`<div class="mh">${j.subject}</div><div class="mb"><pre class="dg-pre">${j.text}</pre></div><div class="mf"><button id="dgClose" class="primary">Close</button></div>`, 'wide');
-      $('#dgClose').onclick = () => { closeModal(); }; } catch (e) { toast(e.message); }
-  };
 }
 /* Make photos smaller: every stored device photo written again the way new ones are (23-photos.js, prepare) and kept
    only when that makes it at least 15 % smaller. Runs in this page, one photo after the other; the floor plans are not

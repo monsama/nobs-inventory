@@ -1,8 +1,8 @@
 /* Software: a device's software panel, and the Software view of all packages (split out of 03-object-modals.js, which re-exports it). */
 import './srcpick.js';
 import { bindLicences, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
-import { $, TYPES, hist, now, objs, st, tico, toast, noMatchHtml } from './01-core.js';
-import { SW, ensureDeviceSoftware, ensureSoftware, render } from './07-render.js';
+import { $, TYPES, byId, hist, now, st, tico, toast, noMatchHtml } from './01-core.js';
+import { SW, ensureDeviceSoftware, ensurePackages, forgetPackages, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
 import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './view-search.js';
@@ -32,36 +32,33 @@ export function bindSoftware(o){
     st.swOpen = [...new Set([...(st.swOpen || []), name])]; st.swFocus = name; st.tab = 'sw'; render(false);
   });
   $('#view').querySelectorAll('[data-swdel]').forEach(b => b.onclick = () => {
-    const p = o.software.splice(+b.dataset.swdel, 1)[0]; hist(o, now(), 'Software removed: ' + p.name); render();
+    const p = o.software.splice(+b.dataset.swdel, 1)[0]; hist(o, now(), 'Software removed: ' + p.name); forgetPackages(); render();
   });
   const add = $('#swAdd'); if (!add) return;
   add.onclick = () => {
     const name = $('#swName').value.trim();
     if (!name){ toast('Give the software a name.'); return; }
-    o.software = [...(o.software || []), {name, version: $('#swVer').value.trim()}];
+    o.software = [...(o.software || []), {name, version: $('#swVer').value.trim()}]; forgetPackages();
     hist(o, now(), 'Software added: ' + name); render();
   };
 }
 /* Every package across the PCs and servers. A package opens in place to list the devices it is installed on,
    with the version on each; a version other than the most common one is marked, as it is usually the one to update. */
-const swPackages = () => {
-  const map = {};
-  objs.forEach(o => (o.software || []).forEach(p => {
-    const r = (map[p.name] ??= {name: p.name, counts: {}, devices: []});
-    const v = p.version || '-';
-    r.counts[v] = (r.counts[v] || 0) + 1;
-    if (!r.devices.includes(o)) r.devices.push(o);
-  }));
-  return Object.values(map).map(r => ({...r, versions: Object.entries(r.counts).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0], undefined, {numeric: true}))}));
-};
-const versionOf = (d, name) => ((d.software || []).find(x => x.name === name) || {}).version || '-';
+/* From the server's index (api/software/packages): the page knows the devices, the server which have which version. */
+const swPackages = () => (SW.pkgs || []).map(p => {
+  const ver = new Map(), devices = [];
+  for (const [v, ids] of p.versions) for (const id of ids){ const d = byId(id); if (!d) continue; if (!ver.has(id)) devices.push(d); ver.set(id, v); }
+  const counts = {}; for (const v of ver.values()) counts[v] = (counts[v] || 0) + 1;
+  return { name: p.name, devices, ver, versions: Object.entries(counts).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0], undefined, {numeric: true})) };
+}).filter(r => r.devices.length);
+const versionOf = (d, r) => r.ver.get(d.id) || '-';
 const swChevron = rawHtml('<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
 function swDetailHtml(r){
   const common = r.versions[0][0], mixed = r.versions.length > 1;
-  const devs = [...r.devices].sort((x, y) => versionOf(y, r.name).localeCompare(versionOf(x, r.name), undefined, {numeric: true}) || x.name.localeCompare(y.name));
+  const devs = [...r.devices].sort((x, y) => versionOf(y, r).localeCompare(versionOf(x, r), undefined, {numeric: true}) || x.name.localeCompare(y.name));
   return html`<tr class="sw-detail" data-swd="${r.name}"><td colspan="4"><div class="sw-devs">
     <table class="sw-sub"><thead><tr><th>Device</th><th class="sw-opt">Type</th><th>Location</th><th class="sw-opt">User</th><th>Version</th></tr></thead><tbody>
-    ${devs.map(d => { const v = versionOf(d, r.name), odd = mixed && v !== common; return html`<tr>
+    ${devs.map(d => { const v = versionOf(d, r), odd = mixed && v !== common; return html`<tr>
       <td><span class="sw-dev">${rawHtml(tico(d.type, 'tico sm'))}<a class="link mono" data-open="${d.id}">${d.name}</a></span></td>
       <td class="sw-opt">${TYPES[d.type] ? TYPES[d.type].short : d.type}</td><td>${(d.loc || '').replace(' / ', ' · ')}</td><td class="sw-opt">${d.user || ''}</td>
       <td><span class="vchip${odd ? ' odd' : ''}" ${odd ? html`title="Most devices have ${common}"` : ''}>${v}</span></td></tr>`; })}
@@ -70,15 +67,15 @@ function swDetailHtml(r){
 /* The Software tab: the Licences box, then every package with its versions and how many devices have it, sorted by
    name or count and filtered by the search. A row opens in place to list its devices. */
 export function renderSoftware(){
-  if (!SW.loaded){
+  if (!SW.pkgs){
     $('#toolbar').innerHTML = html`<span class="muted">Loading the software…</span>`;
     $('#view').innerHTML = html`<div class="sw-page"><div class="empty">Loading the software…</div></div>`;
-    ensureSoftware(); return;
+    ensurePackages(); return;
   }
   const all = swPackages();
   st.swOpen = (st.swOpen || []).filter(n => all.some(r => r.name === n));
   st.swSort ??= 'name';
-  const devCount = objs.filter(o => (o.software || []).length).length;
+  const devCount = new Set(all.flatMap(r => r.devices.map(d => d.id))).size;
   $('#toolbar').innerHTML = html`<span class="muted" id="swCount"></span>${all.length ? viewSearchHtml('Package, version, device or user', 'Search the software') : ''}<div class="grow"></div>
     <button id="swCollapse" ${st.swOpen.length ? '' : 'hidden'}>Collapse all</button><span class="muted hide-n">Add software on a PC or server</span>`;
   if (!all.length){ $('#view').innerHTML = html`<div class="sw-page">${rawHtml(licencesPanel())}<div class="empty">No software recorded yet. Add it on a PC or server.</div></div>`; bindLicences(); return; }
