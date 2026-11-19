@@ -4,7 +4,7 @@
 import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast , byId, menuHtml, noMatchHtml } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
-import { closeModal, modal } from './19-modal.js';
+import { closeModal, confirmModal, modal } from './19-modal.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
@@ -56,7 +56,7 @@ function contactCard(c){
   const n = devicesOf(c).length, k = (COSTS.contracts || []).filter(x => (x.contacts || []).includes(c.id)).length;
   const ways = reach(c);
   return html`<div class="cn-card ${c.kind}">
-    <div class="cn-head"><span class="cn-avatar" aria-hidden="true">${initials(c.name)}</span>
+    <div class="cn-head">${isAdmin() ? html`<input type="checkbox" class="cn-sel" data-cnsel="${c.id}" aria-label="${`Select ${c.name}`}" ${(st.cnSel || new Set()).has(c.id) ? 'checked' : ''}>` : ''}<span class="cn-avatar" aria-hidden="true">${initials(c.name)}</span>
       <div class="cn-who"><b>${markHtml(c.name, curWords)}</b><span class="muted">${[c.role, c.kind === 'external' ? '' : c.company].filter(Boolean).join(' · ') || CONTACT_KINDS[c.kind]}</span></div>
       <span class="rowacts">${rawHtml(editButton(String(html`data-cnedit="${c.id}"`), c.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-cndel="${c.id}"`), c.name)) : ''}</span></div>
     ${c.area ? html`<div class="cn-area" title="Ask about">${c.area}</div>` : ''}
@@ -104,7 +104,10 @@ export function renderContacts(){
   const companies = [...byCompany.keys()].sort((a, b) => !a ? 1 : !b ? -1 : a.localeCompare(b));
   const byName = (a, b) => a.name.localeCompare(b.name);
   const group = (title, sub, list) => html`<section class="cn-group"><div class="hdr">${title} <span class="cnt">${list.length}</span>${sub ? html`<span class="cn-sub">${sub}</span>` : ''}</div><div class="cn-grid">${list.sort(byName).map(contactCard)}</div></section>`;
-  $('#view').innerHTML = html`<div class="cn">${own.length ? group(COMPANY.name ? `Internal · ${COMPANY.name}` : 'Internal', '', own) : ''}
+  /* Admins tick contacts to remove several, or move them to a company, at once (one Undo); ticks hold for contacts listed. */
+  const sel = st.cnSel = new Set([...(st.cnSel || [])].filter(id => shown.some(c => c.id === id)));
+  const selBar = isAdmin() && sel.size ? html`<div class="selbar" role="region" aria-label="Selected contacts"><b>${sel.size} selected</b><button type="button" data-cnbulk="move">Move to company…</button><button type="button" data-cnbulk="del" class="danger-text">Delete ${sel.size}…</button><button type="button" data-cnbulk="all">Select all ${shown.length}</button><button type="button" data-cnbulk="clear">Clear</button></div>` : '';
+  $('#view').innerHTML = html`${selBar}<div class="cn${sel.size ? ' picking' : ''}">${own.length ? group(COMPANY.name ? `Internal · ${COMPANY.name}` : 'Internal', '', own) : ''}
     ${companies.map(k => group(k || 'External, no company', 'IT partner', byCompany.get(k)))}
     ${shown.length ? '' : html`<div class="empty">${rawHtml(noMatchHtml())}</div>`}</div>`;
   const v = $('#view');
@@ -112,6 +115,55 @@ export function renderContacts(){
   v.querySelectorAll('[data-cndel]').forEach(b => b.onclick = () => { const c = contactOf(b.dataset.cndel); if (c) deleteContact(c); });
   v.querySelectorAll('[data-cndevs]').forEach(b => b.onclick = () => showDevicesOfContact(b.dataset.cndevs));
   v.querySelectorAll('[data-cnctr]').forEach(b => b.onclick = () => { st.tab = 'contracts'; view(); });
+  v.querySelectorAll('[data-cnsel]').forEach(b => b.onchange = () => { const id = /** @type {HTMLElement} */ (b).dataset.cnsel; if (sel.has(id)) sel.delete(id); else sel.add(id); renderContacts(); /** @type {HTMLElement|null} */ ($(`#view [data-cnsel="${CSS.escape(id)}"]`))?.focus(); });
+  v.querySelectorAll('[data-cnbulk]').forEach(b => b.onclick = () => {
+    const what = /** @type {HTMLElement} */ (b).dataset.cnbulk, list = CONTACTS.list.filter(c => sel.has(c.id));
+    if (what === 'clear'){ sel.clear(); renderContacts(); return; }
+    if (what === 'all'){ shown.forEach(c => sel.add(c.id)); renderContacts(); return; }
+    if (what === 'del') removeContacts(list);
+    if (what === 'move') moveContactsModal(list);
+  });
+}
+/* Several contacts taken out at once, as one contact is: the devices they were responsible for lose them, with a history
+   line each, and one Undo brings back the contacts and those responsibles. */
+function removeContacts(list){
+  const ids = new Set(list.map(c => c.id)), devs = objs.filter(o => ids.has(o.respIn) || ids.has(o.respEx));
+  confirmModal(`Delete ${list.length} ${list.length === 1 ? 'contact' : 'contacts'}`, html`Delete ${list.map(c => c.name).slice(0, 6).join(', ')}${list.length > 6 ? ` and ${list.length - 6} more` : ''}?${devs.length ? ` ${devs.length} ${devs.length === 1 ? 'device loses its' : 'devices lose their'} responsible.` : ''} One Undo brings them back.`, 'Delete', () => {
+    const was = [...CONTACTS.list], resp = devs.map(o => [o.id, o.respIn, o.respEx]);
+    for (const o of devs) for (const k of ['respIn', 'respEx']) if (ids.has(o[k])) { const c = list.find(x => x.id === o[k]); o[k] = undefined; Reflect.deleteProperty(o, k); hist(o, now(), `Responsible ${c ? c.name : ''} removed (contact deleted) by ${who()}`); }
+    CONTACTS.list = CONTACTS.list.filter(c => !ids.has(c.id));
+    if (ids.has(st.resp)) st.resp = null;
+    (st.cnSel || new Set()).clear(); queueServerSave(); render();
+    toastUndo(`${list.length} ${list.length === 1 ? 'contact' : 'contacts'} deleted`, () => {
+      const cur = CONTACTS.list;
+      CONTACTS.list = [...was.map(c => cur.find(x => x.id === c.id) || (ids.has(c.id) ? c : null)).filter(Boolean), ...cur.filter(x => !was.some(c => c.id === x.id))];
+      for (const [id, a, b] of resp){ const o = byId(id); if (!o) continue; if (a && ids.has(a)) o.respIn = a; if (b && ids.has(b)) o.respEx = b; hist(o, now(), `Responsible back (delete undone) by ${who()}`); }
+      queueServerSave(); render();
+    }, { anyEpoch: true });
+  });
+}
+/* Several contacts moved to one company (a partner company there is, or a new name): they become external contacts of
+   it. One Undo puts back their kind and company. */
+function moveContactsModal(list){
+  const cos = contactCompanies();
+  modal(html`<div class="mh">Move ${list.length} ${list.length === 1 ? 'contact' : 'contacts'} to a company</div>
+    <div class="mb"><div class="form"><label for="mvCo">Company</label><input id="mvCo" maxlength="120" autocomplete="off" placeholder="${cos[0] ? `e.g. ${cos[0]}` : 'Name of the IT partner'}"></div>
+      ${cos.length ? html`<div class="mv-cos">${cos.map(n => html`<button type="button" class="chip-btn" data-mvco="${n}">${n}</button>`)}</div>` : ''}
+      <p class="note">They become external contacts of that company.</p></div>
+    <div class="mf"><button id="mvNo">Cancel</button><button id="mvOk" class="primary">Move</button></div>`, 'sm');
+  const box = /** @type {HTMLInputElement} */ ($('#mvCo'));
+  $$('[data-mvco]').forEach(b => b.onclick = () => { box.value = /** @type {HTMLElement} */ (b).dataset.mvco || ''; box.focus(); });
+  $('#mvNo').onclick = closeModal;
+  const go = () => {
+    const co = box.value.trim(); if (!co){ toast('Give the company a name.'); box.focus(); return; }
+    const was = list.map(c => [c.id, c.kind, c.company]);
+    for (const c of list) Object.assign(c, { kind: 'external', company: co });
+    closeModal(); (st.cnSel || new Set()).clear(); queueServerSave(); render();
+    toastUndo(`${list.length} moved to ${co}`, () => { for (const [id, kind, company] of was){ const c = contactOf(id); if (!c) continue; c.kind = kind; if (company) c.company = company; else Reflect.deleteProperty(c, 'company'); } queueServerSave(); render(); }, { anyEpoch: true });
+  };
+  $('#mvOk').onclick = go;
+  box.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); go(); } };
+  box.focus();
 }
 /* From the directory: the people AD or Entra brought in, picked one by one or by department, become internal contacts
    linked to them (userId), with their name, title, e-mail and phones. A value the contact rules refuse (a phone in a

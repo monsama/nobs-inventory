@@ -190,7 +190,11 @@ function goneHtml(on){
     ['graph', 'Entra & Intune', on.graph, 'A device the sync no longer finds in Entra or Intune is gone.'],
   ].filter(r => r[2]);
   if (!rows.length) return '';
-  return html`<div class="panelbox"><div class="hdr">Gone devices <span class="cnt">${n('any')} gone from a source · ${n('all')} from all</span></div><div class="ds-gone">${rows.map(([k, label, , how]) => html`<div class="ds-gonerow"><b>${label}</b><span class="note">${how}</span><button type="button" data-dsgone="${k}" ${n(k) ? '' : 'disabled'}>${n(k) ? `Show ${n(k)}` : 'None gone'}</button></div>`)}</div></div>`;
+  /* How many devices each of the last push days brought: a steady row means the thresholds hold; a dip is a short day. */
+  const days = P && Array.isArray(P.days) ? P.days.slice(0, 14).reverse() : [];
+  const top = Math.max(1, ...days.map(d => d.n));
+  const sizes = on.ls && days.length > 1 ? html`<div class="ds-gonerow ds-pushsizes"><b>Push sizes</b><span class="ds-bars" role="img" aria-label="${`Devices per push day: ${days.map(d => `${dayText(d.day)} ${d.n}`).join(', ')}`}">${days.map(d => html`<span class="ds-bar${P.full && d.n < P.full.n / 2 ? ' short' : ''}" title="${`${dayText(d.day)}: ${d.n} devices`}"><i style="height:${Math.max(4, Math.round(d.n / top * 100))}%"></i></span>`)}</span><span class="note">${days[days.length - 1].n} on ${dayText(days[days.length - 1].day)}, ${Math.min(...days.map(d => d.n))} to ${top} in ${days.length} days</span></div>` : '';
+  return html`<div class="panelbox"><div class="hdr">Gone devices <span class="cnt">${n('any')} gone from a source · ${n('all')} from all</span></div><div class="ds-gone">${sizes}${rows.map(([k, label, , how]) => html`<div class="ds-gonerow"><b>${label}</b><span class="note">${how}</span><button type="button" data-dsgone="${k}" ${n(k) ? '' : 'disabled'}>${n(k) ? `Show ${n(k)}` : 'None gone'}</button></div>`)}</div></div>`;
 }
 export function renderSetSources(){
   const root = $('#setSources'); if (!root) return;

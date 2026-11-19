@@ -6,7 +6,7 @@ import { contactLabel } from './contacts.js';
 import { contactCompanies, contactModal } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
-import { closeModal, modal } from './19-modal.js';
+import { closeModal, confirmModal, modal } from './19-modal.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
 /* Suppliers for a contract and for a device: the companies in Contacts, the contracts' suppliers and the devices'. */
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier), ...objs.map(o => typeof o.supplier === 'string' ? o.supplier.trim() : '')].filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -94,19 +94,38 @@ export function renderContracts(){
     const ne = $('#ctNewEmpty'); if (ne) ne.onclick = () => contractModal(null);
     return;
   }
-  $('#view').innerHTML = html`${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
-      <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Notice by</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
-    ${rows.length ? rows.map(({ c }) => html`<tr><td title="${c.name}"><button class="link" data-contract="${c.id}"><b>${markHtml(c.name, words)}</b></button>${c.ref ? html` <span class="mono muted">${markHtml(c.ref, words)}</span>` : ''}</td>
+  /* Admins tick contracts to delete several at once (one Undo); the ticks hold only for contracts still listed. */
+  const admin = isAdmin(), sel = st.ctSel = new Set([...(st.ctSel || [])].filter(id => rows.some(r => r.c.id === id)));
+  const selBar = admin && sel.size ? html`<div class="selbar" role="region" aria-label="Selected contracts"><b>${sel.size} selected</b><button type="button" data-ctbulk="del" class="danger-text">Delete ${sel.size}…</button><button type="button" data-ctbulk="clear">Clear</button></div>` : '';
+  $('#view').innerHTML = html`${costSummary(all)}${selBar}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
+      ${admin ? html`<th class="selcol"><input type="checkbox" data-ctall aria-label="Select every contract listed" ${rows.length && rows.every(r => sel.has(r.c.id)) ? 'checked' : ''}></th>` : ''}<th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Notice by</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
+    ${rows.length ? rows.map(({ c }) => html`<tr${sel.has(c.id) ? html` class="picked"` : ''}>${admin ? html`<td class="selcol"><input type="checkbox" data-ctsel="${c.id}" aria-label="${`Select ${c.name}`}" ${sel.has(c.id) ? 'checked' : ''}></td>` : ''}<td title="${c.name}"><button class="link" data-contract="${c.id}"><b>${markHtml(c.name, words)}</b></button>${c.ref ? html` <span class="mono muted">${markHtml(c.ref, words)}</span>` : ''}</td>
       <td>${CONTRACT_KINDS[c.kind]}</td><td>${markHtml(c.supplier || '', words)}${contactsLine(c)}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
       <td class="num">${c.cost > 0 ? html`${rawHtml(money(c.cost))} <span class="muted">${PERIODS[c.per || 'year']}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
       <td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-contract="${c.id}"`), c.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-ctdel="${c.id}"`), c.name)) : ''}</span></td></tr>`)
-      : html`<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue && !st.q ? 'No contract needs anyone now.' : rawHtml(noMatchHtml())}</td></tr>`}
-    </tbody>${year ? html`<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${rawHtml(money(year))}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
+      : html`<tr><td colspan="${admin ? 9 : 8}" class="muted" style="padding:14px">${st.ctDue && !st.q ? 'No contract needs anyone now.' : rawHtml(noMatchHtml())}</td></tr>`}
+    </tbody>${year ? html`<tfoot><tr><td colspan="${admin ? 5 : 4}">Running contracts per year</td><td class="num"><b>${rawHtml(money(year))}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
   $('#view').querySelectorAll('[data-ctcontact]').forEach(b => b.onclick = () => { const k = contactOf(b.dataset.ctcontact); if (k) contactModal(k); });
   $('#view').querySelectorAll('[data-ctdel]').forEach(b => b.onclick = () => { const c = COSTS.contracts.find(x => x.id === b.dataset.ctdel); if (c) deleteContract(c); });
   const db = $('#ctDueBtn'); if (db) db.onclick = () => { st.ctDue = !st.ctDue; renderContracts(); };
   bindViewSearch(renderContracts); bindListViews();
+  const v = $('#view');
+  v.querySelectorAll('[data-ctsel]').forEach(b => b.onchange = () => { const id = /** @type {HTMLElement} */ (b).dataset.ctsel; if (sel.has(id)) sel.delete(id); else sel.add(id); renderContracts(); /** @type {HTMLElement|null} */ (v.querySelector(`[data-ctsel="${CSS.escape(id)}"]`))?.focus(); });
+  const ca = v.querySelector('[data-ctall]'); if (ca) ca.onchange = () => { if (rows.every(r => sel.has(r.c.id))) sel.clear(); else rows.forEach(r => sel.add(r.c.id)); renderContracts(); /** @type {HTMLElement|null} */ ($('#view [data-ctall]'))?.focus(); };
+  v.querySelectorAll('[data-ctbulk]').forEach(b => b.onclick = () => {
+    if (/** @type {HTMLElement} */ (b).dataset.ctbulk === 'clear'){ sel.clear(); renderContracts(); return; }
+    const list = COSTS.contracts.filter(c => sel.has(c.id));
+    confirmModal(`Delete ${list.length} ${list.length === 1 ? 'contract' : 'contracts'}`, html`Delete ${list.map(c => c.name).slice(0, 6).join(', ')}${list.length > 6 ? ` and ${list.length - 6} more` : ''}? The devices they cover are not touched. One Undo brings them back.`, 'Delete', () => {
+      const was = [...COSTS.contracts];
+      COSTS.contracts = COSTS.contracts.filter(c => !sel.has(c.id)); sel.clear(); queueServerSave(); render();
+      toastUndo(`${list.length} ${list.length === 1 ? 'contract' : 'contracts'} deleted`, () => {
+        /* Back in their places; anything changed or added since stays as it is now. */
+        const now = COSTS.contracts;
+        COSTS.contracts = [...was.map(c => now.find(x => x.id === c.id) || (list.includes(c) ? c : null)).filter(Boolean), ...now.filter(x => !was.some(c => c.id === x.id))];
+        queueServerSave(); render(); }, { anyEpoch: true });
+    });
+  });
 }
 
 /* The contacts of a contract that are still in Contacts, as a short line under its supplier. */

@@ -38,9 +38,9 @@ try {
 
   // the Overview: a line for the devices no source lists any more, leading to them
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
-  await p.waitForSelector('[data-ovgone="all"]');
-  assert.match(await p.textContent('[data-ovgone="all"]'), /2\s*No source lists them any more/);
-  await p.click('[data-ovgone="all"]');
+  await p.waitForSelector('[data-ovmissing]');
+  assert.match(await p.textContent('[data-ovmissing]'), /2\s*Where are they\?\s*2 gone from every source/);
+  await p.click('[data-ovmissing]');
   await until(p, () => document.querySelectorAll('#cards .lrow').length === 2);
 
   // Retire these 2: a reason proposed, each retired with a history line, one Undo

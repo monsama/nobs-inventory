@@ -20,11 +20,12 @@ test('a push notes the day each device was in it, once a day, counts the devices
   assert.ok(!push(['a'], '2026-11-10T22:05:00Z').present, 'already noted today');
   // the next day closes the first one: a full day of 2
   push(['a'], '2026-11-11T22:00:00Z');
-  assert.deepEqual(s.lsPresence, { day: '2026-11-11', n: 1, since: '2026-11-10', full: { day: '2026-11-10', n: 2 } });
+  assert.deepEqual(s.lsPresence, { day: '2026-11-11', n: 1, since: '2026-11-10', full: { day: '2026-11-10', n: 2 }, days: [{ day: '2026-11-10', n: 2 }] });
   // three days on, B is no longer sent: A moves on, B keeps its day
   push(['a'], '2026-11-13T22:00:00Z');
   assert.equal(s.objs[0].feed.inPush, '2026-11-13'); assert.equal(s.objs[1].feed.inPush, '2026-11-10');
   assert.deepEqual(s.lsPresence.full, { day: '2026-11-11', n: 1 }, 'one of two is half: still a full day');
+  assert.deepEqual(s.lsPresence.days.map(d => d.n), [1, 2], 'the sizes of the days judged, newest first');
   checkState(s);
 });
 
