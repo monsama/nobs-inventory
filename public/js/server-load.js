@@ -100,6 +100,15 @@ export function ensurePackages(){
   return SW.pkgLoading;
 }
 export function forgetPackages(){ SW.pkgs = null; }
+/* Each device's installed software, by id: the page's own copy where it holds one (read for the device's page, or
+   changed here and maybe not yet on the server), else the server's index (null until it is read). */
+export function knownSoftware(){
+  if (!SW.pkgs) return null;
+  const m = new Map();
+  for (const p of SW.pkgs) for (const [v, ids] of p.versions) for (const id of ids){ let l = m.get(id); if (!l) m.set(id, l = []); l.push({ name: p.name, version: v }); }
+  for (const o of objs) if (Object.hasOwn(o, 'software')) m.set(o.id, Array.isArray(o.software) ? o.software : []);
+  return m;
+}
 /* How many devices use each licence, from the server, for the Overview while the software is not read. */
 function loadLicenceUse(){
   fetch('api/licence-use', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {

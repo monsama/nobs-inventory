@@ -2,7 +2,7 @@
 import './srcpick.js';
 import { bindLicences, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { $, TYPES, byId, hist, now, st, tico, toast, noMatchHtml } from './01-core.js';
-import { SW, ensureDeviceSoftware, ensurePackages, forgetPackages, render } from './07-render.js';
+import { SW, ensureDeviceSoftware, ensurePackages, forgetPackages, knownSoftware, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
 import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './view-search.js';
@@ -44,13 +44,19 @@ export function bindSoftware(o){
 }
 /* Every package across the PCs and servers. A package opens in place to list the devices it is installed on,
    with the version on each; a version other than the most common one is marked, as it is usually the one to update. */
-/* From the server's index (api/software/packages): the page knows the devices, the server which have which version. */
-const swPackages = () => (SW.pkgs || []).map(p => {
-  const ver = new Map(), devices = [];
-  for (const [v, ids] of p.versions) for (const id of ids){ const d = byId(id); if (!d) continue; if (!ver.has(id)) devices.push(d); ver.set(id, v); }
-  const counts = {}; for (const v of ver.values()) counts[v] = (counts[v] || 0) + 1;
-  return { name: p.name, devices, ver, versions: Object.entries(counts).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0], undefined, {numeric: true})) };
-}).filter(r => r.devices.length);
+/* From the server's index (api/software/packages), with the page's own copy of a device's software where it holds one
+   (a change made here shows at once, before the server has it). */
+const swPackages = () => {
+  const by = new Map();
+  for (const [id, list] of knownSoftware() || []){
+    const d = byId(id); if (!d) continue;
+    for (const p of list){ const name = String(p && p.name || '').trim(); if (!name) continue;
+      let r = by.get(name); if (!r) by.set(name, r = { name, devices: [], ver: new Map() });
+      if (!r.ver.has(id)) r.devices.push(d); r.ver.set(id, String(p.version || '').trim() || '-'); }
+  }
+  return [...by.values()].map(r => { const counts = {}; for (const v of r.ver.values()) counts[v] = (counts[v] || 0) + 1;
+    return { ...r, versions: Object.entries(counts).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0], undefined, {numeric: true})) }; });
+};
 const versionOf = (d, r) => r.ver.get(d.id) || '-';
 const swChevron = rawHtml('<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
 function swDetailHtml(r){
