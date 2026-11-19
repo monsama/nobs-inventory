@@ -2543,3 +2543,9 @@ body.dense table.grid:is(.ips,.prns,.sw,.contracts) th{height:28px}
 .port-desc input{flex:1;min-width:0}
 /* Between a phone and a wide screen the plan's bar wraps to a second line rather than running off its edge. */
 @media (min-width:761px) and (max-width:1100px){.pl-bar{flex-wrap:wrap;overflow-x:visible;padding-top:6px;padding-bottom:6px}.pl-bar>select{flex-shrink:0;min-width:160px}.pl-bar .grow{display:none}}
+/* The search field of a list of its own (Software, Contracts, Contacts), with the match marked in the names. */
+.vsearch{position:relative;display:inline-flex;align-items:center;flex:0 1 280px;min-width:160px}
+.vsearch .i{position:absolute;left:9px;width:15px;height:15px;color:var(--muted);pointer-events:none}
+.vsearch input{width:100%;padding-left:30px}
+#view mark{background:color-mix(in srgb,var(--accent) 22%,transparent);color:inherit;border-radius:2px;padding:0 1px}
+@media (max-width:760px){.vsearch{flex:1 1 100%;order:5}}

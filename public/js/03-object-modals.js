@@ -12,7 +12,7 @@ import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
-import { dayText, agoText, lastSeenOf, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
+import { dayText, agoText, lastSeenOf, sourcesOf, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
@@ -129,7 +129,7 @@ export function retireModal(o){
     render();
   };
 }
-/* A record that is most likely a second one of another device (argonb35.corp.example beside ARGONB35, see twinOf): said at
+/* A record that is most likely a second one of another device (pc-nb35.corp.example beside PC-NB35, see twinOf): said at
    the top of its page, with the device to open and, to clean it up, Merge: its address goes to that device as a dock's
    adapter, and it is kept as ignored so no sync brings it back. A device still waiting in Pending devices is said so. */
 function twinBanner(o){
@@ -312,6 +312,10 @@ export function renderObj(o){
   const seen = lastSeenOf(o), hostRel = rs.find(x => x.out && isAttached(x.r.kind));
   const facts = [['User', o.user || (hostRel && hostRel.other.user) || '', o.user ? '' : hostRel && hostRel.other.user ? 'From ' + hostRel.other.name : ''],
     ['Location', o.loc || (hostRel && hostRel.other.loc) || ''], ['IP', o.ip || ''], ['Last seen', seen ? agoText(seen.day) : '', seen ? `${seen.at} by ${seen.src}` : '']];
+  /* The sources it has been in, the ones that no longer list it marked gone (with when, in the tooltip). */
+  const srcs = o.status === 'retired' ? [] : sourcesOf(o);
+  if (srcs.length) facts.push(['Sources', srcs.length > 1 && srcs.every(x => x.gone) ? 'Gone from all' : srcs.map(x => x.gone ? `${x.src === 'ad' ? 'AD' : x.name} gone` : (x.src === 'ad' ? 'AD' : x.name)).join(' · '),
+    srcs.map(x => `${x.name}: ${x.gone ? 'gone, ' + x.when : 'lists it'}`).join('\n')]);
   const TABS = [['details', 'Details', 0], ['relations', 'Relations', rs.length], ...(srcHtml ? [['sources', 'Sources', 0]] : []), ['history', 'History', 0]];
   /* Another device opens on Details, as a new record does; the tab picked stays while this one is redrawn. */
   if (st.objTabFor !== o.id){ st.objTab = 'details'; st.objTabFor = o.id; }

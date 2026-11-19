@@ -331,7 +331,7 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
-export const st = {scope:null, rvWhy:'', newWeek:false, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','prn','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
+export const st = {scope:null, rvWhy:'', newWeek:false, rvSrc:'', rvKnown:false, rvOld:false, gone:null, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','ips','prn','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFocus:null, mapPos:{},
   policy:/** @type {Record<string, boolean>} */ ({ ...DEFAULT_POLICY }),
   ldap:/** @type {Record<string, any>} */ ({url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}), lansweeper:{}};
@@ -524,6 +524,36 @@ export const SEEN_FILTERS = {
   d30: ['Not seen for 30 days', o => { const s = lastSeenOf(o); return !!s && s.days > 30; }],
   d90: ['Not seen for 90 days', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
 };
+/* The sources a device has been in, and whether each still lists it. Lansweeper: the day it was last in a push
+   (feed.inPush, else the day this tracking began) against the day of the newest push, two days apart at least, so one
+   push that broke off half way gives no false alarm. Active Directory: the day its computer account went (adGone).
+   Entra & Intune: the time the sync no longer found it (graph.gone). A detached or excluded device is no longer
+   Lansweeper's; a retired one has gone on purpose and is never listed. */
+export const SOURCE_NAMES = { ls: 'Lansweeper', ad: 'Active Directory', graph: 'Entra & Intune' };
+const isoDay = v => /^\d{4}-\d{2}-\d{2}/.test(v || '') ? Date.parse(String(v).slice(0, 10) + 'T00:00:00Z') / 864e5 : NaN;
+/** @returns {{src: string, name: string, gone: boolean, when: string}[]} */
+export function sourcesOf(o){
+  const out = [];
+  if (o.feed && o.feed.sys === 'Lansweeper' && !o.detached && !o.excluded){
+    const P = st.lsPresence, last = o.feed.inPush || (P && P.since);
+    const gone = !!(P && P.day && last && isoDay(P.day) - isoDay(last) >= 2);
+    out.push({ src: 'ls', name: SOURCE_NAMES.ls, gone, when: gone ? (o.feed.inPush ? `last sent by Lansweeper on ${dayText(o.feed.inPush)}` : `not sent by Lansweeper since ${dayText(P.since)}`) : '' });
+  }
+  if (o.inAd || o.adGone) out.push({ src: 'ad', name: SOURCE_NAMES.ad, gone: !o.inAd && !!o.adGone, when: !o.inAd && o.adGone ? `its computer account went on ${dayText(o.adGone)}` : '' });
+  if (o.graph) out.push({ src: 'graph', name: SOURCE_NAMES.graph, gone: !!o.graph.gone, when: o.graph.gone ? `no longer found since ${String(o.graph.gone).slice(0, 10)}` : '' });
+  return out;
+}
+export const goneFrom = o => o.status === 'retired' ? [] : sourcesOf(o).filter(x => x.gone);
+/* Gone from a source, under More filters: from one source in particular, from at least one, or from every source the
+   device was in (nothing lists it any more). [label, test]. */
+/** @type {Record<string, [string, (o: any) => boolean]>} */
+export const GONE_FILTERS = {
+  any: ['From any source', o => goneFrom(o).length > 0],
+  all: ['From every source it was in', o => { if (o.status === 'retired') return false; const s = sourcesOf(o); return s.length > 0 && s.every(x => x.gone); }],
+  ls: ['From Lansweeper', o => goneFrom(o).some(x => x.src === 'ls')],
+  ad: ['From Active Directory', o => goneFrom(o).some(x => x.src === 'ad')],
+  graph: ['From Entra & Intune', o => goneFrom(o).some(x => x.src === 'graph')],
+};
 /* Data quality: what a device of the inventory lacks, or where its sources disagree. The Overview counts each, and a
    click lists them (st.quality). [name, what it means, test]. A responsible is asked for once there are internal contacts. */
 export const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios'];
@@ -599,8 +629,8 @@ export function sourceText(o, k, src = sourceOf(o, k)){
   if (src === 'unknown') return 'Where this value came from is not known: it was set before the sources were noted';
   return '';
 }
-/* The device a record named by a DNS name most likely stands for: argonb35.corp.example with no serial number, when a
-   device here is named ARGONB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
+/* The device a record named by a DNS name most likely stands for: pc-nb35.corp.example with no serial number, when a
+   device here is named PC-NB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
    adapter. A record marked as no duplicate (notTwin) has none, unless marked asks for the one it was marked against.
    Retired devices count on neither side; the device may also still wait in Pending devices. The names are indexed
    once per task, so a list of thousands stays quick. */
@@ -616,7 +646,7 @@ export function twinOf(o, { marked = false } = {}){
   const t = twinIdx.get(String(o.name).toLowerCase().split('.')[0]);
   return t && t.id !== o.id ? t : null;
 }
-/* The other way round: the probable second records of a device (argonb35.corp.example for ARGONB35), in the inventory or
+/* The other way round: the probable second records of a device (pc-nb35.corp.example for PC-NB35), in the inventory or
    still waiting in Pending devices. Indexed once per task, like twinOf. */
 let twinsIdx = null;
 export function twinsOf(o){
@@ -828,7 +858,7 @@ const outletWords = o => {
 };
 export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
-export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
+export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.gone || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
 /* Why a device waits (15-review.js waitReason), set there: Pending devices is filtered by it. */
 let whyOf = null;
 export const setWhyOf = f => { whyOf = f; };
@@ -851,7 +881,7 @@ export function filtered(){
 }
 function filteredAsIs(q){
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.gone || !GONE_FILTERS[st.gone] || GONE_FILTERS[st.gone][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 

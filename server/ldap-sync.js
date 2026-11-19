@@ -142,7 +142,7 @@ export function applyComputers(s, computers, now = new Date()) {
   for (const c of computers) {
     for (const k of [c.name, c.dns, String(c.dns || '').split('.')[0]]) if (k && !byName.has(k.toLowerCase())) byName.set(k.toLowerCase(), c);
   }
-  /* A device named as the account is (ARGONB35) is the account's own; another named by its DNS name (argonb35.corp.example,
+  /* A device named as the account is (PC-NB35) is the account's own; another named by its DNS name (pc-nb35.corp.example,
      often a second record a docking station's network adapter left in Lansweeper) is not given it as well. */
   const named = new Set(s.objs.filter(o => o.status !== 'retired' && o.name).map(o => low(o.name)));
   let n = 0;
@@ -177,6 +177,10 @@ export function applyComputers(s, computers, now = new Date()) {
     }
     if (JSON.stringify(groups) === JSON.stringify(o.adGroups || null) && !!c === !!o.inAd && JSON.stringify(ad) === JSON.stringify(o.ad || null) && !changed) continue;
     if (groups) o.adGroups = groups; else delete o.adGroups;
+    /* A device whose computer account is no longer in AD keeps the day it went (adGone), so it can be listed as gone from
+       Active Directory; back in AD, the mark goes. */
+    if (c && o.adGone) { delete o.adGone; (s.history[o.id] ??= []).unshift({ t: at, msg: 'Back in Active Directory' }); }
+    if (!c && o.inAd) { o.adGone = now.toISOString().slice(0, 10); (s.history[o.id] ??= []).unshift({ t: at, msg: 'Gone from Active Directory: its computer account is no longer there' }); }
     if (c) o.inAd = true; else delete o.inAd;
     if (ad) o.ad = ad; else delete o.ad;
     n++;

@@ -5,6 +5,7 @@ import { $, TYPES, hist, now, objs, st, tico, toast, noMatchHtml } from './01-co
 import { render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
+import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './view-search.js';
 
 
 
@@ -69,7 +70,7 @@ export function renderSoftware(){
   st.swOpen = (st.swOpen || []).filter(n => all.some(r => r.name === n));
   st.swSort ??= 'name';
   const devCount = objs.filter(o => (o.software || []).length).length;
-  $('#toolbar').innerHTML = html`<span class="muted" id="swCount"></span><div class="grow"></div>
+  $('#toolbar').innerHTML = html`<span class="muted" id="swCount"></span>${viewSearchHtml('Package, version, device or user', 'Search the software')}<div class="grow"></div>
     <button id="swCollapse" ${st.swOpen.length ? '' : 'hidden'}>Collapse all</button><span class="muted hide-n">Add software on a PC or server</span>`;
   if (!all.length){ $('#view').innerHTML = html`<div class="sw-page">${rawHtml(licencesPanel())}<div class="empty">No software recorded yet. Add it on a PC or server.</div></div>`; bindLicences(); return; }
   /* data-tb: the generic column tools (filter row, drag, resize) stay off; this table has its own search and sort. */
@@ -78,9 +79,12 @@ export function renderSoftware(){
   bindLicences();
   const max = Math.max(...all.map(r => r.devices.length));
   const body = () => {
-    const q = (st.q || '').trim().toLowerCase();
-    /* A search for a device opens the packages it has, so the match is in sight. */
-    const hits = r => !q ? 'none' : r.name.toLowerCase().includes(q) || r.versions.some(([v]) => v.toLowerCase().includes(q)) ? 'package' : r.devices.some(d => d.name.toLowerCase().includes(q)) ? 'device' : '';
+    const q = (st.q || '').trim(), words = qWords(q);
+    /* Every word in the package (its name, versions, licences) or in one device that has it (name, inventory number,
+       user, location): a search for a device or a person opens the packages it has, so the match is in sight. */
+    const pkgText = r => [r.name, ...r.versions.map(([v]) => v), ...licencesFor(r.name).map(l => l.name)];
+    const devText = d => [d.name, d.code, d.user, d.loc, d.serial];
+    const hits = r => !words.length ? 'none' : matchWords(pkgText(r), words) ? 'package' : r.devices.some(d => matchWords([...pkgText(r), ...devText(d)], words)) ? 'device' : '';
     const rows = all.filter(r => hits(r)).sort(st.swSort === 'devices' ? (a, b) => b.devices.length - a.devices.length || a.name.localeCompare(b.name) : (a, b) => a.name.localeCompare(b.name));
     const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
     $('#swCount').textContent = q ? `${rows.length} of ${n(all.length, 'package')}` : `${n(all.length, 'package')} · ${n(devCount, 'device')}`;
@@ -89,7 +93,7 @@ export function renderSoftware(){
       const shown = r.versions.slice(0, 4);
       return html`<tr class="sw-row${open ? ' open' : ''}" data-sw="${r.name}">
         <td class="sw-tgcol"><button class="sw-tg icon ghost" aria-expanded="${String(open)}" aria-label="${open ? 'Hide' : 'Show'} the devices with ${r.name}">${swChevron}</button></td>
-        <td><b>${r.name}</b>${licencesFor(r.name).map(l => html` ${rawHtml(licenceMark(l))}`)}</td>
+        <td><b>${markHtml(r.name, words)}</b>${licencesFor(r.name).map(l => html` ${rawHtml(licenceMark(l))}`)}</td>
         <td class="sw-ver"><span class="vchips">${shown.map(([v, n]) => html`<span class="vchip">${v}${r.versions.length > 1 ? html`<i>${n}</i>` : ''}</span>`)}${r.versions.length > 4 ? html`<span class="muted">+${r.versions.length - 4} more</span>` : ''}</span></td>
         <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
     })}` : html`<tr><td colspan="4" class="muted" style="padding:14px">${rawHtml(noMatchHtml())}</td></tr>`;
@@ -101,6 +105,7 @@ export function renderSoftware(){
     }
   };
   body();
+  bindViewSearch(body);
   /* Opening and closing changes only that package's rows, so the list keeps its scroll position. */
   const toggle = tr => {
     const name = tr.dataset.sw, open = !tr.classList.contains('open');

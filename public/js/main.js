@@ -5,6 +5,7 @@ import './02-views.js';
 import './03-object-modals.js';
 import './04-settings.js';
 import './05-new-object.js';
+import './new-tab.js';
 import './06-topbar.js';
 import './14-global-search.js';
 import './tips.js';

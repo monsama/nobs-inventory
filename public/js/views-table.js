@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { listCount, scopePool, SEEN_FILTERS, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
+import { listCount, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
 import { SERVER } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -52,6 +52,9 @@ export const TABLE_COLS = [
   {k:'status', w:110, label:'Status', cell: o => String(html`<td>${STATUS[o.status].label}</td>`)},
   /* The date first, so the column sorts by it. */
   {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return String(html`<td>${s ? html`<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${s.at} by ${s.src}">${dayText(s.day)}</span> <span class="muted">· ${s.src}</span>` : ''}</td>`); }},
+  /* The sources that no longer list it, or every one it was in. */
+  {k:'gone', w:200, label:'Gone from', cell: o => { const all = o.status === 'retired' ? [] : sourcesOf(o), g = all.filter(x => x.gone);
+    return String(html`<td>${g.length ? html`<span class="wty soon" title="${g.map(x => `${x.name}: ${x.when}`).join('\n')}">${g.length === all.length && all.length > 1 ? 'All: ' : ''}${g.map(x => x.name).join(', ')}</span>` : ''}</td>`); }},
   {k:'ls', w:240, label:'Lansweeper', cell: o => String(html`<td>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o) || '-')}</td>`)},
   /* In Pending devices only, and last, so the other columns keep their places: which sync found it, and which others know it. */
   {k:'why', w:300, label:'Why it waits', cell: o => String(html`<td>${o.review && !o.review.ignored ? waitReason(o).text : ''}</td>`)},
@@ -195,7 +198,7 @@ export function renderTable(){
   /* A data-quality check's column, or the columns a list from the Overview asks for (the replacement plan: purchase,
      due year, price), go right after Name while it is listed. */
   const fix = !st.scope && st.quality && QUALITY_FIX[st.quality];
-  const after = fix && fix[0] ? [fix[0]] : !st.scope && st.ids && Array.isArray(st.ids.cols) ? st.ids.cols : !st.scope && st.seen ? ['seen'] : [];
+  const after = fix && fix[0] ? [fix[0]] : !st.scope && st.ids && Array.isArray(st.ids.cols) ? st.ids.cols : !st.scope && st.seen ? ['seen'] : !st.scope && st.gone ? ['gone'] : [];
   const laid = !!fix || after.length > 0;
   if (after.length){
     const cs = after.map(k => tableCols().find(x => x.k === k)).filter(Boolean), at = shown.findIndex(x => x.k === 'name') + 1;

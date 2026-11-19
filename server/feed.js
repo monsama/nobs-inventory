@@ -299,7 +299,7 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
 
 /* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
 /* scans: a newer scan day, or a dock's links seen again (they are kept for DOCK_LINKS_DAYS from then): saved too. */
-export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans', 'settled'].some(k => counts[k] > 0);
+export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans', 'settled', 'present'].some(k => counts[k] > 0);
 
 /* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
 /* byHand: an export an admin uploaded: its new devices go straight in (IP-only ones still wait), as the person chose the file. */
@@ -388,8 +388,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     /* With "IP-only devices to review" on, a device named only by its IP address (no serial number) is never added
        straight away: it waits in Pending devices, like every new device does unless Settings adds them directly. */
     const ipOnly = !!s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial;
-    /* A device named by a DNS name (argonb35.corp.example) with no serial number, whose first part is the name of a device
-       here (ARGONB35), is most likely a second record of that device, left by a docking station's or a USB network adapter:
+    /* A device named by a DNS name (pc-nb35.corp.example) with no serial number, whose first part is the name of a device
+       here (PC-NB35), is most likely a second record of that device, left by a docking station's or a USB network adapter:
        it is never added straight away, whatever Settings says, so a person decides in Pending devices. */
     const twin = !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && ((byName.get(lc(r.name).split('.')[0]) || []).some(o => o.status !== 'retired') || pushed.has(lc(r.name).split('.')[0]));
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
@@ -557,6 +557,25 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }
+  }
+  /* Which devices Lansweeper still lists. A push sends every active asset, in batches, each day: a device gets the day it
+     was last in one (feed.inPush, written once a day), and the page compares it with the day of the newest push
+     (s.lsPresence.day), so a device Lansweeper no longer sends shows as gone from it. A file uploaded by hand is not the
+     whole list and says nothing about what is gone. since: the day this started, for devices not in a push since. */
+  if (!byHand && records.length) {
+    const day = now.toISOString().slice(0, 10);
+    const refs = new Set(records.map(r => r && r.ref != null ? String(r.ref).trim() : '').filter(Boolean));
+    let present = 0;
+    const mark = o => { if (o && o.feed && o.feed.inPush !== day) { o.feed.inPush = day; present++; } };
+    for (const o of s.objs) {
+      if (!o.feed || o.feed.ref == null || !refs.has(String(o.feed.ref).trim())) continue;
+      mark(o);
+      /* A record merged into a device (a reinstall) stands for that device too. */
+      if (o.excluded && o.review && o.review.merged) mark(s.objs.find(x => x.id === o.review.merged));
+    }
+    const was = s.lsPresence || {};
+    if (was.day !== day) { s.lsPresence = { day, since: was.since || day }; present++; }
+    if (present) counts.present = present;
   }
   counts.people = applyDepartments(s, cleaned);
   /* A person Lansweeper made who is someone else's login too (the directory's, Entra's): one record again. */

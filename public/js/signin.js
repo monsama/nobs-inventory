@@ -63,8 +63,11 @@ async function loadFromServer(user){
   const m = /^#settings\/([\w-]+)$/.exec(location.hash);
   if (m && isAdmin() && SET_TABS.some(([k]) => k === m[1])){ st.setTab = m[1]; openSettings(); }
 }
-/* An address with ?o=INV-0001 (the link in a reported problem's e-mail): that device opens. */
+/* An address with ?o=INV-0001 (the link in a reported problem's e-mail, or a device opened in a new tab with Ctrl +
+   click): that device opens. ?v=table (a view opened in a new tab): that view. */
 function openLinked(){
+  const v = /[?&]v=([\w-]+)/.exec(location.search);
+  if (v){ history.replaceState(history.state, '', location.pathname + location.hash); if (st.tabIds.includes(v[1]) && !(ownOnly() && v[1] !== 'mine')){ st.tab = v[1]; render(); } }
   const code = linkedCode(location.search); if (!code) return;
   history.replaceState(history.state, '', location.pathname + location.hash);
   const o = objs.find(x => x.code === code) || objs.find(x => String(x.id) === code);
