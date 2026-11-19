@@ -2674,3 +2674,8 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
   .ds-edrow .ds-ed{margin:0;border:0}.ds-ed-foot{flex-wrap:wrap}}
 /* The quick-edit pencil has room of its own at the end of each row of the List (heading too), so it never covers Last seen. */
 @media (hover:hover){ .lst.qe .lrow,.lst.qe .lhead{padding-right:48px} }
+/* Renamed in a source? Above the location texts: what changed, and keep (and rename) in one click. */
+.loc-renamed{margin:0 12px 10px;display:flex;flex-direction:column;gap:6px}
+.lr-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--warn-bd,var(--bd));border-left:3px solid var(--warn,#c08a00);border-radius:var(--r-m);background:var(--panel)}
+.lr-say{flex:1;min-width:220px}
+.lr-acts{display:flex;gap:6px;flex-wrap:wrap}

@@ -77,6 +77,28 @@ try {
   await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
   assert.equal(await p.$$eval('#mdlGhost', g => g.length), 0);
 
+  // renamed in AD: devices in Site A / Raum 1 now say "Raum 2"; the old text is mapped and no device says it any more
+  saveState(db, { ...loadState(db), locs: ['Site A', 'Site A / Raum 1'], locMap: { 'Raum 1': 'Site A / Raum 1' }, fieldOrder: null, policy: { ...(loadState(db).policy || {}), loc: false },
+    objs: [dev('c', { loc: 'Site A / Raum 1', ad: { location: 'Raum 2' } }), dev('d', { loc: 'Site A / Raum 1', ad: { location: 'Raum 2' } })] });
+  await p.reload(); await until(p, async () => !!(await import('/js/01-core.js')).st.meId);
+  if (!(await p.locator('#mdl #setPane').count())) await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'locations'; (await import('/js/04-settings.js')).openSettings(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'locations'; (await import('/js/04-settings.js')).renderSetPane(); });
+  await p.waitForSelector('.loc-renamed .lr-item');
+  assert.match(await p.textContent('.loc-renamed'), /Renamed in AD\? 2 devices in Site A \/ Raum 1 now say “Raum 2” instead of “Raum 1”\./);
+  // Keep: the new text goes to the same room, the old one is dropped; Undo puts it back
+  await p.click('[data-lrkeep="0"]');
+  await stored(st => st.locMap['Raum 2'] === 'Site A / Raum 1' && !('Raum 1' in st.locMap));
+  await p.click('#toast .t-undo');
+  await stored(st => st.locMap['Raum 1'] === 'Site A / Raum 1' && !('Raum 2' in st.locMap));
+  // Keep and rename: the room is called after the new text, its devices go along; one Undo for both
+  await p.waitForSelector('[data-lrren="0"]');
+  assert.match(await p.textContent('[data-lrren="0"]'), /Keep and rename to Site A \/ Raum 2/);
+  await p.click('[data-lrren="0"]');
+  await stored(st => st.locs.includes('Site A / Raum 2') && !st.locs.includes('Site A / Raum 1') && st.locMap['Raum 2'] === 'Site A / Raum 2' && st.objs.every(o => o.loc === 'Site A / Raum 2'));
+  assert.equal(await p.locator('.loc-renamed').count(), 0, 'nothing left to ask');
+  await p.click('#toast .t-undo');
+  await stored(st => st.locs.includes('Site A / Raum 1') && !st.locs.includes('Site A / Raum 2') && st.locMap['Raum 1'] === 'Site A / Raum 1' && st.objs.every(o => o.loc === 'Site A / Raum 1'));
+
   assert.deepEqual(errors, [], 'page errors');
   console.log('location sources: all checks passed');
 } finally { await browser.close(); server.close(); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

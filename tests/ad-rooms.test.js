@@ -37,3 +37,25 @@ test('the same room in another case is used; names stay within 200 characters; a
   assert.equal(autoRoom(full, 'One more'), '');
   assert.equal(autoRoom({ ...state(), adLocAuto: 'Gone' }, 'Presse 1'), '');
 });
+
+test('renamed in AD: the device keeps its room, no second room is made; without the rooms setting nothing moves', () => {
+  /* The device was in Main / Presse 1 through its AD text "Presse 1"; AD now says "Presse 2". */
+  const was = more => state({ locs: ['Main / Office', 'Main / Presse 1'], locMap: { 'Presse 1': 'Main / Presse 1' },
+    objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PRESS-PC', status: 'active', loc: 'Main / Presse 1', src: { loc: 'ad' }, ad: { location: 'Presse 1' } }], ...more });
+  const renamed = { ...comp, location: 'Presse 2' };
+  const s = was({ adLocAuto: 'Main' });
+  applyComputers(s, [renamed]);
+  assert.deepEqual(s.locs, ['Main / Office', 'Main / Presse 1'], 'no Main / Presse 2');
+  assert.equal(s.locMap['Presse 2'], 'Main / Presse 1');
+  assert.equal(s.objs[0].loc, 'Main / Presse 1');
+  assert.equal(s.objs[0].ad.location, 'Presse 2');
+  /* Off: the new text names no room, so AD gives no location and the device stays where it is. */
+  const t = was();
+  applyComputers(t, [renamed]);
+  assert.equal(t.objs[0].loc, 'Main / Presse 1');
+  assert.ok(!('Presse 2' in t.locMap));
+  /* A device that never had the old text is not taken for a rename: a new room as before. */
+  const u = was({ adLocAuto: 'Main' }); delete u.objs[0].ad;
+  applyComputers(u, [renamed]);
+  assert.ok(u.locs.includes('Main / Presse 2'));
+});

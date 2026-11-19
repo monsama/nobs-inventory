@@ -299,6 +299,57 @@ const locTarget = t => LOCS.find(l => lc(l) === lc(t)) || (Object.entries(locMap
 /* The sources whose texts are listed: those that fill the location now (and the user's office while it is used). */
 const usedSrc = () => new Set([...fieldOrder(st, 'loc'), ...(st.locFromOffice ? ['office'] : [])]);
 const shownTexts = () => { const use = usedSrc(); return locTexts().map(e => ({ ...e, src: new Set([...e.src].filter(x => use.has(x))) })).filter(e => e.src.size); };
+/* Renamed in a source (AD, Lansweeper): devices in room R now report text T, where they reported M, a text mapped to R
+   that no device reports any more. Offered: keep them in R (T is mapped to R in M's place) and, where R is named after
+   M, rename R after T as well. Each is one Undo. With "Rooms from AD's location" on, the AD sync keeps the room by
+   itself (ldap-sync.js autoRoom); renaming it is still offered here. */
+export function renamedTexts(){
+  const said = new Set(locTexts().map(e => lc(e.text)));
+  const orphan = Object.entries(locMap()).filter(([m, r]) => !said.has(lc(m)) && LOCS.includes(r));
+  if (!orphan.length) return [];
+  const out = [];
+  for (const e of shownTexts()){
+    if (LOCS.some(l => lc(l) === lc(e.text))) continue;
+    const to = locTarget(e.text);
+    const devs = [...objs, ...REVIEW].filter(o => textsOf(o).some(([, t]) => lc(t) === lc(e.text)));
+    const rooms = new Set(devs.map(o => o.loc).filter(Boolean));
+    if (rooms.size !== 1) continue;
+    const room = [...rooms][0], old = orphan.find(([, r]) => r === room);
+    if (!old || (to && to !== room)) continue;
+    const [site, part] = room.split(' / ');
+    const newName = part !== undefined && lc(part) === lc(old[0]) ? roomName(site, e.text) : '';
+    if (to && !newName) continue;   /* already kept, and the room is not named after the old text: nothing to ask */
+    out.push({ text: e.text, from: old[0], room, n: devs.length, map: !to, newName: newName && !LOCS.includes(newName) ? newName : '', src: [...e.src].map(x => SRC_TAG[x]).join(', ') });
+  }
+  return out;
+}
+function renamedHtml(){
+  if (!isAdmin()) return '';
+  const list = renamedTexts(); if (!list.length) return '';
+  return html`<div class="loc-renamed" role="group" aria-label="Location texts renamed in a source">${list.map((r, i) => html`<div class="lr-item">
+    <span class="lr-say"><b>Renamed in ${r.src}?</b> ${r.n} ${r.n === 1 ? 'device' : 'devices'} in <b>${r.room}</b> now ${r.n === 1 ? 'says' : 'say'} “${r.text}” instead of “${r.from}”.</span>
+    <span class="lr-acts">${r.map ? html`<button type="button" class="mini" data-lrkeep="${i}">Keep in ${r.room}</button>` : ''}${r.newName ? html`<button type="button" class="mini${r.map ? '' : ' primary'}" data-lrren="${i}">${r.map ? 'Keep and rename' : 'Rename'} to ${r.newName}</button>` : ''}</span></div>`)}</div>`;
+}
+/* The new text takes the old one's place in the mapping (the old one is dropped, so it is not listed as used). */
+function keepRenamed(r){
+  const drop = m => m && Object.fromEntries(Object.entries(m).filter(([k]) => lc(k) !== lc(r.from)));
+  st.locMap = { ...(drop(st.locMap) || {}), [r.text]: r.room };
+  if (st.adLocMap) st.adLocMap = drop(st.adLocMap);
+}
+function bindRenamed(root){
+  const list = renamedTexts();
+  const act = (i, rename) => { const r = list[i]; if (!r) return;
+    const was = { locMap: st.locMap ? { ...st.locMap } : st.locMap, adLocMap: st.adLocMap ? { ...st.adLocMap } : st.adLocMap };
+    keepRenamed(r);
+    const renamed = rename && r.newName && renameLoc(r.room, r.newName, true);
+    queueServerSave(); renderSetLocs(); render();
+    toastUndo(renamed ? `Renamed to ${r.newName}; “${r.text}” goes there` : `“${r.text}” goes to ${r.room}`, () => {
+      if (renamed) renameLoc(r.newName, r.room, true);
+      st.locMap = was.locMap; st.adLocMap = was.adLocMap; queueServerSave(); renderSetLocs(); render(); });
+  };
+  root.querySelectorAll('[data-lrkeep]').forEach(b => b.onclick = () => act(+b.dataset.lrkeep, false));
+  root.querySelectorAll('[data-lrren]').forEach(b => b.onclick = () => act(+b.dataset.lrren, true));
+}
 function adLocsHtml(){
   const list = shownTexts();
   /* Which sources fill a device's location, in order: set here at once. Each source has its place (1 first; a source
@@ -337,6 +388,7 @@ function adLocsHtml(){
   return html`<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources <span class="cnt">${list.length}</span></div>
     <p class="note lnote">What the sources call a device's location. Use a text as a room here, existing or new, and the syncs fill it in on devices without a location. A text alone never becomes a location.</p>
     ${orderLine}
+    ${renamedHtml()}
     <div class="lnote adloc-opts">${auto}</div>
     ${bulk}
     <div class="lrows"><div class="lrow adloc head${isAdmin() ? ' pick' : ''}">${isAdmin() ? html`<span></span>` : ''}<span>Location text</span><span>Source</span><span class="n">Devices</span><span></span></div>${list.map((e, i) => row(e, i))}</div></section>`;
@@ -369,6 +421,7 @@ let adSite = '';
 const bulkSite = () => SITES.includes(adSite) ? adSite : SITES[0] || '';
 const roomName = (site, t) => cleanLoc(roomFor(site, t));
 function bindAdLocs(root){
+  bindRenamed(root);
   const list = shownTexts();
   /* The row of sources: a switch takes one out (or puts it back, last); the arrows change its place. */
   const order = fieldOrder(st, 'loc'), NAME = { ad: 'AD', ls: 'Lansweeper' };
@@ -455,20 +508,22 @@ export function renameSite(old, value){
 }
 /* Renames room old to value (Site / Room), and with it the devices' locations, the plan areas and the filter. Draws
    Settings again and offers Undo, which renames it back. */
-export function renameLoc(old, value){
+export function renameLoc(old, value, quiet = false){
   const name = cleanLoc(value);
-  if (!name){ toast('Use the form Site / Room, e.g. Branch office / Store room'); renderSetLocs(); return; }
-  if (name !== old && LOCS.includes(name)){ toast(name + ' already exists.'); renderSetLocs(); return; }
-  if (name === old) return;
+  if (!name){ toast('Use the form Site / Room, e.g. Branch office / Store room'); renderSetLocs(); return false; }
+  if (name !== old && LOCS.includes(name)){ toast(name + ' already exists.'); renderSetLocs(); return false; }
+  if (name === old) return false;
   LOCS[LOCS.indexOf(old)] = name;
   objs.forEach(o => { if (o.loc === old) o.loc = name; });
   /* An area that only names its room (a room called like the area) gets the new name as its room, so its devices stay on it. */
   PLANS.forEach(p => (p.areas || []).forEach(a => { if (a.room === old || (!a.room && `${p.site} / ${a.name}` === old)) a.room = name; }));
   if (st.loc === old) st.loc = name;
   renamePlaceRefs(l => l === old ? name : l);
+  if (quiet) return true;
   /* Undo renames it back: the devices, plan areas and filter follow again. */
   const n = objs.filter(o => o.loc === name).length;
   toastUndo(`Renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => { renameLoc(name, old); queueServerSave(); }); renderSetLocs(); render();
+  return true;
 }
 /* Address checks, the same rules as server/validate.js: an empty value is allowed. */
 export { IPV4_RE, MAC_RE, validIPv6, checkAddress } from './addr.js';
