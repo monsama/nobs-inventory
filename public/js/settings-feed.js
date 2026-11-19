@@ -241,7 +241,7 @@ export let pushNew = '';
 export let pushNote = '';
 export async function loadPushInfo(){
   const r = await fetch('api/feed/push-token', {credentials: 'same-origin'});
-  if (r.ok){ const j = await r.json(); pushInfo = j.info; pushLast = j.last; if ($('#setFeed')) renderSetFeed(); }
+  if (r.ok){ const j = await r.json(); pushInfo = j.info; pushLast = j.last; if ($('#mdl #setFeed')) renderSetFeed(); }
 }
 /* A date for people: "22.10.2026 18:03", '-' when there is none. */
 export const pushDate = dateTimeText;

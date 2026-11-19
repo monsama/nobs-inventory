@@ -295,7 +295,7 @@ export function renderSetUsers(){
     /* A person a sync brought in comes back with the next sync while the directory still has them: said, with Undo. */
     toastUndo(fromSync(u) ? `${u.name} removed. The next ${SRC_NAME[u.source]} sync adds them again while they are there; No access keeps them out instead.` : `${u.name} removed`, () => {
       if (!USERS.some(x => String(x.id) === String(u.id))) USERS.splice(Math.min(i, USERS.length), 0, u);
-      queueServerSave(); if ($('#setUsers')) renderSetUsers();
+      queueServerSave(); if ($('#mdl #setUsers')) renderSetUsers();
     }, { anyEpoch: true });
   });
   /* The password's length is said under the row while it is typed, not only after Add user. */

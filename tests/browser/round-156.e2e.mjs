@@ -62,7 +62,7 @@ try {
 
   // a dialog opened from Settings, minimized: the still copy of Settings goes with it, and comes back with it
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'mail'; (await import('/js/04-settings.js')).openSettings(); });
-  await p.waitForSelector('#dgPreview'); await p.click('#dgPreview'); await p.waitForSelector('#mdl:not(:has(#setPane)) .mh');
+  await p.waitForSelector('#dgPreview'); await p.waitForLoadState('networkidle'); await p.click('#dgPreview'); await p.waitForSelector('#mdl:not(:has(#setPane)) .mh');
   await p.evaluate(async () => (await import('/js/19-modal.js')).minimizeModal());
   assert.equal(await p.isVisible('#mdlGhost'), false, 'no frozen Settings over the page');
   await p.evaluate(async () => (await import('/js/19-modal.js')).restoreModal());
@@ -91,6 +91,8 @@ try {
   assert.equal(await p.isVisible('#side .sidesec[data-sec="types"] .sec-sum'), true);
   await p.click('#moreFilters > summary');
   const was = await p.evaluate(() => document.querySelector('#moreFilters').open);
+  /* the toggle event comes a moment after the click: kept in this browser before the reload */
+  await until(p, w => { try { const v = JSON.parse(localStorage.getItem('ni-side-sections') || '{}'); return Array.isArray(v.opened) && v.opened.includes('more') === w; } catch { return false; } }, was);
   await p.reload(); await p.waitForSelector('#cards .lrow');
   assert.equal(await p.evaluate(() => document.querySelector('#moreFilters').open), was, 'More filters as it was left');
 
