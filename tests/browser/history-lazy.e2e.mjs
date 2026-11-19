@@ -26,7 +26,7 @@ try {
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length === 2);
-  assert.ok(asked.includes('/api/state?history=0'), 'the inventory was loaded with its history: ' + asked.join(', '));
+  assert.ok(asked.includes('/api/state?history=0&software=0'), 'the inventory was loaded with its history or software: ' + asked.join(', '));
   assert.equal(await p.evaluate(async () => Object.keys((await import('/js/01-core.js')).HISTORY).length), 0, 'history came with the inventory');
 
   // a line added to B, whose history the page has not read: saved on top of the stored one

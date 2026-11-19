@@ -24,15 +24,28 @@ function quickEdit(o, btn){
   const change = (msg, said, fn, also = []) => { const snap = snapshot([o, ...also]); fn(); o.handAt = new Date().toISOString(); hist(o, now(), `${msg} by ${who()}`); close(); render(); refocus();
     toastUndo(`${o.name}: ${said}`, () => { restoreSnapshot(snap, `${msg} undone by ${who()}`); render(); refocus(); }); };
   const refocus = () => { const b = document.querySelector(`#view [data-qedit="${CSS.escape(o.id)}"]`); if (b) /** @type {HTMLElement} */ (b).focus(); };
-  $('#qeLoc').onchange = e => { const to = /** @type {HTMLSelectElement} */ (e.target).value;
+  /* A pick with the mouse saves at once. With the keyboard the arrows only look through the list (a closed list changes
+     on every arrow key in some browsers): Enter or leaving the field saves, Esc puts it back. */
+  const commitOn = (/** @type {HTMLSelectElement} */ sel, /** @type {(to: string) => void} */ fn) => {
+    const was = sel.value; let keyed = false, done = false;
+    const go = () => { if (done || sel.value === was) return; done = true; fn(sel.value); };
+    sel.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){ e.preventDefault(); go(); return; }
+      if (e.key === 'Escape'){ sel.value = was; keyed = false; return; }
+      if (e.key !== 'Tab') keyed = true;
+    });
+    sel.addEventListener('change', () => { if (!keyed) go(); });
+    sel.addEventListener('blur', () => { if (keyed) go(); });
+  };
+  commitOn(/** @type {HTMLSelectElement} */ ($('#qeLoc')), to => {
     /* A rack takes the devices in it along, as on the device page. */
     const inRack = o.type === 'rack' ? objs.filter(x => x.rack === o.id) : [];
-    change(to ? 'Moved to ' + to : 'Location removed', to ? 'moved to ' + to : 'location removed', () => { if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc'); o.loc = to; markHand(o, 'loc'); if (o.type === 'rack') rackLocFollow(o); }, inRack); };
-  $('#qeStatus').onchange = e => { const to = /** @type {HTMLSelectElement} */ (e.target).value;
+    change(to ? 'Moved to ' + to : 'Location removed', to ? 'moved to ' + to : 'location removed', () => { if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc'); o.loc = to; markHand(o, 'loc'); if (o.type === 'rack') rackLocFollow(o); }, inRack); });
+  commitOn(/** @type {HTMLSelectElement} */ ($('#qeStatus')), to => {
     if (to === 'retired'){ close(); retireModal(o); return; }
     /* Into stock with somebody: the same take-back as on the device page (where it goes, the person no longer has it). */
     if (to === 'stock' && (o.uid || o.user || o.hotdesk)){ close(); takeBackModal([o]); return; }
-    change('Status set to ' + STATUS[to].label, 'status set to ' + STATUS[to].label, () => { o.status = to; }); };
+    change('Status set to ' + STATUS[to].label, 'status set to ' + STATUS[to].label, () => { o.status = to; }); });
   $('#qeUser').onclick = () => { close(); handOutModal([o.id]); };
   const tb = $('#qeBack'); if (tb) tb.onclick = () => { close(); takeBackModal([o]); };
   /** @type {HTMLElement|null} */ (box.querySelector('select'))?.focus();

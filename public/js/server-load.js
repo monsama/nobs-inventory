@@ -32,6 +32,39 @@ let LOAD_FIX = null;
    opened, or sent since with what changed). For any other device HISTORY holds only the lines added here, which a
    save sends and the server puts on top of the stored ones (state.js applyChanges), so none is lost. */
 export const HIST_FULL = new Set();
+/* The installed software comes apart too (api/software), read just after the first load: with dozens of packages per
+   device it is most of what is left of a large inventory. SW.map keeps each device's list, so a reload built from the
+   copy the server sent without it (and the changes since) gets it back; a device the server sends with its software
+   (a change since) has its own. Until it is read, the page shows it as loading and lets nobody change it; a save of a
+   device without it leaves the stored software as it is (server state.js applyChanges). */
+export const SW = { loaded: false, loading: /** @type {Promise<void>|null} */ (null), map: new Map() };
+const stateUrl = () => SW.loaded ? 'api/state?history=0' : 'api/state?history=0&software=0';
+const hasSw = o => Object.prototype.hasOwnProperty.call(o, 'software');
+/* Remembers the software the page's devices have now, then gives it to the devices that came without it. */
+function keepSoftware(list){ for (const o of list) if (hasSw(o)) SW.map.set(o.id, o.software); }
+function giveSoftware(list){ if (!SW.loaded) return; for (const o of list) if (!hasSw(o) && SW.map.has(o.id)) o.software = SW.map.get(o.id); }
+export function ensureSoftware(){
+  if (SW.loaded || SW.loading || !SERVER.base) return SW.loading;
+  SW.loading = fetch('api/software', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.software || typeof j.software !== 'object') return;
+    /* The same package and version on many devices is held once (frozen: an entry is replaced, never changed), so a
+       large inventory takes a fraction of the memory. */
+    const same = new Map(), one = p => { if (!p || typeof p !== 'object') return p; const k = JSON.stringify(p); let x = same.get(k); if (!x){ x = Object.freeze(p); same.set(k, x); } return x; };
+    for (const [id, list] of Object.entries(j.software)) if (!SW.map.has(id) && Array.isArray(list)) SW.map.set(id, list.map(one));
+    SW.loaded = true;
+    /* Each device gets it with the base moved along, so reading it is not a change to save; a device changed here
+       meanwhile keeps that change on top. */
+    for (const o of [...objs, ...REVIEW]){
+      if (hasSw(o) || !SW.map.has(o.id)) continue;
+      const k = 'object|' + o.id, before = JSON.stringify(o), base = SERVER.base && SERVER.base.get(k);
+      o.software = SW.map.get(o.id);
+      if (base === before) SERVER.base.set(k, JSON.stringify(o));
+      else if (base){ const b = JSON.parse(base); if (!hasSw(b)){ b.software = o.software; SERVER.base.set(k, JSON.stringify(b)); } }
+    }
+    if (!heldBack()) render();
+  }).catch(() => { /* offline: asked again with the next load */ }).finally(() => { SW.loading = null; });
+  return SW.loading;
+}
 const histLoading = new Map();
 /* Reads device id's history once, when its page opens, and draws its history panels again with it. */
 export function ensureHistory(id){
@@ -89,7 +122,7 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
     if (had.puts.length || had.dels.length) d = null;
   }
   if (!d){
-    const r = await fetch('api/state?history=0', {credentials: 'same-origin'});
+    const r = await fetch(stateUrl(), {credentials: 'same-origin'});
     if (r.status === 401){ loginModal(); return false; }
     if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
     d = await r.json();
@@ -97,7 +130,9 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
   }
   /* Taken just before the server's version replaces the page's, so an edit made while it loaded is kept too. */
   const keep = !discard && SERVER.base && isAdmin() ? pendingChanges() : null;
+  keepSoftware([...objs, ...REVIEW]);
   applyState(d);
+  giveSoftware([...objs, ...REVIEW]);
   SERVER.revs = d.revs || {};
   setBaseline();
   /* Settings changed here while it loaded (contracts, plans, locations …) go back on top too; the base stays the
@@ -107,6 +142,7 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
   if (keep && replayLocal(keep, skip)) queueServerSave();
   dropMissingTabs();
   render();
+  if (!SW.loaded) setTimeout(ensureSoftware, 0);
   return true;
 }
 /* Puts unsaved records back after a reload: objects, connections, users, types and history. */
@@ -119,7 +155,7 @@ function replayLocal({ puts, dels }, skip){
     const v = JSON.parse(c.json);
     /* A change kept by a page from before 0.9.88 can still say Not in use or In repair: In stock now, as on the server. */
     if (c.kind === 'object' && (v.status === 'unused' || v.status === 'repair')) v.status = 'stock';
-    if (c.kind === 'object'){ for (const a of [objs, REVIEW]){ const i = a.findIndex(x => x.id === c.id); if (i >= 0) a.splice(i, 1); } (v.review ? REVIEW : objs).push(v); n++; }
+    if (c.kind === 'object'){ for (const a of [objs, REVIEW]){ const i = a.findIndex(x => x.id === c.id); if (i >= 0) a.splice(i, 1); } giveSoftware([v]); (v.review ? REVIEW : objs).push(v); n++; }
     else if (lists[c.kind]){ const a = lists[c.kind], i = a.findIndex(x => String(x.id) === c.id); if (i >= 0) a[i] = v; else a.push(v); n++; }
     else if (maps[c.kind]){ maps[c.kind][c.id] = v; n++; }
   }
@@ -158,7 +194,7 @@ export async function checkForChanges(){
   if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return false; }
   let r;
   const delta = SERVER.copy && SERVER.cseq !== null, saves = SERVER.saves;
-  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state?history=0', {credentials: 'same-origin'}); } catch { setSave('offline'); return true; }
+  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : stateUrl(), {credentials: 'same-origin'}); } catch { setSave('offline'); return true; }
   if (!r.ok) return true;
   if (SERVER.save === 'offline') setSave('saved');
   const d = await r.json();

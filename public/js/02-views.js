@@ -248,8 +248,8 @@ export function renderFilterBar(){
   const groups = typeSum(clear);
   const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait fb-ckrow"><b>Add at once</b><span class="muted">${clear.length} shown with nothing unclear</span>${groups.map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
   /* Gone from a source: the devices listed can be retired in one go (admins, in the inventory's lists). */
-  const goneN = list && !st.scope && st.gone && isAdmin() ? goneShown().length : 0;
-  const goneBar = !goneN ? '' : html`<div class="fb-person fb-wait"><b>${goneN} ${goneN === 1 ? 'device' : 'devices'} gone</b><span class="muted">check where they are, then retire the ones no longer there</span><span class="grow"></span><button type="button" data-goneretire="1">Retire these ${goneN}…</button></div>`;
+  const goneN = list && !st.scope && (st.gone || (st.ids && st.ids.where)) && isAdmin() ? goneShown().length : 0;
+  const goneBar = !goneN ? '' : html`<div class="fb-person fb-wait"><b>${goneN} ${goneN === 1 ? 'device' : 'devices'} ${st.gone ? 'gone' : 'may no longer be there'}</b><span class="muted">check where they are, then retire the ones no longer there</span><span class="grow"></span><button type="button" data-goneretire="1">Retire these ${goneN}…</button></div>`;
   bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar && !goneBar;
   bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${scope}${addBar}${goneBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
@@ -310,7 +310,12 @@ export function bindHiddenHits(){
   const b = $('#searchAllBtn');
   if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; view(); };
 }
-$('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
+/* Filters: a click opens or closes the drawer; a double-click keeps them open beside the list, and another double-click
+   puts them away again, as in other apps (on a wide screen; a phone has only the drawer). Kept open, a single click does
+   nothing, so the two clicks of a double-click do not fight it. */
+const wide = () => window.innerWidth > 820;
+$('#sideBtn').onclick = () => { if (wide() && sidePinned()) return; document.body.classList.toggle('side-open'); };
+$('#sideBtn').ondblclick = e => { if (!wide()) return; e.preventDefault(); setSidePin(!sidePinned()); };
 /* On a wide screen the filters can be a drawer too, or kept open beside the list (the choice is kept in this browser):
    the list gets the room, the filters in force show as chips above it and as a number on the Filters button. */
 /* Not chosen yet: kept open on a screen with room for it (1280 px and wider), a drawer below that. */
@@ -319,12 +324,14 @@ const SIDE_DEFAULT = window.innerWidth >= 1280;
 export const sidePinned = () => { let v = null; try { v = localStorage.getItem('ni-side-pin'); } catch { /* not kept */ } return v === null ? SIDE_DEFAULT : v === '1'; };
 export function placeSide(){
   document.body.classList.toggle('side-drawer', !sidePinned());
+  const sb = $('#sideBtn'); if (sb){ sb.setAttribute('aria-pressed', String(sidePinned())); sb.title = sidePinned() ? 'Filters kept open: double-click to hide them' : 'Filters: click to open, double-click to keep them open'; }
   const pin = $('#sidePin'); if (pin) { pin.textContent = sidePinned() ? 'Hide' : 'Keep open'; pin.title = sidePinned() ? 'Show the filters only when Filters is pressed' : 'Keep the filters open beside the list'; }
   const n = $('#sideN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.gone, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; }
 }
 /* The Filters button says whether the drawer is open, however it closes (Escape, a tap beside it, a filter picked). */
 new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('aria-expanded', String(document.body.classList.contains('side-open'))); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-$('#sidePin').onclick = () => { try { localStorage.setItem('ni-side-pin', sidePinned() ? '0' : '1'); } catch { /* not kept */ } document.body.classList.remove('side-open'); placeSide(); };
+function setSidePin(on){ try { localStorage.setItem('ni-side-pin', on ? '1' : '0'); } catch { /* not kept */ } document.body.classList.remove('side-open'); placeSide(); }
+$('#sidePin').onclick = () => setSidePin(!sidePinned());
 /* The filter drawer on a phone closes like a menu: Escape, or a tap beside it. */
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('side-open') && !$('#modalHost').childElementCount){ document.body.classList.remove('side-open'); $('#sideBtn').focus(); } });
 document.addEventListener('pointerdown', e => { if (!document.body.classList.contains('side-open')) return; const t = evEl(e); if (t.closest && !t.closest('#side, #sideBtn')) document.body.classList.remove('side-open'); }, true);

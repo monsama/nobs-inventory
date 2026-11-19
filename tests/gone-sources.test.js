@@ -68,16 +68,21 @@ test('a device whose computer account leaves AD keeps the day, with a history li
   assert.match(s.history.a[0].msg, /Back in Active Directory/);
 });
 
-test('the weekly e-mail names the devices no source lists any more', async () => {
+test('the weekly e-mail names the devices that may no longer be there, as the Overview', async () => {
   const { buildDigest } = await import('../server/digest.js');
   const s = { ...base([
     { id: 'a', name: 'PC-GONE', code: 'INV-1', status: 'active', adGone: '2026-11-01', graph: { gone: '02.11.2026 08:00' } },
     { id: 'b', name: 'PC-HERE', code: 'INV-2', status: 'active', inAd: true },
     { id: 'c', name: 'PC-OLD', code: 'INV-3', status: 'retired', adGone: '2026-11-01' },
+    { id: 'd', name: 'PC-QUIET', code: 'INV-4', status: 'active', inAd: true, ad: { logon: '2026-06-01T08:00:00Z' } },
+    { id: 'e', name: 'PC-NOSCAN', code: 'INV-5', status: 'active', inAd: true, ad: { logon: '2026-11-15T08:00:00Z' }, feed: { sys: 'Lansweeper', ref: 'r5', scanned: '2026-07-01' } },
   ]), contracts: [], users: [] };
   const d = buildDigest(s, {}, new Date('2026-11-18T08:00:00Z'));
-  assert.match(d.text, /1 device no source lists any more\n\s+- PC-GONE \(INV-1\)/);
+  assert.match(d.text, /Where are they\? 3 devices: 1 gone from every source, 1 not seen for 90 days, 1 not scanned by Lansweeper for 3 months/);
+  assert.match(d.text, /- PC-GONE \(INV-1\): gone from every source\n\s+- PC-QUIET \(INV-4\): not seen for 90 days\n\s+- PC-NOSCAN \(INV-5\): not scanned by Lansweeper for 3 months/);
   assert.doesNotMatch(d.text, /PC-HERE|PC-OLD/);
+  /* Lansweeper switched off: its scan dates no longer count. */
+  assert.doesNotMatch(buildDigest({ ...s, useLansweeper: false }, {}, new Date('2026-11-18T08:00:00Z')).text, /PC-NOSCAN/);
 });
 
 test('saved views of Contracts and Contacts keep their search and filter, and are never sent by mail', async () => {
@@ -98,10 +103,42 @@ test('an AD read that would take the mark from more than half of the devices is 
   assert.ok(objs.every(o => o.inAd));
   applyComputers(s, objs.slice(0, 3).map(o => comp(o.name)), new Date('2026-11-02T10:00:00Z'));   // 3 of 12 came back
   assert.ok(objs.every(o => o.inAd && !o.adGone), 'nobody loses the mark');
-  assert.deepEqual(s.adShort, { day: '2026-11-02', n: 3, of: 12 });
+  assert.deepEqual(s.adShort, { day: '2026-11-02', n: 3, of: 12, ns: [3], days: 1 });
   applyComputers(s, objs.slice(0, 11).map(o => comp(o.name)), new Date('2026-11-03T10:00:00Z'));   // one really gone
   assert.equal(s.adShort, undefined);
   assert.deepEqual(objs.filter(o => o.adGone).map(o => o.id), ['a11']);
+});
+
+test('a week of short AD reads of about the same size is the new size: the devices no longer there are found gone', () => {
+  const objs = Array.from({ length: 20 }, (_, i) => ({ id: 'a' + i, name: 'PC-' + i, status: 'active' }));
+  const s = base(objs);
+  const comp = name => ({ name, dns: name.toLowerCase() + '.corp.example', groups: [], os: '', domain: '', logon: '2026-11-01', created: '2020-01-02' });
+  applyComputers(s, objs.map(o => comp(o.name)), new Date('2026-11-01T10:00:00Z'));
+  for (const d of ['2026-11-02', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07']){   // twice on one day counts once
+    applyComputers(s, objs.slice(0, 8).map(o => comp(o.name)), new Date(d + 'T10:00:00Z'));
+    assert.ok(s.adShort && objs.every(o => !o.adGone), 'still set aside on ' + d);
+  }
+  applyComputers(s, objs.slice(0, 8).map(o => comp(o.name)), new Date('2026-11-08T10:00:00Z'));
+  assert.equal(s.adShort, undefined);
+  assert.equal(objs.filter(o => o.adGone).length, 12);
+});
+
+test('a week of short push days of about the same size becomes the new full day', () => {
+  const s = base([ls('a', 'PC-A')]);
+  const days = Array.from({ length: 7 }, (_, i) => ({ day: `2026-11-${String(10 - i).padStart(2, '0')}`, n: 4 }));
+  s.lsPresence = { day: '2026-11-11', n: 4, since: '2026-10-01', full: { day: '2026-11-03', n: 10 }, short: { day: '2026-11-10', n: 4, of: 10 }, days };
+  mergeRecords(s, recordsFromJson([{ ref: 'r-a', name: 'PC-A', serial: 'S-a' }]), new Date('2026-11-12T08:00:00Z'));
+  assert.deepEqual(s.lsPresence.full, { day: '2026-11-11', n: 4 });
+  assert.equal(s.lsPresence.short, undefined);
+});
+
+test('a device a file uploaded by hand brought is not gone from Lansweeper before it was there', async () => {
+  const { sourcesOfWith } = await import('../public/js/gone.js');
+  const P = { day: '2026-11-21', since: '2026-10-01', full: { day: '2026-11-21', n: 50 } };
+  const o = { id: 'z', status: 'active', feed: { sys: 'Lansweeper', ref: 'rz', created: '20.11.2026 09:00' } };
+  assert.equal(sourcesOfWith(o, P)[0].gone, false, 'came on 20.11, one day before the full day');
+  const later = sourcesOfWith(o, { ...P, day: '2026-11-23', full: { day: '2026-11-23', n: 50 } })[0];
+  assert.equal(later.gone, true); assert.match(later.when, /since 20\.11\.2026/);
 });
 
 test('a device the push finds by serial number under a new asset id is still listed by Lansweeper', () => {

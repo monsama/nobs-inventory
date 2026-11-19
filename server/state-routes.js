@@ -62,7 +62,7 @@ export function registerStateRoutes(app, ctx) {
               send('rel', r.id, r.data && inScope(objOf(r.data.from), sc) && inScope(objOf(r.data.to), sc) ? r.data : null);
             } else if (r.kind === 'history') {
               if (inScope(objOf(r.id), sc)) send('history', r.id, r.data);
-            } else if (r.kind === 'setting' && ['stocktakes', 'graphAmbiguous', 'syncChanges', 'plans'].includes(r.id) && r.data) {
+            } else if (r.kind === 'setting' && ['stocktakes', 'graphAmbiguous', 'syncChanges', 'plans', 'lsPresence', 'adShort'].includes(r.id) && r.data) {
               /* Only what is about the devices they see: the device list is read for it. */
               const seen = scopeState({ objs: db.prepare("SELECT data FROM docs WHERE kind = 'object'").all().map(x => JSON.parse(x.data)), [r.id]: r.data }, sc);
               send('setting', r.id, seen[r.id]);
@@ -76,8 +76,8 @@ export function registerStateRoutes(app, ctx) {
        page polls every 15 seconds, so this spares loading and sending the whole inventory each time. */
     /* history=0: without the devices' history, the bulk of a large inventory. The page reads a device's history when its
        page opens (GET /api/history/:id) and gets the history that changes later with what changed (since=). */
-    const lean = req.query.history === '0';
-    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}${lean ? '.h0' : ''}"`;
+    const lean = req.query.history === '0', noSw = req.query.software === '0';
+    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}${lean ? '.h0' : ''}${noSw ? '.s0' : ''}"`;
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
     if (req.get('if-none-match') === tag) return res.status(304).end();
     const cseq = stateSeq(db);
@@ -90,8 +90,24 @@ export function registerStateRoutes(app, ctx) {
       s.savedViews = redactViews(s.savedViews);
       s.users = s.users.map(redactUser);
     }
+    /* software=0: without the devices' installed software, read next (GET /api/software). */
+    if (noSw) s.objs = s.objs.map(o => { if (!o || !Object.hasOwn(o, 'software')) return o; const rest = { ...o }; delete rest.software; return rest; });
     s.cseq = cseq;
     sendPacked(req, res, s, next);
+  });
+
+  /* The installed software of every device the person may see, by device id, for a page that loaded the inventory
+     without it (software=0). Devices with none are left out. */
+  app.get('/api/software', requireUser, (req, res, next) => {
+    try {
+      const sc = scopeOf(req.user), software = {};
+      for (const r of db.prepare("SELECT id, data FROM docs WHERE kind = 'object'").all()){
+        const o = JSON.parse(r.data);
+        if (Array.isArray(o.software) && o.software.length && inScope(o, sc)) software[r.id] = o.software;
+      }
+      res.set('Cache-Control', 'no-store');
+      sendPacked(req, res, { software }, next);
+    } catch (e) { next(e); }
   });
 
   /* One device's history, newest first, for a page that loaded the inventory without it (history=0). Only for a device

@@ -2367,7 +2367,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 }
 .lrow .c-chips,.lrow .c-chips.rv-chips{flex-wrap:nowrap;padding:0;overflow:hidden}
 .lrow .rv-acts{justify-content:flex-end}
-#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) minmax(110px,.9fr) minmax(150px,1.3fr) 104px minmax(100px,1fr) 176px minmax(0,130px) 84px}
+#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) minmax(110px,.9fr) minmax(150px,1.3fr) 104px minmax(100px,1fr) 214px minmax(0,130px) 84px}
 /* The Directory column of the List: the dot and a short label each, no boxes, so the four (AD, Entra, Intune, Defender)
    fit its width side by side; the full words and states are in each one's tooltip and on the device page. */
 .lrow .c-dir{overflow:hidden;min-width:0}
@@ -2395,7 +2395,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .lst .lhead>.seen{text-align:right}
 @media (min-width:761px){ @container devlist (max-width:980px){
   .lst:not(.pend) .lhead,.lst:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) minmax(90px,.9fr) minmax(110px,1.3fr) minmax(80px,.9fr) minmax(0,150px) 76px}
-  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) minmax(90px,.9fr) minmax(110px,1.3fr) minmax(80px,.9fr) 176px minmax(0,110px) 76px}
+  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) minmax(90px,.9fr) minmax(110px,1.3fr) minmax(80px,.9fr) 214px minmax(0,110px) 76px}
   .lst:not(.pend) .c-ip{display:none}
   .lst.pend .lhead,.lst.pend .lrow{grid-template-columns:16px 18px minmax(120px,1.1fr) minmax(90px,.8fr) minmax(110px,1fr) minmax(140px,1.5fr) 76px 168px}
   .lst.pend .c-ip,.lst.pend .c-src{display:none}
@@ -2594,3 +2594,27 @@ table.contracts tr.picked td{background:var(--hover)}
 /* The contracts' cost strip and a selection bar keep the same 12px from the window's edges as the table under them. */
 .ov-kpis.ct-sum{margin:12px 12px 0;padding:0}
 .ct-sum-note+.selbar{margin-top:2px}
+/* Retire the devices a list shows: each with a tick, in a list that scrolls when long. */
+.gr-tools{display:flex;gap:14px;margin:8px 0 4px}
+.gr-pick{list-style:none;margin:0;padding:4px 0;max-height:260px;overflow:auto;border:1px solid var(--bd);border-radius:var(--r-m)}
+.gr-pick li label{display:flex;align-items:center;gap:8px;padding:4px 10px;cursor:pointer}
+.gr-pick li label input{margin:0;flex:none}
+.gr-pick li label .muted{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lic-table tr.picked td{background:var(--hover)}
+.lic-table .selcol{text-align:center}
+.panelbox .lic-selbar{margin:8px 12px}
+/* Every open package's device list has the same columns at the same places, whatever the names in it. */
+table.sw-sub{table-layout:fixed}
+table.sw-sub th:nth-child(1){width:30%}
+table.sw-sub th:nth-child(2){width:10%}
+table.sw-sub th:nth-child(3){width:24%}
+table.sw-sub th:nth-child(4){width:20%}
+table.sw-sub th:nth-child(5){width:16%}
+table.sw-sub td{overflow:hidden;text-overflow:ellipsis}
+table.sw-sub td,table.sw-sub th{vertical-align:middle}
+/* The Filters button stays in the bar when the filters are kept open too (a double-click there puts them away), shown pressed. */
+@media (min-width:821px){
+  body:not(.noside):not(.side-drawer) #sideBtn{display:inline-flex;width:auto;padding:0 10px;gap:6px}
+  body:not(.side-drawer) #sideBtn .side-lbl{display:inline}
+  body:not(.side-drawer) #sideBtn[aria-pressed="true"]{background:var(--sub);color:var(--linktext);font-weight:600}
+}

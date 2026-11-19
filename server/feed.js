@@ -579,7 +579,11 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       const days = was.day && typeof was.n === 'number' ? [{ day: was.day, n: was.n }, ...(was.days || [])].slice(0, 14) : (was.days || []);
       next = { day, n: 0, since: was.since || day, ...(was.full ? { full: was.full } : {}), ...(was.short ? { short: was.short } : {}), ...(days.length ? { days } : {}) };
       if (was.day && typeof was.n === 'number') {
-        if (!was.full || was.n >= was.full.n / 2) { next.full = { day: was.day, n: was.n }; delete next.short; }
+        /* A week of short days in a row, of about the same size, is the new size (assets really retired, a site moved
+           elsewhere), not a broken push: taken as full, so tracking goes on instead of holding forever. */
+        const lastWeek = days.slice(0, 7), ns = lastWeek.map(d => d.n);
+        const steady = !!was.full && lastWeek.length === 7 && ns.every(n => n < was.full.n / 2) && Math.min(...ns) >= Math.max(...ns) / 2;
+        if (!was.full || was.n >= was.full.n / 2 || steady) { next.full = { day: was.day, n: was.n }; delete next.short; }
         else next.short = { day: was.day, n: was.n, of: was.full.n };
       }
     }

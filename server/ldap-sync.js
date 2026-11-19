@@ -155,8 +155,17 @@ export function applyComputers(s, computers, now = new Date()) {
      those devices keep their mark and none is found gone; Health says so (s.adShort). */
   const inAd = s.objs.filter(o => o.status !== 'retired' && o.name && o.inAd);
   const lost = inAd.filter(o => !accountOf(o)).length;
-  const short = inAd.length >= 10 && lost > inAd.length / 2;
-  if (short) s.adShort = { day: now.toISOString().slice(0, 10), n: inAd.length - lost, of: inAd.length }; else delete s.adShort;
+  let short = inAd.length >= 10 && lost > inAd.length / 2;
+  if (short) {
+    /* Short on 7 days in a row (a week) with about as many accounts each time: that is the directory's size now (a base
+       narrowed on purpose, computers really deleted), taken as it is, so the devices no longer there are found gone. */
+    const day = now.toISOString().slice(0, 10), was = s.adShort, found = inAd.length - lost;
+    const prev = was && Array.isArray(was.ns) ? was.ns : was ? [was.n] : [];
+    const ns = was && was.day === day ? [...prev.slice(0, -1), found] : [...prev, found].slice(-7);
+    const days = was && was.day === day ? (was.days || 1) : Math.min(7, (was ? (was.days || 1) : 0) + 1);
+    if (days >= 7 && ns.length >= 7 && Math.min(...ns) >= Math.max(...ns) / 2) short = false;
+    if (short) s.adShort = { day, n: found, of: inAd.length, ns, days }; else delete s.adShort;
+  } else delete s.adShort;
   let n = 0;
   for (const o of s.objs) {
     if (o.status === 'retired' || !o.name) continue;

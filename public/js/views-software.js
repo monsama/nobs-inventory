@@ -2,7 +2,7 @@
 import './srcpick.js';
 import { bindLicences, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { $, TYPES, hist, now, objs, st, tico, toast, noMatchHtml } from './01-core.js';
-import { render } from './07-render.js';
+import { SW, ensureSoftware, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
 import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './view-search.js';
@@ -11,7 +11,11 @@ import { bindViewSearch, markHtml, matchWords, qWords, viewSearchHtml } from './
 
 
 export const SW_TYPES = ['pc','notebook','server'];
+/* The software is read just after the inventory (server-load.js ensureSoftware): until then it is shown as loading
+   and cannot be changed, so nothing is saved over it. */
+const swWaiting = o => !SW.loaded && !Object.prototype.hasOwnProperty.call(o, 'software');
 export function softwarePanel(o){
+  if (swWaiting(o)){ ensureSoftware(); return String(html`<div class="panelbox"><div class="hdr">Software</div><p class="note lempty">Loading the software…</p></div>`); }
   const list = o.software || [], edit = isAdmin();
   return String(html`<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length ? list.length + ' installed' : 'none'}</span></div>
     ${list.length ? html`<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th>${edit ? html`<th class="rm-cell"></th>` : ''}</tr></thead><tbody>
@@ -66,6 +70,11 @@ function swDetailHtml(r){
 /* The Software tab: the Licences box, then every package with its versions and how many devices have it, sorted by
    name or count and filtered by the search. A row opens in place to list its devices. */
 export function renderSoftware(){
+  if (!SW.loaded){
+    $('#toolbar').innerHTML = html`<span class="muted">Loading the software…</span>`;
+    $('#view').innerHTML = html`<div class="sw-page"><div class="empty">Loading the software…</div></div>`;
+    ensureSoftware(); return;
+  }
   const all = swPackages();
   st.swOpen = (st.swOpen || []).filter(n => all.some(r => r.name === n));
   st.swSort ??= 'name';
