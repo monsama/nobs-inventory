@@ -21,7 +21,7 @@ export function locOptions(sel, { none = 'No location' } = {}){
     const rooms = LOCS.filter(l => siteOf(l) === site).sort((a, b) => roomOf(a).localeCompare(roomOf(b)));
     if (rooms.length) out += `<optgroup label="${esc(site)}">${rooms.map(l => opt(l, l.includes(' / ') ? roomOf(l) : `${l} (whole site)`)).join('')}</optgroup>`;
   }
-  if (isAdmin() && SITES.length) out += `<optgroup label="―"><option value="${NEW}">New room…</option></optgroup>`;
+  if (isAdmin() && SITES.length) out += `<optgroup label="Add"><option value="${NEW}">New room…</option></optgroup>`;
   return out;
 }
 
@@ -29,7 +29,8 @@ export function locOptions(sel, { none = 'No location' } = {}){
 document.addEventListener('focusin', e => { const s = /** @type {HTMLSelectElement} */ (e.target); if (s && s.matches && s.matches('select.locpick')) s.dataset.was = s.value; });
 document.addEventListener('change', e => {
   const s = /** @type {HTMLSelectElement} */ (e.target);
-  if (!s || !s.matches || !s.matches('select.locpick') || s.value !== NEW) return;
+  if (!s || !s.matches || !s.matches('select.locpick')) return;
+  if (s.value !== NEW){ s.dataset.was = s.value; return; }
   e.stopImmediatePropagation();
   s.value = s.dataset.was ?? '';
   openNewRoom(s);
@@ -40,7 +41,7 @@ function openNewRoom(s){
   const site = SITES.includes(siteOf(s.value)) ? siteOf(s.value) : SITES[0];
   const f = document.createElement('span');
   f.className = 'locnew';
-  f.innerHTML = String(html`<select aria-label="Site of the new room">${SITES.map(x => html`<option ${x === site ? 'selected' : ''}>${x}</option>`)}</select><input aria-label="Name of the new room" placeholder="New room, e.g. Lager" maxlength="80"><button type="button" class="mini primary">Add</button><button type="button" class="mini icon ghost locnew-x" aria-label="Cancel the new room" title="Cancel (Esc)">×</button>`);
+  f.innerHTML = String(html`<select aria-label="Site of the new room">${SITES.map(x => html`<option ${x === site ? 'selected' : ''}>${x}</option>`)}</select><input aria-label="Name of the new room" placeholder="New room, e.g. Store room" maxlength="80"><button type="button" class="mini primary">Add</button><button type="button" class="mini icon ghost locnew-x" aria-label="Cancel the new room" title="Cancel (Esc)">×</button>`);
   s.hidden = true; s.after(f);
   const [site_, name, ok, cancel] = /** @type {[HTMLSelectElement, HTMLInputElement, HTMLButtonElement, HTMLButtonElement]} */ ([...f.children]);
   const close = () => { f.remove(); s.hidden = false; s.focus(); };
@@ -55,7 +56,9 @@ function openNewRoom(s){
     s.dispatchEvent(new Event('change', { bubbles: true }));
   };
   name.oninput = () => name.setCustomValidity('');
-  name.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); add(); } else if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close(); } };
+  name.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); add(); } };
+  /* Escape anywhere in the form closes the form only, not the dialog or popup around it. */
+  f.addEventListener('keydown', e => { if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close(); } });
   ok.onclick = add; cancel.onclick = close;
   name.focus();
 }

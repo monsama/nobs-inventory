@@ -55,8 +55,9 @@ export async function deleteManyModal(list, after){
     <div class="mb"><p class="note">${names}. This removes ${n === 1 ? 'the device' : 'them'}, ${n === 1 ? 'its' : 'their'} relations and history for good, with no Undo. Retire keeps the record instead.</p>
     ${ls.length ? html`<p class="fieldnote warn">${ls.length === n ? (n === 1 ? 'Lansweeper still has it' : 'Lansweeper still has them') : `Lansweeper still has ${ls.length} of them`}: its next push adds ${ls.length === 1 ? 'it' : 'them'} again, as new devices. Retire and exclude keeps ${ls.length === 1 ? 'it' : 'them'} out.</p>` : ''}</div>
     <div class="mf"><button id="dmOk" class="danger-text">Delete ${n} permanently</button><span class="grow"></span><button id="dmCancel">Cancel</button>${ls.length ? html`<button id="dmExcl" class="primary">Retire and exclude ${ls.length}</button>` : ''}</div>`, 'sm');
-  $('#dmCancel').onclick = closeModal;
-  $('#dmOk').onclick = () => { closeModal(); for (const o of list) deleteObject(o.id); if (after) after(); render(); toast(`${n} ${n === 1 ? 'device' : 'devices'} deleted`); };
+  /* The focus on Cancel: Enter never deletes by accident. */
+  $('#dmCancel').onclick = closeModal; $('#dmCancel').focus();
+  $('#dmOk').onclick = () => { closeModal(); for (const o of list) deleteObject(o.id, { quiet: true }); if (after) after(); render(); toast(`${n} ${n === 1 ? 'device' : 'devices'} deleted`); };
   const ex = $('#dmExcl'); if (ex) ex.onclick = () => {
     const snap = snapshot([...ls, ...objs.filter(x => ls.some(o => x.ontop === o.id))]), relsWas = [...rels];
     for (const o of ls){ if (o.status !== 'retired') retireLinks(o); o.status = 'retired'; o.excluded = true; hist(o, now(), 'Retired and excluded from Lansweeper sync by ' + who()); }

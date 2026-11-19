@@ -17,7 +17,8 @@ const dev = (id, loc, adText) => ({ id, code: 'INV-' + id, type: 'pc', name: 'PC
 saveState(db, { ...loadState(db), sites: ['Main', 'Annex'], locs: ['Main / Shop', 'Main / Old shop', 'Main / Store', 'Annex / Hall'],
   locMap: { 'WS shop': 'Main / Old shop' },
   plans: [{ id: 'p1', site: 'Main', name: 'Ground floor', areas: [{ id: 'a1', name: 'Old shop', room: 'Main / Old shop', x: 0, y: 0, w: 10, h: 10 }] }],
-  objs: [dev('a', 'Main / Shop'), dev('b', 'Main / Old shop', 'WS shop'), dev('c', '', 'Shop 2')], rels: [], history: {} });
+  objs: [dev('a', 'Main / Shop'), dev('b', 'Main / Old shop', 'WS shop'), dev('c', '', 'Shop 2'),
+    { id: 'pp', code: 'INV-pp', type: 'patch', name: 'PP-1', status: 'active', ovr: {}, loc: 'Main / Shop', ports: 24, outlets: { P01: { name: 'A-01', loc: 'Main / Old shop' } } }], rels: [], history: {} });
 const stored = check => storedBy(() => loadState(db), check);
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -57,10 +58,15 @@ try {
   await stored(st => !('Shop 2' in st.locMap) && st.objs.find(o => o.id === 'c').loc === 'Main / Workshop');
   // merge into Main / Shop: devices, names and the plan area go along; one Undo puts it all back
   await p.selectOption('#plMerge', 'Main / Shop');
-  await stored(st => !st.locs.includes('Main / Workshop') && st.objs.filter(o => o.loc === 'Main / Shop').length === 3 && st.locMap['WS shop'] === 'Main / Shop' && st.plans[0].areas[0].room === 'Main / Shop');
+  await stored(st => !st.locs.includes('Main / Workshop') && st.objs.filter(o => o.loc === 'Main / Shop').length === 4 && st.locMap['WS shop'] === 'Main / Shop' && st.plans[0].areas[0].room === 'Main / Shop'
+    && st.objs.find(o => o.id === 'pp').outlets.P01.loc === 'Main / Shop');
   await p.waitForSelector('[data-plroom="Main / Shop"]');
+  /* a change made after the merge stays when the merge is undone */
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.locMap = { ...c.st.locMap, 'Later name': 'Annex / Hall' }; (await import('/js/07-render.js')).queueServerSave(); });
+  await stored(st => st.locMap['Later name'] === 'Annex / Hall');
   await p.click('#toast .t-undo');
-  await stored(st => st.locs.includes('Main / Workshop') && st.objs.find(o => o.id === 'b').loc === 'Main / Workshop' && st.locMap['WS shop'] === 'Main / Workshop' && st.plans[0].areas[0].room === 'Main / Workshop');
+  await stored(st => st.locs.includes('Main / Workshop') && st.objs.find(o => o.id === 'b').loc === 'Main / Workshop' && st.locMap['WS shop'] === 'Main / Workshop' && st.plans[0].areas[0].room === 'Main / Workshop'
+    && st.objs.find(o => o.id === 'pp').outlets.P01.loc === 'Main / Workshop' && st.locMap['Later name'] === 'Annex / Hall');
   // an empty room is deleted (Undo brings it back); one with devices only merges
   await pick('room:Annex / Hall');
   await p.click('#plRoomDel');

@@ -59,3 +59,14 @@ test('renamed in AD: the device keeps its room, no second room is made; without 
   applyComputers(u, [renamed]);
   assert.ok(u.locs.includes('Main / Presse 2'));
 });
+
+test('a device moved in AD is no rename: another account still gives the old text, so a room of the new text is made', () => {
+  const s = state({ adLocAuto: 'Main', locs: ['Main / Office', 'Main / Presse 1'], locMap: { 'Presse 1': 'Main / Presse 1' },
+    objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PRESS-PC', status: 'active', loc: 'Main / Presse 1', src: { loc: 'ad' }, ad: { location: 'Presse 1' } },
+      { id: 'o2', code: 'INV-0002', type: 'pc', name: 'PRESS-PC2', status: 'active', loc: 'Main / Presse 1', src: { loc: 'ad' }, ad: { location: 'Presse 1' } }] });
+  applyComputers(s, [{ ...comp, location: 'Werkstatt' }, { name: 'PRESS-PC2', dns: 'press-pc2.corp.example', location: 'Presse 1', groups: [] }]);
+  assert.ok(s.locs.includes('Main / Werkstatt'), 'a room of its own');
+  assert.equal(s.locMap.Werkstatt, 'Main / Werkstatt');
+  assert.equal(s.objs[0].loc, 'Main / Werkstatt');
+  assert.equal(s.objs[1].loc, 'Main / Presse 1');
+});

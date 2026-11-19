@@ -344,7 +344,7 @@ export function placeSide(){
   const g = $('#sideGrip'); if (g){ g.setAttribute('aria-valuenow', String(sidePinned() ? sideWidth() : 0)); g.setAttribute('aria-valuemin', '0'); g.setAttribute('aria-valuemax', String(SIDE_MAX)); }
   const rail = $('#sideRail'); if (rail) rail.setAttribute('aria-expanded', String(sidePinned()));
   const sb = $('#sideBtn');
-  const n = $('#sideN'), rn = $('#sideRailN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.gone, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; if (rn){ rn.textContent = String(k); rn.hidden = !k; } const rl = $('#sideRail'); if (rl) rl.setAttribute('aria-label', `Show the filters${k ? `, ${k} in force` : ''}`); if (sb) sb.setAttribute('aria-label', `Filters${k ? `, ${k} in force` : ''}${sidePinned() ? ', kept open' : ''}`); }
+  const n = $('#sideN'), rn = $('#sideRailN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.gone, st.where, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; if (rn){ rn.textContent = String(k); rn.hidden = !k; } const rl = $('#sideRail'); if (rl) rl.setAttribute('aria-label', `Show the filters${k ? `, ${k} in force` : ''}`); if (sb) sb.setAttribute('aria-label', `Filters${k ? `, ${k} in force` : ''}${sidePinned() ? ', kept open' : ''}`); }
 }
 /* The Filters button says whether the drawer is open, however it closes (Escape, a tap beside it, a filter picked). */
 new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('aria-expanded', String(document.body.classList.contains('side-open'))); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
@@ -380,14 +380,14 @@ $('#sideRail').addEventListener('pointerdown', e => dragSide(e, true));
 $('#sideRail').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setSidePin(true); $('#sideGrip')?.focus(); } });
 /* The edge by keyboard: ← and → by 20 px (Shift: 60), Home the narrowest, Enter folds away or opens. */
 $('#sideGrip').addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setSidePin(!sidePinned()); return; }
+  if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); const open = !sidePinned(); setSidePin(open); if (!open) $('#sideRail')?.focus(); return; }
   const step = e.shiftKey ? 60 : 20, d = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
   if (e.key === 'Home'){ e.preventDefault(); keepWidth(SIDE_MIN); placeSide(); return; }
   if (!d) return;
   e.preventDefault();
   if (!sidePinned()){ if (d > 0) setSidePin(true); return; }
   const next = sideWidth() + d;
-  if (next < SIDE_MIN){ setSidePin(false); return; }
+  if (next < SIDE_MIN){ setSidePin(false); $('#sideRail')?.focus(); return; }
   keepWidth(Math.min(SIDE_MAX, next)); placeSide();
 });
 /* The filter drawer on a phone closes like a menu: Escape, or a tap beside it. */

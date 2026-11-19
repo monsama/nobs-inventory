@@ -442,7 +442,8 @@ export function addRoom(){
   if (!site){ msg.innerHTML = warn('Add a site first.'); return; }
   if (!room || room.includes(' / ')){ msg.innerHTML = warn('Write the room name, without a slash.'); $('#nlRoom').focus(); return; }
   const name = site + ' / ' + room;
-  if (LOCS.includes(name)){ msg.innerHTML = warn(name + ' already exists.'); return; }
+  const same = LOCS.find(l => l.toLowerCase() === name.toLowerCase());
+  if (same){ msg.innerHTML = warn(same + ' already exists.'); return; }
   LOCS.push(name); placeSelect({ room: name }); toast('Added ' + name); renderSetLocs(); render();
 }
 /* The settings that name a place, renamed with it: the store room of each site (its key, a site, and its room), the place
@@ -452,6 +453,9 @@ export function renamePlaceRefs(move){
   if (st.stockRooms) st.stockRooms = Object.fromEntries(Object.entries(st.stockRooms).map(([k, v]) => [move(k), move(v)]));
   if (Array.isArray(st.savedViews)) st.savedViews = st.savedViews.map(v => v && v.filters && v.filters.loc && move(v.filters.loc) !== v.filters.loc ? { ...v, filters: { ...v.filters, loc: move(v.filters.loc) } } : v);
   for (const k of ['locMap', 'adLocMap']) if (st[k]) st[k] = Object.fromEntries(Object.entries(st[k]).map(([t, room]) => [t, move(room)]));
+  /* The wall outlets on patch panels and the inventory checks of a room go along too. */
+  for (const o of objs) if (o.outlets) for (const x of Object.values(o.outlets)) if (x && x.loc && move(x.loc) !== x.loc) x.loc = move(x.loc);
+  for (const t of st.stocktakes || []) if (t && t.scope && move(t.scope) !== t.scope) t.scope = move(t.scope);
 }
 /* Renaming a site renames its rooms, the locations of the objects in them, and the racks. */
 export function renameSite(old, value){
@@ -478,7 +482,8 @@ export function renameSite(old, value){
 export function renameLoc(old, value, quiet = false){
   const name = cleanLoc(value);
   if (!name){ toast('Use the form Site / Room, e.g. Branch office / Store room'); renderSetLocs(); return false; }
-  if (name !== old && LOCS.includes(name)){ toast(name + ' already exists.'); renderSetLocs(); return false; }
+  const same = LOCS.find(l => l !== old && l.toLowerCase() === name.toLowerCase());
+  if (same){ toast(same + ' already exists.'); renderSetLocs(); return false; }
   if (name === old) return false;
   LOCS[LOCS.indexOf(old)] = name;
   objs.forEach(o => { if (o.loc === old) o.loc = name; });

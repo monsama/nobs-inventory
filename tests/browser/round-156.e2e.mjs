@@ -39,7 +39,7 @@ try {
   // quick edit: rooms under their site, New room… adds one and moves the device there
   await p.hover('#cards .lrow[data-open="b"]'); await p.click('#cards .lrow[data-open="b"] .qedit-btn');
   await p.waitForSelector('#qeLoc');
-  assert.deepEqual(await p.$$eval('#qeLoc optgroup', g => g.map(x => x.label)), ['Main', 'Annex', '―']);
+  assert.deepEqual(await p.$$eval('#qeLoc optgroup', g => g.map(x => x.label)), ['Main', 'Annex', 'Add']);
   await p.selectOption('#qeLoc', '__newroom');
   await p.waitForSelector('.locnew input');
   assert.equal(await p.inputValue('#qeLoc'), '', 'the list keeps what it had');
@@ -52,6 +52,22 @@ try {
   await p.waitForSelector('select.locpick[data-k="loc"]');
   assert.equal(await p.inputValue('select.locpick[data-k="loc"]'), 'Main / Shop');
   assert.ok((await p.$$eval('select.locpick[data-k="loc"] optgroup[label="Annex"] option', o => o.map(x => x.textContent))).includes('Lab'));
+
+  // a room picked, then New room… cancelled: the list keeps the room just picked (it is not put back on the next save)
+  await p.selectOption('select.locpick[data-k="loc"]', 'Annex / Hall');
+  await stored(st => st.objs.find(o => o.id === 'a').loc === 'Annex / Hall');
+  await p.selectOption('select.locpick[data-k="loc"]', '__newroom');
+  await p.waitForSelector('.locnew input'); await p.press('.locnew input', 'Escape');
+  assert.equal(await p.inputValue('select.locpick[data-k="loc"]'), 'Annex / Hall');
+
+  // a dialog opened from Settings, minimized: the still copy of Settings goes with it, and comes back with it
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'mail'; (await import('/js/04-settings.js')).openSettings(); });
+  await p.waitForSelector('#dgPreview'); await p.click('#dgPreview'); await p.waitForSelector('#mdl:not(:has(#setPane)) .mh');
+  await p.evaluate(async () => (await import('/js/19-modal.js')).minimizeModal());
+  assert.equal(await p.isVisible('#mdlGhost'), false, 'no frozen Settings over the page');
+  await p.evaluate(async () => (await import('/js/19-modal.js')).restoreModal());
+  assert.equal(await p.evaluate(() => !document.querySelector('#mdlGhost').hidden), true);
+  await p.evaluate(async () => { const m = await import('/js/19-modal.js'); m.closeModal(); m.closeModal(); });
 
   // Draw on plan… from a room: the plan opens to draw, the area gets the room
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'locations'; (await import('/js/04-settings.js')).openSettings(); });

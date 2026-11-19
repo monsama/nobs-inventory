@@ -157,7 +157,8 @@ try {
   await p.waitForSelector('iframe.dg-frame');
   const mail = await p.$eval('iframe.dg-frame', f => f.contentDocument.body.textContent);
   assert.match(mail, /Where are they\?/); assert.match(mail, /PC-OLD/);
-  assert.equal(await p.getAttribute('iframe.dg-frame', 'sandbox'), 'allow-same-origin', 'the mail runs nothing (no scripts allowed)');
+  assert.doesNotMatch(await p.getAttribute('iframe.dg-frame', 'sandbox'), /allow-scripts/, 'the mail runs nothing (no scripts allowed)');
+  assert.equal(await p.$eval('iframe.dg-frame', f => f.contentDocument.querySelector('base').target), '_blank', 'its link opens a tab of its own');
   await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
   await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
 

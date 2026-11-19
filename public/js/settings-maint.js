@@ -326,7 +326,7 @@ function wireDigest(){
       const r = await fetch('api/digest/preview', { credentials: 'same-origin' }); const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'The preview could not be made.');
       modal(html`<div class="mh">${j.subject}</div><div class="mb"><p class="note">As it would be sent now${(DIGEST && DIGEST.to && DIGEST.to.length) ? ` to ${DIGEST.to.join(', ')}` : ''}.</p>
-        <iframe class="dg-frame" title="The e-mail" sandbox="allow-same-origin" srcdoc="${j.html || ''}"></iframe>
+        <iframe class="dg-frame" title="The e-mail" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc="${'<base target="_blank">' + (j.html || '')}"></iframe>
         <details class="dg-text"><summary>Plain text</summary><pre class="dg-pre">${j.text}</pre></details></div>
         <div class="mf"><button id="dgClose" class="primary">Close</button></div>`, 'wide');
       $('#dgClose').onclick = () => { closeModal(); };

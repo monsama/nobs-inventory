@@ -195,6 +195,14 @@ test('the inventory without its software, the software on its own, and saves tha
     r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'object', id: 'b', value: { ...bo2, software: bo2.software.filter(p => p.name !== 'Zip') }, base: lb2.revs['object|b'] }], dels: [] } });
     assert.equal(r.json.keptSoftware, undefined, 'one package removed is fine');
     assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'b').software.map(p => p.name), ['Office Suite', 'Viewer', 'New']);
+    /* Two removed on the page in one save (quick clicks, or offline): each has its history line, so they go, with no net. */
+    const lb3 = (await srv.call('GET', '/api/state?history=0', { cookie: a.cookie })).json, bo3 = lb3.objs.find(o => o.id === 'b');
+    const left = bo3.software.filter(p => p.name !== 'Viewer' && p.name !== 'New').map(p => p.name);
+    r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [
+      { kind: 'object', id: 'b', value: { ...bo3, software: bo3.software.filter(p => left.includes(p.name)) }, base: lb3.revs['object|b'] },
+      { kind: 'history', id: 'b', value: [{ t: '2026-11-19 10:00', msg: 'Software removed: New' }, { t: '2026-11-19 10:00', msg: 'Software removed: Viewer' }] }], dels: [] } });
+    assert.equal(r.status, 200); assert.equal(r.json.keptSoftware, undefined, 'removals the page made and logged are no lost list');
+    assert.deepEqual(loadState(srv.db).objs.find(o => o.id === 'b').software.map(p => p.name), left);
     s2.objs.find(o => o.id === 'b').software = sw; saveState(srv.db, { ...loadState(srv.db), objs: loadState(srv.db).objs.map(o => o.id === 'b' ? { ...o, software: sw } : o) });
     /* The Software tab's index: packages, versions and device ids, no device's whole list. */
     const pk = (await srv.call('GET', '/api/software/packages', { cookie: a.cookie })).json.packages;

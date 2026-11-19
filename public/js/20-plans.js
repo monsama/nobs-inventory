@@ -203,6 +203,7 @@ const setSideOpen = on => { try { localStorage.setItem(SIDE_KEY, on ? '1' : '0')
    of devices not on the plan and the plan itself, then wires them all. Viewers can look, search and open devices;
    drawing, placing and dragging are for admins only. */
 export function renderPlans(){
+  if (planMode !== 'area' || st.tab !== 'plans') drawFor = null;
   $('#toolbar').innerHTML = '';   /* the plans have their own bar; the toolbar of the tab before is not kept */
   const plan = planById(planSel) || PLANS[0] || null;
   planSel = plan ? plan.id : null;

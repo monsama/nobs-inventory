@@ -165,7 +165,7 @@ export function purgeModal(o){
 }
 /* Removes a device (or a record in Pending devices) for good: its relations, its history, rack and on-top links to it, and its
    tab. Records merged into it stay ignored. No Undo. */
-export function deleteObject(id){
+export function deleteObject(id, { quiet = false } = {}){
   /* A record waiting in Pending devices (or ignored there) is deleted from that list. */
   const list = objs.some(x => x.id === id) ? objs : REVIEW;
   const i = list.findIndex(x => x.id === id); if (i < 0) return;
@@ -180,7 +180,7 @@ export function deleteObject(id){
   delete HISTORY[id];
   st.open = st.open.filter(x => x !== id); st.tabIds = st.tabIds.filter(x => x !== id);
   if (st.tab === id) st.tab = 'table';
-  render();
+  if (!quiet) render();
 }
 export const COLLAPSED_KEY = 'ni-collapsed-panels';
 export const collapsedPanels = () => { try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || {}; } catch { return {}; } };

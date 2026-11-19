@@ -80,14 +80,18 @@ export function ensureDeviceSoftware(id){
    software here. */
 export function ensurePackages(){
   if (SW.pkgs || SW.pkgLoading || !SERVER.base) return SW.pkgLoading;
+  const gen = pkgGen;
   SW.pkgLoading = fetch('api/software/packages', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
     if (!j || !Array.isArray(j.packages)) return;
+    if (gen !== pkgGen){ setTimeout(() => { if (st.tab === 'sw') ensurePackages(); }, 0); return; }   /* read before a reload: asked again */
     SW.pkgs = j.packages;
     if (st.tab === 'sw' && !heldBack()) render();
   }).catch(() => { /* offline: asked again when the tab is drawn next */ }).finally(() => { SW.pkgLoading = null; });
   return SW.pkgLoading;
 }
-export function forgetPackages(){ SW.pkgs = null; }
+/* Counts reloads and changes of software here: an index read before one is not kept after it. */
+let pkgGen = 0;
+export function forgetPackages(){ SW.pkgs = null; pkgGen++; }
 /* Each device's installed software, by id: the page's own copy where it holds one (read for the device's page, or
    changed here and maybe not yet on the server), else the server's index (null until it is read). */
 export const knownSoftware = oncePerDraw(knownSoftwareNow);
@@ -188,7 +192,7 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
   if (keep && replayLocal(keep, skip)) queueServerSave();
   dropMissingTabs();
   render();
-  SW.pkgs = null;
+  SW.pkgs = null; pkgGen++;
   setTimeout(loadLicenceUse, 0);
   return true;
 }
