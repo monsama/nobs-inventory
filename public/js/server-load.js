@@ -37,7 +37,8 @@ export const HIST_FULL = new Set();
    copy the server sent without it (and the changes since) gets it back; a device the server sends with its software
    (a change since) has its own. Until it is read, the page shows it as loading and lets nobody change it; a save of a
    device without it leaves the stored software as it is (server state.js applyChanges). */
-export const SW = { loaded: false, loading: /** @type {Promise<void>|null} */ (null), map: new Map(), one: new Map(), licUse: /** @type {Record<string, number>|null} */ (null) };
+export const SW = { loaded: false, loading: /** @type {Promise<void>|null} */ (null), map: new Map(), one: new Map(), licUse: /** @type {Record<string, number>|null} */ (null),
+  pkgs: /** @type {{name: string, versions: [string, string[]][]}[]|null} */ (null), pkgLoading: /** @type {Promise<void>|null} */ (null) };
 const stateUrl = () => SW.loaded ? 'api/state?history=0' : 'api/state?history=0&software=0';
 const hasSw = o => Object.prototype.hasOwnProperty.call(o, 'software');
 /* Remembers the software the page's devices have now, then gives it to the devices that came without it. */
@@ -86,6 +87,27 @@ export function ensureDeviceSoftware(id){
     /* Drawn again with it; where the focus was (the title, a button) stays. */
     if (cur && attachSoftware(cur, list) && st.tab === id && !heldBack()){ const f = document.activeElement && document.activeElement.id; render(); if (f) /** @type {HTMLElement|null} */ (document.getElementById(f))?.focus(); }
   }).catch(() => { /* offline: asked again when the page is drawn next */ }).finally(() => SW.one.delete(id)));
+}
+/* The Software tab's index (api/software/packages): read when the tab opens, and again after a load or a change of
+   software here. */
+export function ensurePackages(){
+  if (SW.pkgs || SW.pkgLoading || !SERVER.base) return SW.pkgLoading;
+  SW.pkgLoading = fetch('api/software/packages', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !Array.isArray(j.packages)) return;
+    SW.pkgs = j.packages;
+    if (st.tab === 'sw' && !heldBack()) render();
+  }).catch(() => { /* offline: asked again when the tab is drawn next */ }).finally(() => { SW.pkgLoading = null; });
+  return SW.pkgLoading;
+}
+export function forgetPackages(){ SW.pkgs = null; }
+/* Each device's installed software, by id: the page's own copy where it holds one (read for the device's page, or
+   changed here and maybe not yet on the server), else the server's index (null until it is read). */
+export function knownSoftware(){
+  if (!SW.pkgs) return null;
+  const m = new Map();
+  for (const p of SW.pkgs) for (const [v, ids] of p.versions) for (const id of ids){ let l = m.get(id); if (!l) m.set(id, l = []); l.push({ name: p.name, version: v }); }
+  for (const o of objs) if (Object.hasOwn(o, 'software')) m.set(o.id, Array.isArray(o.software) ? o.software : []);
+  return m;
 }
 /* How many devices use each licence, from the server, for the Overview while the software is not read. */
 function loadLicenceUse(){
@@ -178,6 +200,7 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
   if (keep && replayLocal(keep, skip)) queueServerSave();
   dropMissingTabs();
   render();
+  SW.pkgs = null;
   if (!SW.loaded) setTimeout(loadLicenceUse, 0);
   return true;
 }

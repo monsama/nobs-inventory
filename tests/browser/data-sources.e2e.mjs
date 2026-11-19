@@ -205,18 +205,21 @@ try {
   await openSetTab(p, 'locations'); await p.waitForSelector('#adLocs');
   assert.match(await p.textContent('#adLocs'), /Raum 3\.12\s*AD\s*2/);
   assert.match(await p.textContent('#adLocs'), /bern \/ eg\s*AD\s*1\s*Is a room here/);
-  assert.match(await p.textContent('#adLocs'), /HQ \/ Lager\s*Lansweeper\s*1/);
+  // Lansweeper does not fill the location by default: its texts are listed once it is switched on, here
+  assert.doesNotMatch(await p.textContent('#adLocs'), /HQ \/ Lager/);
+  await p.locator('[data-locon="ls"]').locator('xpath=..').click();
+  await until(p, () => /HQ \/ Lager\s*Lansweeper\s*1/.test(document.querySelector('#adLocs').textContent));
   // the office of a device's user: off until turned on, kept on the server
   assert.equal(await p.isChecked('#locOffice'), false);
-  await p.check('#locOffice');
+  await p.locator('#locOffice').locator('xpath=..').click();
   await stored(st => st.locFromOffice === true);
   await p.selectOption('#adLocs .lrow:has-text("Raum 3.12") [data-admap]', 'site:Bern');
   await stored(st => st.locs.includes('Bern / Raum 3.12') && (st.locMap || {})['Raum 3.12'] === 'Bern / Raum 3.12' && st.objs.filter(o => o.loc === 'Bern / Raum 3.12').length === 2);
   assert.match(await p.textContent('#adLocs'), /→ Bern \/ Raum 3\.12/);
   await p.click('#toast .t-undo');
   await stored(st => !st.locs.includes('Bern / Raum 3.12') && !(st.locMap || {})['Raum 3.12'] && st.objs.every(o => !o.loc));
-  // the order the sources fill the location in, said over the list
-  assert.match(await p.textContent('#adLocs .adloc-order'), /Fills the location:/);
+  // the order the sources fill the location in, shown over the list
+  assert.deepEqual(await p.$$eval('.locsrc .ls-item.on:not(.ls-fallback) .ls-name b', b => b.map(x => x.textContent)), ['Active Directory', 'Lansweeper']);
   // ticked texts become rooms of a site at once, with one Undo
   await p.check('#adPickAll');
   await p.waitForSelector('#adBulkGo');

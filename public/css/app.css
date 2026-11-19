@@ -2474,7 +2474,7 @@ body:has(#toolbar .pickrow) #view{padding-bottom:72px}
 .lrow .qedit-btn .i{width:14px;height:14px}
 @media (hover:none){ .lrow .qedit-btn{display:none} }
 .lst-compact .qedit-btn{display:none}
-.qedit{position:fixed;margin:0;width:320px;padding:10px 12px;gap:8px}
+.qedit{position:fixed;margin:0;width:320px;padding:10px 12px;gap:8px;position-area:none;position-try-fallbacks:none;inset:auto}
 .qedit .qe-h{font-weight:600;padding-bottom:4px;border-bottom:1px solid var(--bd2)}
 .qedit .qe-row{display:grid;grid-template-columns:70px minmax(0,1fr);gap:6px 8px;align-items:center;font-size:13px}
 .qedit .qe-row>span:first-child{color:var(--muted);font-size:12px}
@@ -2622,3 +2622,41 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
 .ds-wsel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .ds-wsel label{color:var(--muted);font-size:12px}
 .ds-wsel select{width:auto;min-width:110px}
+/* The Filters button is an icon of one size, open or kept open (no label that comes and goes, so nothing in the bar
+   moves); the number of filters in force is a small badge on its corner, its state the pressed look. */
+@media (min-width:821px){
+  body:not(.noside) #sideBtn{display:inline-flex;position:relative;width:32px;padding:0;gap:0;justify-content:center}
+  body:not(.noside) #sideBtn .side-lbl{display:none}
+  body:not(.noside) #sideBtn .side-n:not([hidden]){display:inline-flex;position:absolute;top:-5px;right:-6px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--accent);color:#fff;font-size:10px;font-weight:600;align-items:center;justify-content:center;line-height:1;box-shadow:0 0 0 2px var(--bg)}
+}
+/* The weekly e-mail's preview: on white, as in a mail program, with room to read it. */
+.dg-frame{display:block;width:100%;height:min(60vh,520px);border:1px solid var(--bd);border-radius:var(--r-m);background:#fff;margin:8px 0}
+.dg-text summary{cursor:pointer;color:var(--linktext);font-size:12px}
+/* Where a device's location comes from: the sources in order, each with its place, arrows and a switch. */
+.locsrc{margin:10px 12px;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel)}
+.locsrc-h{display:flex;align-items:baseline;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bd2)}
+.locsrc-h .muted{font-size:12px}
+.locsrc-list{list-style:none;margin:0;padding:0}
+.ls-item{display:grid;grid-template-columns:28px minmax(0,1fr) 64px 40px;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--bd2)}
+.ls-item:first-child{border-top:0}
+.ls-item:not(.on) .ls-name b{color:var(--muted);font-weight:500}
+.ls-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:12px;font-weight:600;background:var(--sub);color:var(--muted)}
+.ls-item.on .ls-num{background:var(--accent);color:var(--accentfg)}
+.ls-fallback.on .ls-num{background:var(--sub);color:var(--fg)}
+.ls-name{display:flex;flex-direction:column;min-width:0}
+.ls-name small{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ls-move{display:inline-flex;gap:2px;justify-content:flex-end}
+.ls-move .icon{width:28px;height:28px;min-height:0;min-width:0;padding:0;font-size:10px}
+.switch{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;justify-self:end}
+.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:inherit}
+.switch span{position:absolute;inset:0;border-radius:10px;background:var(--bd);transition:background .15s}
+.switch span::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.switch input:checked+span{background:var(--accent)}
+.switch input:checked+span::after{transform:translateX(16px)}
+.switch input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.switch input:disabled+span{opacity:.5;cursor:default}
+@media (prefers-reduced-motion:reduce){.switch span,.switch span::after{transition:none}}
+/* The still picture of Settings behind a dialog opened from it (19-modal.js keepGhost): where Settings was, under the
+   dialog's backdrop, out of reach of the pointer. */
+.modal-ghost{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;z-index:40;pointer-events:none}
+.modal-ghost .box{box-shadow:none}

@@ -33,8 +33,12 @@ export function modal(body, cls=''){
   leaveCheck = null;
   /* Only one dialog is open at a time: a minimized one that another takes the place of is closed, and that is said. */
   const gone = $('#mdl.minimized'); if (gone) toast(`The minimized “${gone.getAttribute('aria-label') || 'dialog'}” was closed.`);
-  if (/\bsettings\b/.test(cls)) backToSettings = false;
-  else if ($('#mdl:not(.minimized) #setPane')) backToSettings = true;
+  /* A dialog opened from Settings takes its place (one dialog at a time) and Settings comes back when it closes. Until
+     then a still picture of Settings stays behind it, dimmed and not usable, so the page does not jump to what lies
+     under Settings and back. */
+  const fromSettings = !/\bsettings\b/.test(cls) && $('#mdl:not(.minimized) #setPane');
+  if (/\bsettings\b/.test(cls)){ backToSettings = false; dropGhost(); }
+  else if (fromSettings){ backToSettings = true; keepGhost(/** @type {HTMLElement} */ ($('#mdl .box'))); }
   /* The control that opened the first dialog gets the focus back; one replaced while minimized does not keep it. */
   if (!$('#mdl') || gone) modalOpener = gone ? null : document.activeElement;
   /* The dialog is named by its heading, so a screen reader says what it is. */
@@ -193,6 +197,17 @@ function renderTray(){
 /* Closing a dialog gives the focus back to the control that opened it, so a keyboard user is not sent to the top of the page. */
 export let modalOpener = null;
 /* Leaving Settings, however it is closed, draws the view behind it again, so changes made there show at once. */
+/* The still picture of Settings behind a dialog opened from it: a copy that runs nothing, takes no input and is not read
+   out, under the dialog's dimmed backdrop. Gone when Settings comes back or the dialog closes otherwise. */
+function keepGhost(box){
+  dropGhost(); if (!box) return;
+  const g = document.createElement('div');
+  g.id = 'mdlGhost'; g.className = 'modal modal-ghost'; g.setAttribute('aria-hidden', 'true'); g.inert = true;
+  const copy = /** @type {HTMLElement} */ (box.cloneNode(true));
+  copy.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+  g.append(copy); document.body.append(g);
+}
+function dropGhost(){ const g = document.getElementById('mdlGhost'); if (g) g.remove(); }
 export const closeModal = () => {
   /* Settings closing: the address no longer names one of its pages (a dialog opened from Settings brings it back). */
   if ($('#mdl #setPane') && /^#settings\//.test(location.hash)) try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* not kept */ }
@@ -207,7 +222,7 @@ export const closeModal = () => {
   leaveCheck = null;
   const wasSettings = !!$('#modalHost #setPane');
   keepToastOnTop(true);
-  $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
+  $('#modalHost').innerHTML = ''; if (!backToSettings || !settingsOpener) dropGhost(); const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
   renderTray();
   /* While Settings was open the page did not look for changes on the server (a push, someone else): it does now. */
   if (wasSettings){ render(); checkForChanges(); }

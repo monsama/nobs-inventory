@@ -16,9 +16,12 @@ function quickEdit(o, btn){
     <label class="qe-row"><span>Location</span><select id="qeLoc"><option value="">No location</option>${[...new Set([...LOCS, ...(o.loc ? [o.loc] : [])])].map(l => html`<option value="${l}" ${l === o.loc ? 'selected' : ''}>${l}</option>`)}</select></label>
     <label class="qe-row"><span>Status</span><select id="qeStatus">${Object.entries(STATUS).map(([k, v]) => html`<option value="${k}" ${k === o.status ? 'selected' : ''}>${v.label}${k === 'retired' && o.status !== 'retired' ? '…' : ''}</option>`)}</select></label>
     <div class="qe-row"><span>User</span><span class="qe-user">${o.user || 'Nobody'}</span><button type="button" id="qeUser">${o.user ? 'Give to someone else…' : 'Hand out…'}</button>${o.user ? html`<button type="button" id="qeBack">Take back…</button>` : ''}</div>`);
-  const r = btn.getBoundingClientRect();
-  box.style.top = Math.min(r.bottom + 4, window.innerHeight - 220) + 'px'; box.style.left = Math.max(8, Math.min(r.right - 320, window.innerWidth - 328)) + 'px';
-  try { box.showPopover({ source: btn }); } catch { box.showPopover(); }
+  /* Right under the pencil, its right edge on the pencil's; above it when there is no room below; always in the window. */
+  box.showPopover();
+  const r = btn.getBoundingClientRect(), h = box.offsetHeight, w = box.offsetWidth;
+  const below = r.bottom + 4, above = r.top - 4 - h;
+  box.style.top = Math.max(8, below + h <= window.innerHeight - 8 ? below : above >= 8 ? above : window.innerHeight - 8 - h) + 'px';
+  box.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - 8 - w)) + 'px';
   /* Saved as on the device page: an edit by hand with a history line naming who did it, one Undo, and the focus back on
      the row's pencil once the list is drawn again. */
   const change = (msg, said, fn, also = []) => { const snap = snapshot([o, ...also]); fn(); o.handAt = new Date().toISOString(); hist(o, now(), `${msg} by ${who()}`); close(); render(); refocus();

@@ -10,7 +10,7 @@ import { closeModal, confirmModal, modal } from './19-modal.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
 /* Suppliers for a contract and for a device: the companies in Contacts, the contracts' suppliers and the devices'. */
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier), ...objs.map(o => typeof o.supplier === 'string' ? o.supplier.trim() : '')].filter(Boolean))].sort((a, b) => a.localeCompare(b));
-import { SW, queueServerSave, render } from './07-render.js';
+import { SW, ensurePackages, knownSoftware, queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { html, rawHtml } from './html.js';
 import { bindListViews, listViewsMenuHtml } from './views-saved.js';
@@ -242,19 +242,28 @@ export function bindDeviceContracts(o){
 /* ---------- licences ---------- */
 /* The seats a licence has against the devices that have the software. Over-use is marked. */
 export function licenceChip(l){
-  const u = licenceUse(l, objs);
+  const u = useOfLicence(l);
   return u.over ? html`<span class="chip bad" title="${u.used} devices have it, the licence has ${l.seats} seats">${u.used - l.seats} over</span>`
     : html`<span class="chip ${u.free <= Math.max(1, Math.ceil(l.seats * 0.1)) ? 'warn' : 'ok'}">${u.free} free</span>`;
 }
 /* On a package row: which licence counts it, as a quiet marker; red-edged when that licence is over-used. The numbers
    are in the Licences box above and in the marker's tooltip, not repeated on every package of the licence. */
+/* How many devices a licence counts: over every device's software once it is known here (the Software tab's index,
+   with the page's own copy where it holds one), else as the server counted it (api/licence-use). */
+function useOfLicence(l){
+  if (SW.loaded) return licenceUse(l, objs);
+  const known = knownSoftware();
+  if (known){ const u = licenceUse(l, objs.map(o => ({ status: o.status, software: known.get(o.id) || [], o })));
+    return { ...u, devices: u.devices.map(d => d.o) }; }
+  const used = (SW.licUse && SW.licUse[l.id]) || 0;
+  return { used, free: l.seats - used, over: used > l.seats, devices: [] };
+}
 export function licenceMark(l){
-  const u = licenceUse(l, objs);
+  const u = useOfLicence(l);
   return String(html`<span class="lic-mark${u.over ? ' over' : ''}" title="Counted by the licence ${l.name}: ${u.used} of ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'} used${u.over ? `, ${u.used - l.seats} over` : ''}">Licence</span>`);
 }
 /* Until every device's software is read (the Software tab), the use the server counted (api/licence-use). */
-export const licencesOver = () => SW.loaded ? COSTS.licences.filter(l => licenceUse(l, objs).over)
-  : COSTS.licences.filter(l => SW.licUse && (SW.licUse[l.id] || 0) > l.seats);
+export const licencesOver = () => COSTS.licences.filter(l => useOfLicence(l).over);
 /* The licences that count a package, for its row in the Software view. */
 export const licencesFor = pkg => COSTS.licences.filter(l => pkg.toLowerCase().includes(String(l.name).trim().toLowerCase()));
 
@@ -275,11 +284,13 @@ function deleteLicence(l){
 }
 /* The Licences box over the Software tab, as HTML: each licence with its seats used, a bar, its cost and end. New
    licence is for admins. */
+/* A licence's use: counted here when every device's software is read, else as the server counted it (api/licence-use). */
+const useOf = useOfLicence;
 export function licencesPanel(){
   /* Admins tick licences to change their end or cost period, or delete them, several at once (one Undo). */
   const admin = isAdmin(), lsel = st.licSel = new Set([...(st.licSel || [])].filter(id => COSTS.licences.some(l => l.id === id)));
   const rows = COSTS.licences.map(l => {
-    const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
+    const u = useOf(l), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
     return html`<tr${lsel.has(l.id) ? html` class="picked"` : ''}>${admin ? html`<td class="selcol"><input type="checkbox" data-licsel="${l.id}" aria-label="${`Select ${l.name}`}" ${lsel.has(l.id) ? 'checked' : ''}></td>` : ''}<td><button class="link" data-lic="${l.id}"><b>${l.name}</b></button></td>
       <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
       <td class="num">${l.cost > 0 ? html`${rawHtml(money(l.cost))} <span class="muted">${PERIODS[l.per || 'year']}</span>` : ''}</td><td>${l.end ? dayText(l.end) : ''}</td><td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-lic="${l.id}"`), l.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-licdel="${l.id}"`), l.name)) : ''}</span></td></tr>`;
@@ -358,8 +369,14 @@ export function licenceModal(l, name = ''){
       <label for="licNote">Note</label><textarea id="licNote" rows="2" maxlength="1000">${cur.note || ''}</textarea>
     </div><p class="note" id="licErr" role="status"></p></div>
     <div class="mf">${isNew ? '' : html`<button id="licDel" class="danger-text">Delete</button>`}<div class="grow"></div><button id="licCancel">Cancel</button><button id="licOk" class="primary">Save</button></div>`, 'sm');
-  const hint = () => { const n = $('#licName').value.trim(); $('#licErr').classList.remove('err'); $('#licErr').textContent = n ? `${licenceUse({ name: n, seats: 0 }, objs).used} devices have software named so.` : ''; };
+  /* Counted over every device's software: the server's index, the page's copy where it holds one. */
+  const hint = () => { const n = $('#licName').value.trim(), known = knownSoftware(); $('#licErr').classList.remove('err');
+    if (!n) { $('#licErr').textContent = ''; return; }
+    if (!known) { $('#licErr').textContent = 'Counting the devices…'; return; }
+    const k = useOfLicence({ name: n, seats: 0 }).used;
+    $('#licErr').textContent = `${k} ${k === 1 ? 'device has' : 'devices have'} software named so.`; };
   hint(); $('#licName').oninput = hint;
+  Promise.resolve(ensurePackages()).then(() => { if ($('#licName')) hint(); });
   $('#licCancel').onclick = closeModal;
   if (!isNew) $('#licDel').onclick = () => { closeModal(); deleteLicence(cur); };
   $('#licOk').onclick = () => {

@@ -88,6 +88,10 @@ try {
   // quick edit from a row: move it, with Undo
   await p.hover('#cards .lrow[data-open="a"]'); await p.click('#cards .lrow[data-open="a"] [data-qedit]');
   await p.waitForSelector('#qedit:popover-open');
+  // the box opens right at the pencil (under it, or above it near the bottom of the window), inside the window
+  { const [btn, bx] = await p.evaluate(() => [document.querySelector('#cards .lrow[data-open="a"] [data-qedit]').getBoundingClientRect().toJSON(), document.querySelector('#qedit').getBoundingClientRect().toJSON()]);
+    assert.ok(Math.abs(bx.top - btn.bottom) <= 12 || Math.abs(bx.bottom - btn.top) <= 12, `next to the pencil: box ${Math.round(bx.top)}-${Math.round(bx.bottom)}, pencil ${Math.round(btn.top)}-${Math.round(btn.bottom)}`);
+    assert.ok(Math.abs(bx.right - btn.right) <= 12 && bx.left >= 0 && bx.bottom <= await p.evaluate(() => innerHeight), 'right edge on the pencil, in the window'); }
   await p.selectOption('#qeLoc', 'HQ / Office 2');
   await stored(st => st.objs.find(o => o.id === 'a').loc === 'HQ / Office 2');
   assert.match(await p.textContent('#toast'), /PC-A: moved to hq \/ office 2/i);

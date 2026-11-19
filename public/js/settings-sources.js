@@ -116,6 +116,20 @@ function restoreField(k, b){
 }
 /* Sets the sources of field k to list (in order), kept with Lansweeper's "Feed may overwrite" box, with Undo; shown first
    when it changes devices. */
+/* The sources of field k set at once, with Undo (no preview): for a pane that sets them in place (Locations).
+   after: draws that pane again. Each source keeps how it writes (its mode). */
+export function setOrderNow(k, list, what, after){
+  const policy = SOURCES_OF(k).includes('ls') && !LS_FILL[k] ? { ...(st.policy || {}), [k]: list.includes('ls') } : st.policy;
+  const modes = Object.fromEntries(list.map(x => [x, fieldMode(st, k, x)]));
+  const plain = !list.some(x => modes[x] === 'fill');
+  const isDefault = plain && fieldOrder({ ...st, policy, fieldOrder: null }, k).join() === list.join();
+  const before = fieldState(k);
+  st.fieldOrder = isDefault ? without(st.fieldOrder, k) : { ...(st.fieldOrder || {}), [k]: list };
+  st.fieldMode = isDefault ? without(st.fieldMode, k) : (st.fieldMode && st.fieldMode[k]) || !plain ? { ...(st.fieldMode || {}), [k]: modes } : st.fieldMode;
+  st.policy = policy;
+  queueServerSave(); after();
+  toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { restoreField(k, before); queueServerSave(); after(); });
+}
 function setOrder(k, list, what, modes = null){
   const policy = SOURCES_OF(k).includes('ls') && !LS_FILL[k] ? { ...(st.policy || {}), [k]: list.includes('ls') } : st.policy;
   /* The default order (with the box as it is then) and plain updates: the field goes back to the default, not Custom. */

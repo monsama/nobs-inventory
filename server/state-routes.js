@@ -13,6 +13,21 @@ import { purgeOrphanImages } from './device-images.js';
 /* Adds the inventory routes: GET /api/state (all of it, or what changed since, cut to what the person may see, without
    the admin-only settings and sign-in names for a viewer), PUT /api/state, POST /api/changes (the page's saves),
    factory reset, clearing the connections, and the floor-plan images. Only admins change anything. */
+/* Answers that read every device (the whole inventory, the Software tab's index, the licences' use) are kept until the
+   next change (the running number, stateSeq), per person's view of it (the key says whose): with many pages open,
+   each asking after every change, the work is done once. Small: the last few answers only. */
+const ANSWERS_BY_DB = new WeakMap(), ANSWERS_MAX = 24;
+function answer(db, key, make){
+  /* One store per database: a second one opened in the same process (tests, a restore check) never shares answers. */
+  let ANSWERS = ANSWERS_BY_DB.get(db); if (!ANSWERS){ ANSWERS = new Map(); ANSWERS_BY_DB.set(db, ANSWERS); }
+  const k = `${stateSeq(db)}|${key}`;
+  if (ANSWERS.has(k)) { const v = ANSWERS.get(k); ANSWERS.delete(k); ANSWERS.set(k, v); return v; }
+  const v = make();
+  ANSWERS.set(k, v);
+  while (ANSWERS.size > ANSWERS_MAX) ANSWERS.delete(ANSWERS.keys().next().value);
+  return v;
+}
+
 export function registerStateRoutes(app, ctx) {
   const { db, requireUser, requireAdmin } = ctx;
   /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN, and
@@ -84,20 +99,23 @@ export function registerStateRoutes(app, ctx) {
     const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}${lean ? '.h0' : ''}${noSw ? '.s0' : ''}"`;
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
     if (req.get('if-none-match') === tag) return res.status(304).end();
-    const cseq = stateSeq(db);
-    const s = scopeState(loadState(db, { history: !lean }), sc); delete s.empty;
-    if (!admin) {   /* the connections' settings and sign-in names are for admins, as in Settings */
-      for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
-      for (const k of ADMIN_SETTINGS) delete s[k];
-      /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
-      s.objs = s.objs.map(redactObj);
-      s.savedViews = redactViews(s.savedViews);
-      s.users = s.users.map(redactUser);
-    }
-    /* software=0: without the devices' installed software, read next (GET /api/software). */
-    if (noSw) s.objs = s.objs.map(o => { if (!o || !Object.hasOwn(o, 'software')) return o; const rest = { ...o }; delete rest.software; return rest; });
-    s.cseq = cseq;
-    sendPacked(req, res, s, next);
+    const text = answer(db, 'state|' + tag, () => {
+      const cseq = stateSeq(db);
+      const s = scopeState(loadState(db, { history: !lean }), sc); delete s.empty;
+      if (!admin) {   /* the connections' settings and sign-in names are for admins, as in Settings */
+        for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
+        for (const k of ADMIN_SETTINGS) delete s[k];
+        /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
+        s.objs = s.objs.map(redactObj);
+        s.savedViews = redactViews(s.savedViews);
+        s.users = s.users.map(redactUser);
+      }
+      /* software=0: without the devices' installed software, read next (GET /api/software). */
+      if (noSw) s.objs = s.objs.map(o => { if (!o || !Object.hasOwn(o, 'software')) return o; const rest = { ...o }; delete rest.software; return rest; });
+      s.cseq = cseq;
+      return { text: JSON.stringify(s) };
+    });
+    sendPacked(req, res, text, next);
   });
 
   /* The installed software of every device the person may see, by device id, for a page that loaded the inventory
@@ -114,6 +132,30 @@ export function registerStateRoutes(app, ctx) {
     } catch (e) { next(e); }
   });
 
+  /* The Software tab's index: each package with its versions and the ids of the devices that have each, counted here
+     so the page never reads every device's software (it knows the devices themselves). Only devices the person may
+     see; pending devices are left out, as on the tab. */
+  app.get('/api/software/packages', requireUser, (req, res, next) => {
+    try {
+      const sc = scopeOf(req.user);
+      const text = answer(db, 'pkgs|' + scopeKey(sc), () => {
+      const map = new Map();
+      for (const r of db.prepare("SELECT data FROM docs WHERE kind = 'object'").all()){
+        const o = JSON.parse(r.data);
+        if (o.review || !Array.isArray(o.software) || !o.software.length || !inScope(o, sc)) continue;
+        for (const p of o.software){
+          if (!p || !p.name) continue;
+          const pkg = map.get(p.name) || new Map(); map.set(p.name, pkg);
+          const v = p.version || '-', ids = pkg.get(v) || new Set(); pkg.set(v, ids);
+          ids.add(o.id);
+        }
+      }
+      return { text: JSON.stringify({ packages: [...map].map(([name, vs]) => ({ name, versions: [...vs].map(([v, ids]) => [v, [...ids]]) })) }) };
+      });
+      res.set('Cache-Control', 'no-store');
+      sendPacked(req, res, text, next);
+    } catch (e) { next(e); }
+  });
   /* One device's software, for its page (a page that loaded the inventory without software reads it only here). */
   app.get('/api/software/:id', requireUser, (req, res, next) => {
     try {
@@ -128,9 +170,13 @@ export function registerStateRoutes(app, ctx) {
      reading every device's software. Only the devices the person may see. */
   app.get('/api/licence-use', requireUser, (req, res, next) => {
     try {
-      const sc = scopeOf(req.user), objs = db.prepare("SELECT data FROM docs WHERE kind = 'object'").all().map(r => JSON.parse(r.data)).filter(o => !o.review && inScope(o, sc));
-      const lic = settingOf(db, 'licences'), use = {};
-      if (!(sc && sc.own)) for (const l of Array.isArray(lic) ? lic : []) if (l && l.id) use[l.id] = licenceUse(l, objs).used;
+      const sc = scopeOf(req.user);
+      const use = answer(db, 'lic|' + scopeKey(sc), () => {
+        const objs = db.prepare("SELECT data FROM docs WHERE kind = 'object'").all().map(r => JSON.parse(r.data)).filter(o => !o.review && inScope(o, sc));
+        const lic = settingOf(db, 'licences'), u = {};
+        if (!(sc && sc.own)) for (const l of Array.isArray(lic) ? lic : []) if (l && l.id) u[l.id] = licenceUse(l, objs).used;
+        return u;
+      });
       res.set('Cache-Control', 'no-store').json({ use });
     } catch (e) { next(e); }
   });
@@ -212,6 +258,7 @@ export function registerStateRoutes(app, ctx) {
          (parts that did not change take no room again). */
       autoBackup(db, 'daily, before the first change', { daily: true });
       const result = applyChanges(db, req.body, guard);
+      if (result && result.keptSoftware) audit(db, req.user.id, `software kept: ${result.keptSoftware.map(k => `${k.name} (${k.n} packages a save would have removed)`).join(', ')}`);
       /* A device deleted for good takes its photos with it. */
       if (removes) purgeOrphanImages(db);
       const conflicts = new Set(result && Array.isArray(result.conflicts) ? result.conflicts : []);
@@ -261,12 +308,16 @@ export function registerStateRoutes(app, ctx) {
 /* A large answer (the whole inventory) packed with gzip when the browser takes it: several times smaller, so a large
    inventory loads faster where no proxy packs it (behind the bundled proxy it is sent packed as it is). Small answers
    go as they are. Packed off the main thread, so other requests are not held up. */
+/* body: what to send, or a kept answer ({ text }) that also keeps its packed copy for the next time. */
 function sendPacked(req, res, body, next){
-  const text = JSON.stringify(body);
+  const kept = body && typeof body.text === 'string' ? body : null;
+  const text = kept ? kept.text : JSON.stringify(body);
   res.vary('Accept-Encoding');
   if (text.length < 32768 || !/\bgzip\b/.test(String(req.get('accept-encoding') || ''))) { res.type('json').send(text); return; }
+  if (kept && kept.gz) { res.set('Content-Encoding', 'gzip').type('json').send(kept.gz); return; }
   zlib.gzip(text, { level: 5 }, (err, buf) => {
     if (err) { next(err); return; }
+    if (kept) kept.gz = buf;
     res.set('Content-Encoding', 'gzip').type('json').send(buf);
   });
 }
