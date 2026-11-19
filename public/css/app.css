@@ -2755,3 +2755,6 @@ body.dense .lrow .c-name.has-desc{padding:0}
 /* A folded sidebar section says the filter it holds beside its name. */
 #side .sec-sum{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--linktext);font-weight:600;font-size:12px;text-transform:none;letter-spacing:0}
 #side .sidesec:not(.collapsed) .sec-sum{display:none}
+.locnew>select{flex:1 1 100%}
+.locnew .locnew-x{width:28px;min-width:28px;padding:0;font-size:16px;line-height:1}
+.locnew>input{flex:1 1 70px}

@@ -40,7 +40,7 @@ function openNewRoom(s){
   const site = SITES.includes(siteOf(s.value)) ? siteOf(s.value) : SITES[0];
   const f = document.createElement('span');
   f.className = 'locnew';
-  f.innerHTML = String(html`<select aria-label="Site of the new room">${SITES.map(x => html`<option ${x === site ? 'selected' : ''}>${x}</option>`)}</select><input aria-label="Name of the new room" placeholder="New room, e.g. Lager" maxlength="80"><button type="button" class="mini primary">Add</button><button type="button" class="mini">Cancel</button>`);
+  f.innerHTML = String(html`<select aria-label="Site of the new room">${SITES.map(x => html`<option ${x === site ? 'selected' : ''}>${x}</option>`)}</select><input aria-label="Name of the new room" placeholder="New room, e.g. Lager" maxlength="80"><button type="button" class="mini primary">Add</button><button type="button" class="mini icon ghost locnew-x" aria-label="Cancel the new room" title="Cancel (Esc)">×</button>`);
   s.hidden = true; s.after(f);
   const [site_, name, ok, cancel] = /** @type {[HTMLSelectElement, HTMLInputElement, HTMLButtonElement, HTMLButtonElement]} */ ([...f.children]);
   const close = () => { f.remove(); s.hidden = false; s.focus(); };
