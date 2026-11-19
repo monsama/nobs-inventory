@@ -50,10 +50,11 @@ export function renderRack(){
   /* A retired device is kept for the record and no longer takes up rack units. */
   const inRack = objs.filter(o => o.rack === R_.id && o.status !== 'retired');
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
-  $('#toolbar').innerHTML = html`<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => html`<option value="${r.id}" ${r.id===R_.id?'selected':''}>${r.name}</option>`)}</select>
-    ${isAdmin() ? html`<button id="rkNew">New rack</button>` : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
-    <span class="muted hide-n">${R_.loc} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
-    ${isAdmin() ? html`<button id="rkMount">Mount device…</button>` : ''}`;
+  const usedU = slotted.reduce((n,o) => n + (o.h||1), 0), allU = rackUnits(R_);
+  /* As the other views: what is shown and how full it is on the left, what can be done on the right. */
+  $('#toolbar').innerHTML = html`<select id="rkSel" aria-label="Rack">${racks.map(r => html`<option value="${r.id}" ${r.id===R_.id?'selected':''}>${r.name}</option>`)}</select>
+    <span class="rk-use" title="${usedU} of ${allU} rack units used"><span class="rk-meter" aria-hidden="true"><i style="width:${Math.min(100, Math.round(usedU / Math.max(1, allU) * 100))}%"></i></span><span class="muted">${usedU} of ${allU} U used</span></span><div class="grow"></div>
+    <button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>${isAdmin() ? html`<button id="rkNew">New rack</button><button id="rkMount">Mount device…</button>` : ''}`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
   const rn = $('#rkNew'); if (rn) rn.onclick = rackNewModal;
   $('#rkOpen').onclick = () => openObj(R_.id);
@@ -80,8 +81,8 @@ export function renderRack(){
     <div class="rack" style="grid-template-rows:repeat(${rackUnits(R_)},24px)">${cells}</div>
     <div class="rackside">
       <div class="panelbox"><div class="hdr">${R_.name}</div>
-        <dl class="lsbox plain"><dt>Location</dt><dd>${R_.loc}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
-        <div class="addrel" style="flex-direction:column;align-items:stretch">${mounted.length ? mounted.map(o => html`<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + byId(o.ontop).name : 'U' + o.u + (o.h>1 ? '-' + (o.u+o.h-1) : '')}  ${o.name}</span></button>`) : html`<span class="muted">No devices in this rack yet. Use Mount device… above.</span>`}</div>
+        <dl class="lsbox plain"><dt>Location</dt><dd>${R_.loc || '-'}</dd><dt>Height</dt><dd>${allU} U, ${Math.max(0, allU - usedU)} free</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
+        <div class="addrel" style="flex-direction:column;align-items:stretch">${mounted.length ? mounted.map(o => html`<button class="item rk-item" data-open="${o.id}"><span class="sw" style="background:${tcol(o.type)}"></span><span class="rk-pos">${o.ontop ? 'on ' + byId(o.ontop).name : 'U' + o.u + (o.h>1 ? '-' + (o.u+o.h-1) : '')}</span><span class="lbl">${o.name}</span></button>`) : html`<span class="muted">No devices in this rack yet.${isAdmin() ? ' Use Mount device… above.' : ''}</span>`}</div>
       </div>
     </div></div>`;
   if (isAdmin()) bindRackMoves(R_);
