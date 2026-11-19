@@ -2570,3 +2570,27 @@ body.dense table.grid:is(.ips,.prns,.sw,.contracts) th{height:28px}
 .tk-list{display:flex;flex-wrap:wrap;gap:4px 12px}
 .tk{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .tk i{width:10px;height:10px;border-radius:2px;flex:none}
+/* Sweep, dark mode and phones: a chip in a List row ends in … rather than being cut; the device page's directory badges
+   keep each on one line and wrap as a whole; the type's row preview has no IP over the detail; on a phone, Contracts'
+   and Contacts' Views menu shares its row with New. */
+.lrow .c-chips .chip{display:inline-block;max-width:100%}
+.jbar.jbar-page{display:flex;flex-wrap:wrap;gap:4px}
+.jbar-page .jb{flex:1 1 auto;flex-wrap:nowrap;white-space:nowrap}
+.lst-compact .c-ip,.lst-compact .c-dir{display:none}
+@media (max-width:760px){ #toolbar>#lvMenu~.grow{flex:1 0 0;height:auto} }
+/* Data sources → Gone devices: the push sizes of the last days as small bars; a short day in amber. */
+.ds-bars{display:flex;align-items:flex-end;gap:3px;height:28px}
+.ds-bar{display:flex;align-items:flex-end;width:10px;height:100%}
+.ds-bar i{display:block;width:100%;background:var(--accent);border-radius:2px 2px 0 0;opacity:.75}
+.ds-bar.short i{background:var(--warn);opacity:1}
+
+/* Several picked in Contracts or Contacts: one bar over the list with what can be done with them. */
+.selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 12px 0;padding:8px 12px;border:1px solid var(--accent);border-radius:var(--r-m);background:var(--hover)}
+.selbar b{margin-right:auto}
+table.contracts .selcol{width:28px;text-align:center}
+table.contracts tr.picked td{background:var(--hover)}
+.cn-sel{margin:0 2px 0 0;flex:none;align-self:center}
+.mv-cos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+/* The contracts' cost strip and a selection bar keep the same 12px from the window's edges as the table under them. */
+.ov-kpis.ct-sum{margin:12px 12px 0;padding:0}
+.ct-sum-note+.selbar{margin-top:2px}

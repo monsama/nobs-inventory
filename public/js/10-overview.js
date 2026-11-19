@@ -1,6 +1,6 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { GONE_FILTERS, COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, objs, st, tico, toast } from './01-core.js';
+import { GONE_FILTERS, SEEN_FILTERS, COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, objs, st, tico, toast } from './01-core.js';
 import { attention as attentionLists } from './notices.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { lifeOf, replacementPlan } from './lifecycle.js';
@@ -68,7 +68,21 @@ export function renderOverview(){
   const year = COSTS.contracts.filter(c => runningNow(c)).reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.filter(l => runningNow(l)).reduce((t, l) => t + yearlyCost(l), 0);
   const value = inUse.reduce((t, o) => t + (typeof o.price === 'number' ? o.price : 0), 0), priced = inUse.filter(o => typeof o.price === 'number').length;
   const stock = live.filter(o => o.status === 'stock').length;
-  const nOld = LS_ON() ? live.filter(o => scanOld(o)).length : 0;
+  /* Devices that may no longer be there, in one row: gone from every source they were in, else not seen by any source for
+     90 days, else not scanned by Lansweeper for 3 months. Each device counts once, under the strongest sign. */
+  /** @type {{ids: string[], parts: string[], gone: number, only?: string}} */
+  const missing = { ids: [], parts: [], gone: 0 };
+  {
+    const lsOld = LS_ON(), n = { gone: 0, unseen: 0, scan: 0 };
+    for (const o of live){
+      const k = GONE_FILTERS.all[1](o) ? 'gone' : SEEN_FILTERS.d90[1](o) ? 'unseen' : lsOld && scanOld(o) ? 'scan' : '';
+      if (k){ n[k]++; missing.ids.push(o.id); }
+    }
+    missing.gone = n.gone; missing.only = Object.keys(n).filter(k => n[k]).length === 1 ? Object.keys(n).find(k => n[k]) : '';
+    if (n.gone) missing.parts.push(`${n.gone} gone from every source`);
+    if (n.unseen) missing.parts.push(`${n.unseen} not seen for 90 days`);
+    if (n.scan) missing.parts.push(`${n.scan} not scanned by Lansweeper for 3 months`);
+  }
   /* Operating systems, by family; those no longer updated also need attention. */
   const osRows = Object.entries(live.reduce((m, o) => { const f = osFamily(o); if (f) m[f] = (m[f] || 0) + 1; return m; }, {}))
     .map(([f, n]) => /** @type {{ key: string, label: string, n: number, hint?: string }} */ ({ key: f, label: f, n })).sort((a, b) => b.n - a.n);
@@ -122,8 +136,7 @@ export function renderOverview(){
     [ctLate.length, 'bad', 'Contract notice date passed', few(ctLate), 'data-ovtab="contracts"'],
     [ctSoon.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${few(ctSoon)}`, 'data-ovtab="contracts"'],
     [over.length, 'bad', 'Licences over-used', over.slice(0, 3).map(l => l.name).join(', ') + (over.length > 3 ? '…' : ''), 'data-ovtab="sw"'],
-    [nOld, 'warn', 'Check by hand', 'not scanned by Lansweeper for over 3 months', 'data-ovscan="1"'],
-    [live.filter(GONE_FILTERS.all[1]).length, 'warn', 'No source lists them any more', 'gone from every source they were in: check where they are, then retire them', 'data-ovgone="all"'],
+    [missing.ids.length, missing.gone ? 'bad' : 'warn', 'Where are they?', missing.parts.join(' · '), 'data-ovmissing="1"'],
     ...(SYNC.graph ? ['noncompliant', 'unencrypted', 'secureboot'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
     ...osEnded.map(([fam, n]) => [n, 'bad', `${fam}: no more updates`, 'the maker has ended support; upgrade or replace', String(html`data-ovos="${fam}"`)]),
     certAttention() || [0],
@@ -211,6 +224,11 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovq]').forEach(b => b.onclick = () => go('table', { quality: b.dataset.ovq, live: true }));
   v.querySelectorAll('[data-ovscan]').forEach(b => b.onclick = () => go('table', { scanOld: true, live: true }));
   v.querySelectorAll('[data-ovgone]').forEach(b => b.onclick = () => go('cards', { gone: b.dataset.ovgone }));
+  /* One sign only: its own filter (gone from all comes with Retire these); several: those devices, with when each was last
+     seen and where from it is gone. */
+  v.querySelectorAll('[data-ovmissing]').forEach(b => b.onclick = () => missing.only === 'gone' ? go('cards', { gone: 'all', live: true })
+    : missing.only === 'unseen' ? go('table', { seen: 'd90', live: true }) : missing.only === 'scan' ? go('table', { scanOld: true, live: true })
+    : go('table', { ids: { label: 'Where are they?', ids: missing.ids, cols: ['seen', 'gone'] } }));
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */

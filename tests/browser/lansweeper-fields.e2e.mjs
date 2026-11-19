@@ -100,8 +100,8 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.card').length === 1);
   await page.click('#chkList [data-scanold]');
   await page.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
-  await page.waitForSelector('[data-ovscan]');
-  assert.match(await page.textContent('[data-ovscan]'), /1\s*Check by hand.*not scanned by Lansweeper for over 3 months/s);
+  await page.waitForSelector('[data-ovmissing]');
+  assert.match(await page.textContent('[data-ovmissing]'), /1\s*Where are they\?\s*1 not seen for 90 days/);
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
   await page.click('[data-otabgo="sources"]');   // that part of the device page is a tab of its own
   await page.waitForSelector('.lsbox');

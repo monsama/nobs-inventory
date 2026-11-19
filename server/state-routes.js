@@ -5,6 +5,7 @@ import { inScope, planInScope, scopeKey, scopeOf, scopeState } from './scope.js'
 import { stateTag, stateSeq, changesSince, ADMIN_SETTINGS, CONNECTION_SETTINGS, SETTING_KEYS, PAGE_SETTINGS, SETTING_NAMES, settingOf, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections, clearSyncLists } from './state.js';
 import { autoBackup } from './backup.js';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { HttpError } from './errors.js';
 import { purgeOrphanImages } from './device-images.js';
 
@@ -67,7 +68,7 @@ export function registerStateRoutes(app, ctx) {
               send('setting', r.id, seen[r.id]);
             } else send(r.kind, r.id, r.data);
           }
-          return res.json({ delta: true, cseq, puts, dels, revs });
+          return sendPacked(req, res, { delta: true, cseq, puts, dels, revs }, next);
         }
       } catch (e) { return next(e); }
     }
@@ -90,7 +91,7 @@ export function registerStateRoutes(app, ctx) {
       s.users = s.users.map(redactUser);
     }
     s.cseq = cseq;
-    res.json(s);
+    sendPacked(req, res, s, next);
   });
 
   /* One device's history, newest first, for a page that loaded the inventory without it (history=0). Only for a device
@@ -213,5 +214,18 @@ export function registerStateRoutes(app, ctx) {
   app.delete('/api/plans/:id/image', requireUser, requireAdmin, (req, res, next) => {
     try { db.prepare('DELETE FROM plan_images WHERE id = ?').run(planId(req)); audit(db, req.user.id, 'plan image removed'); res.json({ ok: true }); }
     catch (e) { next(e); }
+  });
+}
+
+/* A large answer (the whole inventory) packed with gzip when the browser takes it: several times smaller, so a large
+   inventory loads faster where no proxy packs it (behind the bundled proxy it is sent packed as it is). Small answers
+   go as they are. Packed off the main thread, so other requests are not held up. */
+function sendPacked(req, res, body, next){
+  const text = JSON.stringify(body);
+  res.vary('Accept-Encoding');
+  if (text.length < 32768 || !/\bgzip\b/.test(String(req.get('accept-encoding') || ''))) { res.type('json').send(text); return; }
+  zlib.gzip(text, { level: 5 }, (err, buf) => {
+    if (err) { next(err); return; }
+    res.set('Content-Encoding', 'gzip').type('json').send(buf);
   });
 }

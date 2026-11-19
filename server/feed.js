@@ -575,7 +575,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     const was = s.lsPresence || {};
     let next = was;
     if (was.day !== day) {
-      next = { day, n: 0, since: was.since || day, ...(was.full ? { full: was.full } : {}), ...(was.short ? { short: was.short } : {}) };
+      /* The last 14 days judged, newest first, so the page can show how steady the push is. */
+      const days = was.day && typeof was.n === 'number' ? [{ day: was.day, n: was.n }, ...(was.days || [])].slice(0, 14) : (was.days || []);
+      next = { day, n: 0, since: was.since || day, ...(was.full ? { full: was.full } : {}), ...(was.short ? { short: was.short } : {}), ...(days.length ? { days } : {}) };
       if (was.day && typeof was.n === 'number') {
         if (!was.full || was.n >= was.full.n / 2) { next.full = { day: was.day, n: was.n }; delete next.short; }
         else next.short = { day: was.day, n: was.n, of: was.full.n };

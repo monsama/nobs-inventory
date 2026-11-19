@@ -136,3 +136,24 @@ test('the same line twice in one minute is kept twice (bring back, undo, bring b
   assert.deepEqual(newLines([line(t, 'new')], stored), [line(t, 'new')], 'a page that never read the history: its line');
   assert.deepEqual(newLines([A], stored), [], 'a line of its own already saved is not added twice');
 });
+
+/* A large inventory goes packed with gzip to a browser that takes it (also without the proxy); a small answer, or one to
+   a client that does not take gzip, goes as it is. */
+test('a large inventory is sent packed when the client takes gzip', async () => {
+  const srv = await startServer();
+  try {
+    const sw = Array.from({ length: 30 }, (_, i) => ({ name: 'Package ' + i, version: '1.' + i }));
+    saveState(srv.db, { ...loadState(srv.db), objs: Array.from({ length: 200 }, (_, i) => dev('d' + i, { software: sw })) });
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const get = enc => fetch(srv.base + '/api/state?history=0', { headers: { Cookie: a.cookie, 'Accept-Encoding': enc } });
+    const packed = await get('gzip, deflate');
+    assert.equal(packed.headers.get('content-encoding'), 'gzip');
+    assert.match(String(packed.headers.get('vary')), /Accept-Encoding/i);
+    assert.equal((await packed.json()).objs.length, 200, 'unpacked, it is the whole inventory');
+    const plain = await get('identity');
+    assert.equal(plain.headers.get('content-encoding'), null);
+    assert.equal((await plain.json()).objs.length, 200);
+    const me = await fetch(srv.base + '/api/history/d1', { headers: { Cookie: a.cookie, 'Accept-Encoding': 'gzip' } });
+    assert.equal(me.headers.get('content-encoding'), null, 'a small answer goes as it is');
+  } finally { await srv.close(); }
+});
