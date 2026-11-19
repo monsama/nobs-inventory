@@ -14,6 +14,7 @@ import { openObj } from './02-views.js';
 import { renderCards } from './views-cards.js';
 import { renderTable } from './views-table.js';
 import { bulkEditModal } from './views-bulk-edit.js';
+import { deleteManyModal, retireGoneModal } from './gone-retire.js';
 /* In Pending devices (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
    none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
 export function scopeActs(list, allAlso){
@@ -66,7 +67,7 @@ export function bindScopeActs(list){
 export function pickBar(list){
   const n = (st.bulk || new Set()).size;
   /* The picked devices' actions on a row of their own, always in one order: count, the Pending devices actions, Resolve, the rest. */
-  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
+  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button><button id="cdRetire" title="Retire them: kept for the record, with their history; one Undo">Retire…</button><button id="cdDelete" class="danger-text" title="Delete them for good">Delete…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
     : scopeActs(list, true);
 }
 /* The picked devices that are still among those shown (the inventory, or Pending devices): a pick does not reach across. */
@@ -76,7 +77,18 @@ export function bindPickBar(){
   const e = $('#cdEdit'); if (e) e.onclick = () => bulkEditModal([...st.bulk]);
   const t = $('#cdTable'); if (t) t.onclick = () => { st.tab = 'table'; view(); };
   const c = $('#cdClear'); if (c) c.onclick = () => { st.bulk.clear(); keepScroll(renderCards); };
+  const r = $('#cdRetire'); if (r) r.onclick = () => retirePicked();
+  const d = $('#cdDelete'); if (d) d.onclick = () => deletePicked();
 }
+/* The selected devices retired (those not retired yet) or deleted, from the List's or the Table's bar; the selection is
+   cleared once done. */
+const pickedDevices = () => [...(st.bulk || [])].map(byId).filter(Boolean);
+function retirePicked(){
+  const list = pickedDevices().filter(o => o.status !== 'retired');
+  if (!list.length){ toast('The selected devices are retired already.'); return; }
+  retireGoneModal(list, { picked: true, after: () => st.bulk.clear() });
+}
+const deletePicked = () => deleteManyModal(pickedDevices(), () => st.bulk.clear());
 /* Several objects at once, each in its own tab; the first is shown. A very long pick opens its first 30. */
 export function openObjs(ids){
   const list = ids.filter(byId).slice(0, 30);
@@ -138,6 +150,7 @@ export const tableBulkBar = (list, n) => String(html`${n && st.scope ? html`<div
 ${n && !st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>${rawHtml(mergeBtn())}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? html`<option value="handout">Hand out to a person…</option><option value="edit">Edit fields…</option>` : ''}
 ${isAdmin() ? html`<optgroup label="Move to location">${LOCS.map(l => html`<option value="loc:${l}">${l}</option>`)}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => html`<option value="status:${k}">${v.label}</option>`)}<option value="status:__back">Take back into stock (no user)</option></optgroup>
+<optgroup label="Retire or delete"><option value="retire">Retire…</option><option value="delete">Delete…</option></optgroup>
 ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => html`<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => html`<option value="resp:${k}:${c.id}">${contactLabel(c)}</option>`)}<option value="resp:${k}:">- no ${l.toLowerCase()} responsible</option></optgroup>`) : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`);
 /* Wires the Table's bar for the n selected rows: Clear, Open in tabs, and the Actions menu (open, hand out, edit, move,
    set the status or the responsible). Each change has one Undo. */
@@ -179,6 +192,6 @@ export function bindTableBulk(n){
   /* One menu for what is done with the selected: open them, move them, set their status, responsible or fields. */
   const ba = $('#bkAct'); if (ba) ba.onchange = () => {
     const v = ba.value, at = v.indexOf(':'), what = at < 0 ? v : v.slice(0, at), arg = v.slice(at + 1); ba.value = '';
-    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout') handOutModal([...st.bulk]); else if (what === 'edit') bulkEditModal([...st.bulk]); else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg);
+    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout') handOutModal([...st.bulk]); else if (what === 'edit') bulkEditModal([...st.bulk]); else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg); else if (what === 'retire') retirePicked(); else if (what === 'delete') deletePicked();
   };
 }

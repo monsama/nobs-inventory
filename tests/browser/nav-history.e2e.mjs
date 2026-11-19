@@ -86,10 +86,8 @@ try {
   assert.equal(new URL(p.url()).search, '?o=INV-0002', 'the address names the device still shown');
 
   // a dialog opened from Settings: back closes it and Settings comes back; back again closes Settings
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'sources'; (await import('/js/04-settings.js')).openSettings(); });
-  await p.waitForSelector('[data-dsedit="loc"]', { state: 'attached' });
-  await p.evaluate(() => document.querySelectorAll('details').forEach(d => { if (d.querySelector('[data-dsedit]')) d.open = true; }));
-  await p.click('[data-dsedit="loc"]');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'mail'; (await import('/js/04-settings.js')).openSettings(); });
+  await p.waitForSelector('#dgPreview'); await p.click('#dgPreview');
   await p.waitForSelector('#mdl:not(:has(#setPane)) .mh');
   await p.goBack(); await p.waitForSelector('#mdl #setPane');
   assert.equal(await p.$$eval('#mdlGhost', g => g.length), 0);

@@ -255,7 +255,7 @@ export function renderCardsBody(){
       return String(html`<div class="lgrp grphdr${closed ? ' collapsed' : ''}" role="button" tabindex="0" aria-expanded="${String(!closed)}" data-grp="${g}">${g} <span class="muted">${items.length}</span></div>`) + (closed ? '' : items.map(o => card(o)).join(''));
     }).join('');
   }
-  $('#view').innerHTML = html`<div id="cards" class="lst${pend ? ' pend' : ''}${join ? ' join' : ''}${st.bulk && st.bulk.size ? ' picking' : ''}" aria-label="${pend ? 'Pending devices' : 'Devices'}">${listHead(pend, join)}${rawHtml(rows)}</div>${more}`;
+  $('#view').innerHTML = html`<div id="cards" class="lst${pend ? ' pend' : ''}${join ? ' join' : ''}${isAdmin() && !pend ? ' qe' : ''}${st.bulk && st.bulk.size ? ' picking' : ''}" aria-label="${pend ? 'Pending devices' : 'Devices'}">${listHead(pend, join)}${rawHtml(rows)}</div>${more}`;
   const b = $('#cardsAll'); if (b) b.onclick = () => { st.cardsAll = true; renderCards(); };
   $('#view').querySelectorAll('[data-csort]').forEach(h => h.addEventListener('click', e => { e.stopPropagation(); sortBy(h.dataset.csort); renderCards(); const again = $(`#view [data-csort="${h.dataset.csort}"]`); if (again) again.focus(); }));
   $('#view').querySelectorAll('.grphdr').forEach(h => {

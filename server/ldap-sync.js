@@ -177,7 +177,7 @@ export function applyComputers(s, computers, now = new Date()) {
     let changed = false;
     /* The account's description fills the purpose; its location only a location the inventory knows by that name, so a
        free text never makes a new one. What AD says of each is kept beside the field (o.vals), to pick from on the page. */
-    const loc = c && c.location && (adLocation(s, c.location) || autoRoom(s, c.location));
+    const loc = c && c.location && (adLocation(s, c.location) || autoRoom(s, c.location, o));
     /* The fields AD fills in: one list with Settings → Data sources (public/js/sync-map.js). */
     const from = { os: c && c.os, domain: c && c.domain, purpose: c && c.description, loc: loc || '' };
     const fields = Object.entries(AD_FILL).map(([k, label]) => [k, from[k], label]);
@@ -216,9 +216,18 @@ export const adLocation = (s, text) => mappedRoom(s, text);
 /* With Settings → Locations → "Rooms from AD's location" set to a site, a location text of AD that names no room yet
    becomes a room in that site (and the text is mapped to it), as AD's location is kept by hand there. Lansweeper's free
    text never does. At most 2000 locations in all. */
-export function autoRoom(s, text){
+export function autoRoom(s, text, o = null){
   const site = s.adLocAuto, key = String(text || '').trim();
   if (!site || !(s.sites || []).includes(site)) return '';
+  /* Renamed in AD: the device's old text was mapped to the room it is in, so the new text goes to that room too (no
+     second room). Renaming the room after it is offered in Settings → Locations. */
+  const was = o && o.ad && o.ad.location;
+  if (was && low(was) !== low(key) && o.loc && (s.locs || []).includes(o.loc) && adLocation(s, was) === o.loc){
+    const map = s.locMap || {};
+    if (!(key in map) && Object.keys(map).length >= 1000) return '';
+    s.locMap = { ...map, [key]: o.loc };
+    return o.loc;
+  }
   const made = roomFor(site, key);
   if (!made) return '';
   s.locs ??= [];

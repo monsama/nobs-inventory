@@ -1,6 +1,6 @@
 /* Loading from the server: reloads, checks for other people's changes, unsaved changes put back on top. */
 import { applyDelta } from './delta.js';
-import { $, REVIEW, UNDO, CONTACTS, SYNC } from './01-core.js';
+import { $, REVIEW, UNDO, CONTACTS, SYNC, oncePerDraw } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { HISTORY_KEEP, COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
 import { USERS, bindUser, isAdmin } from './04-settings.js';
@@ -37,9 +37,10 @@ export const HIST_FULL = new Set();
    copy the server sent without it (and the changes since) gets it back; a device the server sends with its software
    (a change since) has its own. Until it is read, the page shows it as loading and lets nobody change it; a save of a
    device without it leaves the stored software as it is (server state.js applyChanges). */
-export const SW = { loaded: false, loading: /** @type {Promise<void>|null} */ (null), map: new Map(), one: new Map(), licUse: /** @type {Record<string, number>|null} */ (null),
+export const SW = { map: new Map(), one: new Map(), licUse: /** @type {Record<string, number>|null} */ (null),
   pkgs: /** @type {{name: string, versions: [string, string[]][]}[]|null} */ (null), pkgLoading: /** @type {Promise<void>|null} */ (null) };
-const stateUrl = () => SW.loaded ? 'api/state?history=0' : 'api/state?history=0&software=0';
+/* The inventory always comes without the installed software: a device's page reads its own, the Software tab an index. */
+const stateUrl = () => 'api/state?history=0&software=0';
 const hasSw = o => Object.prototype.hasOwnProperty.call(o, 'software');
 /* Remembers the software the page's devices have now, then gives it to the devices that came without it. */
 function keepSoftware(list){ for (const o of list) if (hasSw(o)) SW.map.set(o.id, o.software); }
@@ -63,19 +64,6 @@ function attachSoftware(o, list){
 /* The same package and version on many devices is held once (frozen: an entry is replaced, never changed). */
 const same = new Map();
 const one = p => { if (!p || typeof p !== 'object') return p; const k = JSON.stringify(p); let x = same.get(k); if (!x){ x = Object.freeze(p); same.set(k, x); } return x; };
-/* Every device's software, for the Software tab (packages, versions, licences): read when that tab opens. */
-export function ensureSoftware(){
-  if (SW.loaded || SW.loading || !SERVER.base) return SW.loading;
-  SW.loading = fetch('api/software', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
-    if (!j || !j.software || typeof j.software !== 'object') return;
-    /* What the server says now replaces what the page knew of devices that came without it. */
-    const fresh = new Map(Object.entries(j.software).filter(([, list]) => Array.isArray(list)).map(([id, list]) => [id, list.map(one)]));
-    SW.loaded = true;
-    for (const o of [...objs, ...REVIEW]) if (!hasSw(o)){ const list = fresh.get(o.id) || []; SW.map.set(o.id, list); attachSoftware(o, list); }
-    if (!heldBack()) render();
-  }).catch(() => { /* offline: asked again when the tab is drawn next */ }).finally(() => { SW.loading = null; });
-  return SW.loading;
-}
 /* One device's software, for its page: read when the page opens, then its software panel is drawn again. */
 export function ensureDeviceSoftware(id){
   const o = byId(id) || REVIEW.find(x => x.id === id);
@@ -102,7 +90,8 @@ export function ensurePackages(){
 export function forgetPackages(){ SW.pkgs = null; }
 /* Each device's installed software, by id: the page's own copy where it holds one (read for the device's page, or
    changed here and maybe not yet on the server), else the server's index (null until it is read). */
-export function knownSoftware(){
+export const knownSoftware = oncePerDraw(knownSoftwareNow);
+function knownSoftwareNow(){
   if (!SW.pkgs) return null;
   const m = new Map();
   for (const p of SW.pkgs) for (const [v, ids] of p.versions) for (const id of ids){ let l = m.get(id); if (!l) m.set(id, l = []); l.push({ name: p.name, version: v }); }
@@ -177,15 +166,14 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
      it is read again where needed. From the page's copy (the changes since applied to it): what it knows is current. */
   let fresh = false;
   if (!d){
-    const lean = !SW.loaded;
     const r = await fetch(stateUrl(), {credentials: 'same-origin'});
     if (r.status === 401){ loginModal(); return false; }
     if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
     d = await r.json(); fresh = true;
-    if (lean) d.swLean = true;
+    d.swLean = true;
     keepServerCopy(d);
   }
-  if (discard || fresh){ SW.map.clear(); if (d.swLean) SW.loaded = false; }
+  if (discard || fresh) SW.map.clear();
   /* Taken just before the server's version replaces the page's, so an edit made while it loaded is kept too. */
   const keep = !discard && SERVER.base && isAdmin() ? pendingChanges() : null;
   if (!fresh && !discard && d.swLean) keepSoftware([...objs, ...REVIEW]);
@@ -201,7 +189,7 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
   dropMissingTabs();
   render();
   SW.pkgs = null;
-  if (!SW.loaded) setTimeout(loadLicenceUse, 0);
+  setTimeout(loadLicenceUse, 0);
   return true;
 }
 /* Puts unsaved records back after a reload: objects, connections, users, types and history. */

@@ -46,7 +46,6 @@ try {
   /* The sentence without what it adds while a source is not set up (none is here), checked once on its own. */
   const bare = t => t.replace(/ [^.]* (is|are) not set up: (it writes|they write) nothing yet\.$/, '');
   const how = async label => bare(await row(label).locator('.ds-how').textContent());
-  const says = async () => bare(await p.textContent('#dsSays'));
   assert.equal(await row('IP address').locator('.ds-how').textContent(), 'Lansweeper keeps it up to date at every scan.', 'a source not set up is not repeated in every row');
   assert.match(await p.textContent('.ds-legend'), /Dashed, like this: not set up yet \(Lansweeper, Entra & Intune and AD\)/);
   assert.equal(await row('IP address').locator('.ds-src.ds-dim').count(), 1, 'the chip of a source not set up is dashed');
@@ -126,35 +125,38 @@ try {
   await writes('disk');
   await openSetTab(p, 'sources'); await openAdv();
   assert.equal(await chain('Disks'), '1Lansweeper › 2Entra & Intune');
-  // Change…: the sources as a list, moved up and down, what it means said as it changes
-  const reorderOs = async () => {
-    await row('Operating system').locator('[data-dsedit]').click(); await p.waitForSelector('#dsList');
-    await p.click('[data-dsup=ad]'); await p.click('[data-dsup=ad]'); await p.click('[data-dsup=graph]');
-    assert.match(await p.textContent('#dsList'), /1\s*Active Directory[\s\S]*2\s*Entra & Intune[\s\S]*3\s*Lansweeper/);
-    assert.equal(await says(), 'AD keeps it up to date; Entra & Intune keeps it up to date where AD has no value; Lansweeper keeps it up to date where AD and Entra & Intune have no value.');
-    await p.click('#dsSave');
-  };
-  await reorderOs();
-  // first a preview of what it changes: Cancel leaves everything as it was
-  await p.waitForSelector('#dpOk');
-  assert.match(await p.textContent('#mdl .mb'), /1 device gets another value[\s\S]*PC-E[\s\S]*Windows 11 \(LS\)\s*Windows 11 Pro \(AD\)\s*AD/);
-  await p.click('#dpCancel');
-  await p.waitForSelector('.ds-matrix');
-  assert.equal(await chain('Operating system'), '1Lansweeper › 2Entra & Intune › 3AD');
-  await reorderOs();
-  await p.click('#dpOk'); await p.waitForSelector('.ds-matrix');
-  await stored(st => JSON.stringify((st.fieldOrder || {}).os) === '["ad","graph","ls"]');
+  // Change: the sources open under the row (no dialog), each change applied at once with Undo, what it means said under them
+  const openEd = async label => { await row(label).locator('[data-dsedit]').click(); await p.waitForSelector('.ds-edrow [data-dsfield]'); };
+  const flipEd = x => p.locator(`.ds-edrow [data-dson="${x}"]`).locator('xpath=..').click();
+  const edSays = async () => bare(await p.textContent('.ds-edrow .ds-ed-says'));
+  const edOrder = () => p.$$eval('.ds-edrow .ls-item.on .ls-name b', b => b.map(x => x.textContent));
+  await openEd('Operating system');
+  assert.equal(await p.getAttribute(`[data-dsedit="os"]`, 'aria-expanded'), 'true');
+  assert.deepEqual(await edOrder(), ['Lansweeper', 'Entra & Intune', 'Active Directory']);
+  await p.click('[data-dsmv="ad|-1"]'); await stored(st => JSON.stringify((st.fieldOrder || {}).os) === '["ls","ad","graph"]');
+  await p.click('[data-dsmv="ad|-1"]'); await stored(st => JSON.stringify((st.fieldOrder || {}).os) === '["ad","ls","graph"]');
+  await p.click('[data-dsmv="graph|-1"]'); await stored(st => JSON.stringify((st.fieldOrder || {}).os) === '["ad","graph","ls"]');
+  assert.equal(await p.evaluate(() => !!document.querySelector('#dpOk')), false, 'no dialog to confirm');
+  assert.deepEqual(await edOrder(), ['Active Directory', 'Entra & Intune', 'Lansweeper']);
+  assert.match(await edSays(), /^AD keeps it up to date; Entra & Intune keeps it up to date where AD has no value; Lansweeper keeps it up to date where AD and Entra & Intune have no value\. 1 device gets another value at the next sync\.$/);
   assert.equal(await chain('Operating system'), '1AD › 2Entra & Intune › 3Lansweeper');
   assert.match(await row('Operating system').locator('th').textContent(), /Custom/, 'a field set here is marked');
+  /* the focus stays on the arrow used, after the redraw */
+  assert.equal(await p.evaluate(() => document.activeElement && document.activeElement.closest('.ds-edrow') !== null), true);
+  // Undo takes back the last change; Back to the default all of them
   await p.click('#toast .t-undo');
+  await stored(st => JSON.stringify((st.fieldOrder || {}).os) === '["ad","ls","graph"]');
+  await p.click('[data-dsdef="os"]');
   await stored(st => !(st.fieldOrder || {}).os);
-  // a source not ticked is only shown, and Lansweeper's box on its tab follows
-  await row('IP address').locator('[data-dsedit]').click(); await p.waitForSelector('#dsList');
-  await p.uncheck('[data-dsuse=ls]');
-  assert.match(await says(), /No source writes it: it is kept as typed\. Lansweeper is shown beside the field\./);
-  await p.click('#dsSave'); await p.waitForSelector('.ds-matrix');
-  /* Lansweeper out is what its box off means anyway: the field is not marked as set here (Custom), only the box is off */
+  assert.equal(await chain('Operating system'), '1Lansweeper › 2Entra & Intune › 3AD');
+  // Close puts it away; another field's Change opens that one instead
+  await p.click('[data-dsedit="os"]'); await until(p, () => !document.querySelector('.ds-edrow'));
+  // a source switched off is only shown, and Lansweeper's box on its tab follows
+  await openEd('IP address');
+  await flipEd('ls');
   await stored(st => !(st.fieldOrder || {}).ip && st.policy.ip === false);
+  assert.match(await edSays(), /No source writes it: it is kept as typed\. Lansweeper is shown beside the field\./);
+  /* Lansweeper out is what its box off means anyway: the field is not marked as set here (Custom), only the box is off */
   assert.doesNotMatch(await row('IP address').locator('th').textContent(), /Custom/);
   assert.equal(await chain('IP address'), 'Kept as typed shown only: Lansweeper');
   await openSetTab(p, 'feed'); await p.waitForSelector('[data-dswrite=ip]');
@@ -163,30 +165,26 @@ try {
   await openSetTab(p, 'sources'); await openAdv();
   assert.equal(await chain('IP address'), '1Lansweeper');
   await stored(st => !(st.fieldOrder || {}).ip && st.policy.ip === true);
-  // one field back to its default, from its dialog; then all of them
+  // one field back to its default; then all of them
   await stored(st => !(st.fieldOrder || {}).disk && st.policy.disk === true);   // Lansweeper on Disks by its box, not as Custom
-  await row('Disks').locator('[data-dsedit]').click(); await p.uncheck('[data-dsuse=graph]'); await p.click('#dsSave');
+  if (!(await p.locator('.ds-edrow [data-dsfield="disk"]').count())) await openEd('Disks');
+  await flipEd('graph');
   await stored(st => JSON.stringify((st.fieldOrder || {}).disk) === '["ls"]');
-  await p.waitForSelector('.ds-matrix');
-  await row('Disks').locator('[data-dsedit]').click(); await p.click('#dsDefault');
+  await p.click('[data-dsdef="disk"]');
   await stored(st => !(st.fieldOrder || {}).disk && !st.policy.disk);
-  await p.waitForSelector('.ds-matrix');
-  await row('Disks').locator('[data-dsedit]').click(); await p.check('[data-dsuse=ls]'); await p.uncheck('[data-dsuse=graph]'); await p.click('#dsSave');
+  await flipEd('ls'); await stored(st => (st.fieldOrder || {}).disk || st.policy.disk);
+  if (await p.locator('.ds-edrow [data-dson="graph"]:checked').count()) await flipEd('graph');
   await stored(st => JSON.stringify((st.fieldOrder || {}).disk) === '["ls"]');
   await p.click('#dsReset');
   await stored(st => !Object.keys(st.fieldOrder || {}).length);
   assert.equal(await p.locator('#dsReset').count(), 0);
   // Only if empty: AD then fills the field only while it is empty; the row says so, Back to the default clears it
-  await row('Operating system').locator('[data-dsedit]').click(); await p.waitForSelector('#dsList');
+  if (!(await p.locator('.ds-edrow [data-dsfield="os"]').count())) await openEd('Operating system');
   await p.selectOption('[data-dsmode=ad]', 'fill');
-  assert.match(await says(), /AD writes it only while it is empty\.$/);
-  await p.click('#dsSave');
-  if (await p.locator('#dpOk').count()) await p.click('#dpOk');
   await stored(st => ((st.fieldMode || {}).os || {}).ad === 'fill');
-  await p.waitForSelector('.ds-matrix');
+  assert.match(await edSays(), /AD writes it only while it is empty\./);
   assert.match(await row('Operating system').locator('.ds-chain').textContent(), /only if empty/);
-  await row('Operating system').locator('[data-dsedit]').click(); await p.click('#dsDefault');
-  if (await p.locator('#dpOk').count()) await p.click('#dpOk');
+  await p.click('[data-dsdef="os"]');
   await stored(st => !(st.fieldMode || {}).os);
   // a value set by hand: counted on its row, opened as a list, given back to the sources (with Undo)
   saveState(db, { ...loadState(db), objs: loadState(db).objs.map(o => o.id === 'e' ? { ...o, os: 'Typed', src: { os: 'hand' } } : o) });

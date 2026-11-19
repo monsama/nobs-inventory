@@ -97,7 +97,7 @@ let typeAdvOpen = false;
 /* Draws the Settings tab in st.setTab: its empty boxes, then each filled by its settings-*.js module. Someone who is not
    an admin gets a Read only note on top. */
 /* After an Undo, an open Settings tab is drawn again, so it shows the value put back. */
-document.addEventListener('ni:undone', () => { if (document.getElementById('setPane')) renderSetPane(); });
+document.addEventListener('ni:undone', () => { if (document.querySelector('#mdl #setPane')) renderSetPane(); });
 export function renderSetPane(){
   /* A page that is not one (an old link, a typed address) shows the first one. */
   if (st.setTab !== 'about' && !SET_TABS.some(([k]) => k === st.setTab)) st.setTab = SET_TABS[0][0];
