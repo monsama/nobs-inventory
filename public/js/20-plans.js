@@ -210,7 +210,7 @@ export function renderPlans(){
   const editArea = planEditArea && plan ? (plan.areas || []).find(a => a.id === planEditArea) : null;
   const bar = html`<div class="pl-bar">
       ${PLANS.length ? html`<select id="plSel" aria-label="Floor plan">${PLANS.map(p => html`<option value="${p.id}" ${plan && p.id === plan.id ? 'selected' : ''}>${p.name}${p.site ? ' · ' + p.site : ''}</option>`)}</select>` : html`<span class="muted">No floor plans yet.</span>`}
-      ${isAdmin() ? html`<button id="plNew" ${PLANS.length ? html`class="primary"` : ''}>New plan</button>` : ''}
+      ${plan ? html`<span class="muted pl-cnt">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
       ${plan ? html`${isAdmin() ? html`<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         <button id="plText" class="${planMode === 'text' ? 'on' : ''}" title="Click the plan to put a text there, such as Entrance">Add text</button>
@@ -218,13 +218,12 @@ export function renderPlans(){
         ${editArea && planMode === 'view' ? rawHtml(menuHtml(`${esc(editArea.name)}…`, html`<button id="plShapeEdit" title="Show the handles of each rectangle, to resize, move or remove one">${planShapeEdit === editArea.id ? 'Lock rectangles' : 'Edit rectangles'}</button><button id="plAreaEdit" title="Rename the area, choose its room or colour">Edit area</button><button id="plAreaAdd" title="Draw more rectangles for this area: beside it, or apart from it">Draw more of this area</button><button id="plAreaDup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>`, { id: 'plAreaMenu' })) : ''}
         ${planMode === 'area' && editArea ? html`<span class="pl-adding" role="status">Adding to <b>${editArea.name}</b></span>${planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button>` : html`<span class="muted pl-drawhint">Drag rectangles on the plan, then Done.</span>`}<button id="plAreaCancel">Cancel</button>`
           : planMode === 'area' ? planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : html`<span class="muted pl-drawhint" role="status">Drag rectangles on the plan for a new area, then Done. Esc discards them.</span>` : ''}
-        ${rawHtml(menuHtml('Plan…', html`<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button><button id="plPrint" title="The plan with its devices and a list of them, to print or save as PDF">Print or save as PDF</button>
+        ${rawHtml(menuHtml('Plan…', html`<button id="plNew" title="Another floor plan: upload an image of a floor or room">New plan…</button><button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button><button id="plPrint" title="The plan with its devices and a list of them, to print or save as PDF">Print or save as PDF</button>
         <button id="plDel" class="danger-text">Delete plan</button>`, { id: 'plMenu' }))}` : ''}
         <button type="button" id="plSideBtn" class="${sideOpen() ? 'on' : ''}" aria-pressed="${String(sideOpen())}" title="Show or hide the list of devices not on this plan">Device list</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button><button id="plZoomFit" title="The whole plan in view (to move a zoomed plan: drag with the middle button, or hold Space and drag)">Fit</button></span>` : ''}
       <span class="grow"></span>
       ${plan ? rawHtml(showTypeSelect(plan)) : ''}
-      ${plan ? html`<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
     </div>`;
   const body = plan ? html`<div class="pl-body${sideOpen() ? '' : ' side-off'}">
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
