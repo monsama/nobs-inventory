@@ -2,6 +2,7 @@
    what contracts, licences and new devices cost in a year. One description of each report, made here from the saved
    state; the server writes it as a PDF or an Excel file (server/report-files.js). No DOM: the server imports it. */
 import { dateText } from './dates.js';
+import { typeLabelOf } from './type-labels.js';
 import { CONTRACT_KINDS, costInYear, yearlyCost } from './costs.js';
 
 export const REPORTS = {
@@ -39,7 +40,7 @@ const byName = (a, b) => String(a).localeCompare(String(b), undefined, { numeric
 export function buildReport(s, opts, today = new Date()) {
   const o = reportOptions(opts, today);
   const users = new Map((s.users || []).map(u => [u.id, u]));
-  const typeLabel = t => (s.types && s.types[t] && s.types[t].label) || t || '';
+  const typeLabel = d => typeLabelOf(d, s.types);
   const person = d => (d.uid && users.get(d.uid) && users.get(d.uid).name) || d.user || (d.hotdesk ? 'Hot desk' : '');
   const dept = d => (d.uid && users.get(d.uid) && users.get(d.uid).dept) || '';
   /* The inventory: not retired, and not waiting in Pending devices or ignored there. A list of devices given (what the Table or a
@@ -55,9 +56,9 @@ export function buildReport(s, opts, today = new Date()) {
   };
 
   if (o.kind === 'inventory') {
-    const keyOf = { site: d => String(d.loc || '').split(' / ')[0], loc: d => d.loc || '', dept, type: d => typeLabel(d.type), none: () => '' }[o.group];
+    const keyOf = { site: d => String(d.loc || '').split(' / ')[0], loc: d => d.loc || '', dept, type: d => typeLabel(d), none: () => '' }[o.group];
     const rows = live.slice().sort((a, b) => byName(a.name, b.name))
-      .map(d => [keyOf(d), [d.code || '', d.name || '', typeLabel(d.type), d.model || '', d.serial || '', person(d), dept(d), d.loc || '', STATUS_LABEL[d.status] || d.status || '', dateText(day(d.warranty))]]);
+      .map(d => [keyOf(d), [d.code || '', d.name || '', typeLabel(d), d.model || '', d.serial || '', person(d), dept(d), d.loc || '', STATUS_LABEL[d.status] || d.status || '', dateText(day(d.warranty))]]);
     return {
       title: 'Inventory', subtitle: `${live.length} ${live.length === 1 ? 'device' : 'devices'}${o.group === 'none' ? '' : `, by ${GROUPS[o.group].toLowerCase()}`} · ${made}`, count: live.length,
       columns: [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.6 }, { label: 'Type', w: 1.1 }, { label: 'Model', w: 1.6 }, { label: 'Serial number', w: 1.2 },
@@ -72,8 +73,8 @@ export function buildReport(s, opts, today = new Date()) {
     const r = t.result, byId = new Map(live.map(d => [d.id, d]));
     const now = id => byId.get(id) || {};
     const conf = live.filter(d => d.verified && d.verified.st === t.id).sort((a, b) => byName(a.loc || '', b.loc || '') || byName(a.name, b.name));
-    const cols = [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.6 }, { label: 'Type', w: 1.1 }, { label: 'Serial number', w: 1.2 }, { label: 'User', w: 1.4 }, { label: 'Location', w: 1.6 }, { label: 'Note', w: 1.8 }];
-    const dev = (m, note) => { const d = now(m.id); return [m.code || d.code || '', m.name || d.name || '', typeLabel(d.type), d.serial || '', person(d), m.loc || d.loc || '', note]; };
+    const cols = [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.6 }, { label: 'Type', w: 1.1 }, { label: 'Serial number', w: 1.1 }, { label: 'User', w: 1.4 }, { label: 'Location', w: 1.5 }, { label: 'Note', w: 2.3 }];
+    const dev = (m, note) => { const d = now(m.id); return [m.code || d.code || '', m.name || d.name || '', typeLabel(d), d.serial || '', person(d), m.loc || d.loc || '', note]; };
     return {
       title: t.name, count: r.total,
       subtitle: `${t.scope || 'Everywhere'} · started ${dateText(t.started.slice(0, 10))} by ${t.by || '-'}, finished ${dateText(t.finished.slice(0, 10))} by ${t.finishedBy || '-'} · ${r.confirmed} of ${r.total} confirmed, ${r.missing.length} missing, ${r.moved.length} moved, ${r.unknown.length} not in the inventory`,
@@ -89,8 +90,8 @@ export function buildReport(s, opts, today = new Date()) {
 
   if (o.kind === 'handback') {
     const p = users.get(o.id);
-    const mine = live.filter(d => p && d.uid === p.id).sort((a, b) => byName(typeLabel(a.type), typeLabel(b.type)) || byName(a.name, b.name));
-    const row = d => [d.code || '', d.name || '', typeLabel(d.type), d.model || '', d.serial || '', (d.accessories || []).map(x => x.name).join(', '), '[   ]'];
+    const mine = live.filter(d => p && d.uid === p.id).sort((a, b) => byName(typeLabel(a), typeLabel(b)) || byName(a.name, b.name));
+    const row = d => [d.code || '', d.name || '', typeLabel(d), d.model || '', d.serial || '', (d.accessories || []).map(x => x.name).join(', '), '[   ]'];
     return {
       title: `Hand-back list: ${p ? p.name : 'unknown person'}`, count: mine.length,
       subtitle: `${p && p.dept ? `${p.dept} · ` : ''}${mine.length} device${mine.length === 1 ? '' : 's'} · ${made} · Handed back on ______________ · Checked by ______________ · Signature ______________`,
@@ -107,7 +108,7 @@ export function buildReport(s, opts, today = new Date()) {
     const rows = known.map(d => {
       const by = addYears(d.purchased, o.years);
       const age = Math.max(0, Math.floor((Date.parse(now) - Date.parse(d.purchased)) / (365.25 * 864e5) * 10) / 10);
-      return [stateOf(by), by, [d.code || '', d.name || '', typeLabel(d.type), d.model || '', person(d), d.loc || '', dateText(d.purchased), age, dateText(day(d.warranty)), dateText(by)]];
+      return [stateOf(by), by, [d.code || '', d.name || '', typeLabel(d), d.model || '', person(d), d.loc || '', dateText(d.purchased), age, dateText(day(d.warranty)), dateText(by)]];
     }).sort((a, b) => a[1].localeCompare(b[1]));
     const groups = order.map(name => ({ name, rows: rows.filter(r => r[0] === name).map(r => r[2]) })).filter(g => g.rows.length);
     const unknown = live.length - known.length;
@@ -115,7 +116,7 @@ export function buildReport(s, opts, today = new Date()) {
       title: 'Lifecycle and replacement', count: known.length,
       subtitle: `Replaced ${o.years} year${o.years === 1 ? '' : 's'} after purchase · ${known.length} devices with a purchase date${unknown ? `, ${unknown} without one (not listed)` : ''} · ${made}`,
       columns: [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.6 }, { label: 'Type', w: 1.1 }, { label: 'Model', w: 1.6 }, { label: 'User', w: 1.4 }, { label: 'Location', w: 1.4 },
-        { label: 'Purchased', w: 0.9 }, { label: 'Age (years)', w: 0.8, num: true }, { label: 'Warranty ends', w: 1.1 }, { label: 'Replace by', w: 0.9 }],
+        { label: 'Purchased', w: 0.9 }, { label: 'Age (years)', w: 1, num: true }, { label: 'Warranty ends', w: 1.1 }, { label: 'Replace by', w: 0.9 }],
       groups,
     };
   }
@@ -124,12 +125,14 @@ export function buildReport(s, opts, today = new Date()) {
   const Y = String(o.year);
   const span = c => [dateText(day(c.start)), c.renew > 0 ? 'renews' : dateText(day(c.end))].filter(Boolean).join(' - ');
   const per = c => c.per === 'once' ? 'once' : c.per === 'month' ? 'per month' : 'per year';
+  /* An amount as the money columns write it: 2'200.00. */
+  const amount = n => typeof n === 'number' || (n !== '' && n != null && isFinite(Number(n))) ? Number(n).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(n ?? '');
   const contracts = (s.contracts || []).map(c => [c, costInYear(c, o.year)]).filter(([, n]) => n > 0).sort(([a], [b]) => byName(a.name, b.name))
-    .map(([c, n]) => [c.name || '', CONTRACT_KINDS[c.kind] || c.kind || 'Contract', c.supplier || '', span(c), `${c.cost} ${per(c)}`, yearlyCost(c) || '', n]);
+    .map(([c, n]) => [c.name || '', CONTRACT_KINDS[c.kind] || c.kind || 'Contract', c.supplier || '', span(c), `${amount(c.cost)} ${per(c)}`, yearlyCost(c) || '', n]);
   const licences = (s.licences || []).map(l => [l, costInYear(l, o.year)]).filter(([, n]) => n > 0).sort(([a], [b]) => byName(a.name, b.name))
-    .map(([l, n]) => [l.name || '', `Licence, ${l.seats || 0} seats`, '', span(l), `${l.cost} ${per(l)}`, yearlyCost(l) || '', n]);
+    .map(([l, n]) => [l.name || '', `Licence, ${l.seats || 0} seats`, '', span(l), `${amount(l.cost)} ${per(l)}`, yearlyCost(l) || '', n]);
   const bought = (s.objs || []).filter(d => !d.review && day(d.purchased).slice(0, 4) === Y && typeof d.price === 'number' && d.price > 0).sort((a, b) => a.purchased.localeCompare(b.purchased))
-    .map(d => [[d.name, d.model].filter(Boolean).join(' · '), typeLabel(d.type), d.supplier || '', dateText(d.purchased), '', '', d.price]);
+    .map(d => [[d.name, d.model].filter(Boolean).join(' · '), typeLabel(d), d.supplier || '', dateText(d.purchased), '', '', d.price]);
   const sum = rows => Math.round(rows.reduce((t, r) => t + (Number(r[6]) || 0), 0) * 100) / 100;
   const groups = [['Contracts', contracts], ['Licences', licences], ['Devices bought', bought]].filter(([, rows]) => rows.length).map(([name, rows]) => ({ name, rows, total: sum(rows) }));
   const total = Math.round(groups.reduce((t, g) => t + g.total, 0) * 100) / 100;

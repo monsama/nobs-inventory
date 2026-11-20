@@ -111,3 +111,13 @@ test('a short report is one page: the page number at the foot does not start a p
   const pdf = (await reportPdf(r, {})).toString('latin1');
   assert.equal((pdf.match(/\/Type \/Page\b(?!s)/g) || []).length, 1, 'a second, empty page with only the page number');
 });
+
+test('reports name the types (built-in and renamed), virtual machines as such, and cost amounts as money', async () => {
+  const { buildReport } = await import('../public/js/reports.js');
+  const s = { objs: [{ id: 'a', name: 'A', type: 'pbx', status: 'active' }, { id: 'b', name: 'B', type: 'server', kind: 'vm', status: 'active' }, { id: 'c', name: 'C', type: 'other', status: 'active' }],
+    users: [], types: { other: { label: 'Misc' } }, contracts: [{ name: 'Service', start: '2026-01-01', renew: 12, cost: 2200, per: 'month' }], licences: [] };
+  const r = buildReport(s, { kind: 'inventory', group: 'none' }, new Date('2026-11-20'));
+  assert.deepEqual(r.groups[0].rows.map(x => x[2]).sort(), ['Misc', 'Server (virtual)', 'Telephone system']);
+  const c = buildReport(s, { kind: 'costs', year: 2026 }, new Date('2026-11-20'));
+  assert.match(c.groups[0].rows[0][4], /^2.200\.00 per month$/);
+});
