@@ -235,7 +235,7 @@ export function renderCardsBody(){
   let list = sortCards(filtered());
   const pool = scopePool();
   const count = listCountShown(list.length, pool.length);
-  $('#toolbar').innerHTML = html`${count ? html`<span class="muted">${count}</span><span class="tbsep"></span>` : ''}
+  $('#toolbar').innerHTML = html`${count ? html`<span class="muted">${count}</span>` : ''}<span class="tbsep"></span>
     <span class="tb-grp"><label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select></span>
     <span class="tb-grp ph-only"><label class="muted" for="cardSortM">Sort by</label><select id="cardSortM">${[['', 'Default'], ...(st.scope ? PEND_HEADS : HEADS).filter(h => h[0]).flatMap(([k, l]) => [[k + ':1', l + (k === 'seen' ? ', oldest first' : ', A to Z')], [k + ':-1', l + (k === 'seen' ? ', newest first' : ', Z to A')]])].map(([v, l]) => html`<option value="${v}" ${(cardSort.k ? cardSort.k + ':' + cardSort.dir : '') === v ? 'selected' : ''}>${l}</option>`)}</select></span>
     ${list.length ? html`<button type="button" class="ph-only" data-pickall="1">${st.bulk && st.bulk.size ? 'Clear selection' : 'Select all'}</button>` : ''}
@@ -304,7 +304,7 @@ export function renderCardsBody(){
   if (ea) ea.onclick = () => setAll(false);
 }
 
-/* A column with nothing in any row drawn (no IP anywhere, no one seen…) takes no room: the others get it. */
+/* A column with nothing in any row drawn (no IP anywhere, no one seen…) takes no room, not even its gap: the others get it. */
 const FIT_COLS = { user: 'c-user', loc: 'c-loc', ip: 'c-ip', det: 'c-det', chips: 'c-chips', seen: 'seen' };
 function fitColumns(){
   const box = /** @type {HTMLElement|null} */ ($('#cards')); if (!box) return;
@@ -312,7 +312,8 @@ function fitColumns(){
   for (const [k, cls] of Object.entries(FIT_COLS)){
     const empty = rows.every(r => { const c = r.querySelector(':scope > .' + cls); return !c || (!c.textContent.trim() && !c.querySelector('svg, img, button, .chip')); });
     box.classList.toggle('no-' + k, empty);
-    if (empty) box.style.setProperty('--w-' + k, '0px'); else box.style.removeProperty('--w-' + k);
+    /* An empty value takes the column out of the grid (no width, no gap); its cells are not drawn (CSS no-…). */
+    if (empty) box.style.setProperty('--w-' + k, ' '); else box.style.removeProperty('--w-' + k);
   }
 }
 export function renderCards(){ st.bulk = pickedInPool(); renderCardsBody(); addSearchHits(); bindPickBar(); }

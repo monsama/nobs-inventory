@@ -16,7 +16,7 @@ import { exportCsv, importCsvModal } from './views-csv.js';
 import { patchImportModal } from './24-patch.js';
 import { bindSaveView, saveViewBtn } from './views-saved.js';
 import { remapTable } from './saved-views.js';
-import { bindPrintMenu, printItems } from './print-view.js';
+import { bindPrintMenu, moreBtnAttrs, printItems } from './print-view.js';
 import { html, rawHtml } from './html.js';
 import { waitReason } from './15-review.js';
 /* ---------- table ---------- */
@@ -153,8 +153,9 @@ export function renderTable(){
   const colOpen = !!$('#colMenu .menubox:popover-open');
   st.bulk = pickedInPool();
   const n = st.bulk.size;
+  const impCsv = isAdmin() && !st.scope, impPatch = isAdmin() && objs.some(o => o.type === 'patch');
   $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${listCountShown(list.length, scopePool().length)}</span><span class="tbsep"></span>
-    ${rawHtml(columnsMenu())}${rawHtml(menuHtml(MORE_DOTS, String(html`${SERVER.on ? html`<button type="button" id="xlsxShown">Excel<span class="muted">, the columns shown</span></button>` : ''}<button type="button" id="csvShown">CSV<span class="muted">, the columns shown</span></button><button type="button" id="csvBtn">CSV, all fields<span class="muted">, to import again</span></button><hr class="msep">${rawHtml(printItems())}${isAdmin() && !st.scope ? html`<hr class="msep"><button type="button" id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button type="button" id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${saveViewBtn() || (!st.scope && SERVER.on) ? html`<hr class="msep">` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button type="button" id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}`), { id: 'csvMenu', cls: 'tb-more', btn: 'aria-label="More: export, print, import, save view, report" title="Export, print, import, save view, report"' }))}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
+    ${rawHtml(columnsMenu())}${rawHtml(menuHtml(MORE_DOTS, String(html`${SERVER.on ? html`<button type="button" id="xlsxShown">Excel<span class="muted">, the columns shown</span></button>` : ''}<button type="button" id="csvShown">CSV<span class="muted">, the columns shown</span></button><button type="button" id="csvBtn">CSV, all fields<span class="muted">, to import again</span></button><hr class="msep">${rawHtml(printItems())}${impCsv || impPatch ? html`<hr class="msep">` : ''}${impCsv ? html`<button type="button" id="csvImp">Import CSV…</button>` : ''}${impPatch ? html`<button type="button" id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${saveViewBtn() || (!st.scope && SERVER.on) ? html`<hr class="msep">` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button type="button" id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}`), { id: 'csvMenu', cls: 'tb-more', btn: moreBtnAttrs(['export', 'print', (impCsv || impPatch) && 'import', saveViewBtn() && 'save view', !st.scope && SERVER.on && 'report']) }))}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };

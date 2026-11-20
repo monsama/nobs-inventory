@@ -55,8 +55,9 @@ try {
   // Edit: change the model, save, and check the new value is stored.
   await openByName(p, 'ZH-PC-0142');
   const id = await idOf(p, 'ZH-PC-0142');
-  await p.fill(`#f_${id}_model`, 'SCENARIO MODEL'); await p.waitForSelector('#saveBtn:not([disabled])');
-  await p.click('#saveBtn');
+  await p.fill(`#f_${id}_model`, 'SCENARIO MODEL');
+  /* Save hides once the edit is saved: under load the field may have saved itself already (the value check below holds either way). */
+  await p.locator('#saveBtn:not([disabled])').click({ timeout: 3000 }).catch(async e => { if (await p.locator('#saveBtn').isVisible()) throw e; });
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('ZH-PC-0142').model === 'SCENARIO MODEL'); });
 
   // A new object plugged into a port from the New object dialog (port 15 is free in the sample).
@@ -143,7 +144,7 @@ try {
   await signIn(q);
   await openByName(q, 'SRV-ZH-HV01');
   const kid = await idOf(q, 'SRV-ZH-HV01');
-  await q.fill(`#f_${kid}_model`, 'KEPT MODEL'); await q.click('#saveBtn');
+  await q.fill(`#f_${kid}_model`, 'KEPT MODEL'); await q.locator('#saveBtn').click({ timeout: 3000 }).catch(async e => { if (await q.locator('#saveBtn').isVisible()) throw e; });
   await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model === 'KEPT MODEL'); });
   await until(q, async () => (await (await fetch('api/state', { credentials: 'same-origin' })).json()).objs.find(o => o.name === 'SRV-ZH-HV01')?.model === 'KEPT MODEL', null, { timeout: 10000, polling: 200 });
   await q.reload(); await q.waitForSelector('#lgUser, #tabsbar');

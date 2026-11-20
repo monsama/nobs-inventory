@@ -53,7 +53,9 @@ try {
   assert.match(await p.textContent('#printMenu .menubox'), /Save view….*Excel or CSV.*Print/s);
   await p.click('#svSave'); await p.waitForSelector('#svName');
   assert.equal(await p.evaluate(() => !!document.querySelector('#printMenu .menubox:popover-open')), false, 'the menu closes on a pick');
-  await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
+  await p.keyboard.press('Escape'); await p.waitForSelector('#mdl', { state: 'detached' });
+  assert.equal(await p.evaluate(() => document.activeElement && document.activeElement.matches('#printMenu .menu-btn')), true, 'the focus goes back to ⋯');
+  assert.match(await p.getAttribute('#printMenu .menu-btn', 'aria-label'), /^More: save view, export, print$/);
 
   // the status bar: nothing said while all is saved; no version in it
   await until(p, () => document.querySelector('#stSave').textContent.trim() === '');
@@ -62,7 +64,8 @@ try {
   // a column empty on every row takes no room; IP comes back with a device that has one
   await go('type', 'pc');
   assert.equal(await p.evaluate(() => document.querySelector('#cards').classList.contains('no-ip')), true, 'no IP on any PC: no IP column');
-  assert.equal(await p.evaluate(() => getComputedStyle(document.querySelector('#cards')).getPropertyValue('--w-ip').trim()), '0px');
+  assert.equal(await p.evaluate(() => getComputedStyle(document.querySelector('#cards')).getPropertyValue('--w-ip').trim()), '', 'the IP column is out of the grid');
+  assert.equal(await p.evaluate(() => { const h = document.querySelector('#cards .lhead .c-loc').getBoundingClientRect().left, c = document.querySelector('#cards .lrow .c-loc').getBoundingClientRect().left; return Math.abs(h - c) < 2; }), true, 'heading and cells still line up');
   await go('type', null);
   assert.equal(await p.evaluate(() => document.querySelector('#cards').classList.contains('no-ip')), false, 'a notebook has one: the column is there');
 

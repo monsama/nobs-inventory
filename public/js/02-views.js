@@ -166,11 +166,8 @@ $('#side').addEventListener('click', e => {
   view();
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
-/* Pending devices, from its tab, the line over the inventory or a type's +3: a list of its own, so the inventory's filters go;
+/* Pending devices, from its tab, the bell or the Overview: a list of its own, so the inventory's filters go;
    type: only the ones of that type. */
-/* When this person last looked at Pending devices (kept in this browser): the line over the inventory says only what
-   came after. */
-const markPendingSeen = () => { try { localStorage.setItem('ni-pending-seen', String(Date.now())); } catch { /* not kept */ } };
 /* Esc in Pending devices goes back to the inventory (from Ignored, back to Pending devices). Not while typing, in a
    dialog or with devices picked (Esc takes the pick back first). Caught before the pick's own Esc. */
 document.addEventListener('keydown', e => {
@@ -184,7 +181,6 @@ document.addEventListener('keydown', e => {
 /* Back from Pending devices (or Ignored) to the inventory, in the same view (List, Table). */
 export function leavePending(){ st.scope = null; st.rvSrc = st.rvWhy = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set(); }
 export function enterCheck(type = null){
-  markPendingSeen();
   resetFilters();
   Object.assign(st, { scope: 'review', rvSrc: '', rvWhy: '', rvKnown: false, rvOld: false, bulk: new Set(), person: null, live: false, type });
   if (!LIST_TABS.includes(st.tab)) st.tab = 'cards';
@@ -352,7 +348,6 @@ export function placeSide(){
 /* The Filters button says whether the drawer is open, however it closes (Escape, a tap beside it, a filter picked). */
 new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('aria-expanded', String(document.body.classList.contains('side-open'))); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 function setSidePin(on){ try { localStorage.setItem('ni-side-pin', on ? '1' : '0'); } catch { /* not kept */ } document.body.classList.remove('side-open'); placeSide(); }
-$('#sidePin').onclick = () => { setSidePin(false); $('#sideRail')?.focus(); };
 /* Dragging the edge (or the strip): the width follows the pointer; let go nearer the left edge than SIDE_SNAP, the
    filters fold away (the width before is kept for when they open again). A click on the strip opens them, a click on
    the small tab in the middle of the edge folds them. */
