@@ -76,7 +76,7 @@ try {
   assert.equal(await p.locator('[data-addtype="pc"]').count(), 0, 'no PCs left to add');
 
   // back in the inventory: New on the cards added now, not on the old ones; Added this week lists only them
-  await p.click('#fbar [data-fx="scope"]');
+  await p.click('#tabsbar .tab-review');
   await p.waitForSelector('#cards .card[data-open="w1"]');
   assert.equal(await p.locator('#cards .card[data-open="w1"] .mk-new').count(), 1, 'New on a device added now');
   assert.equal(await p.locator('#cards .card[data-open="o1"] .mk-new').count(), 0, 'no New on an old one');
