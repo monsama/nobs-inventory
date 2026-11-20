@@ -172,6 +172,18 @@ $('#side').addEventListener('click', e => {
    came after. */
 const pendingSeen = () => { try { return +localStorage.getItem('ni-pending-seen') || 0; } catch { return 0; } };
 const markPendingSeen = () => { try { localStorage.setItem('ni-pending-seen', String(Date.now())); } catch { /* not kept */ } };
+/* Esc in Pending devices goes back to the inventory (from Ignored, back to Pending devices). Not while typing, in a
+   dialog or with devices picked (Esc takes the pick back first). Caught before the pick's own Esc. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || !st.scope || !LIST_TABS.includes(st.tab) || $('#mdl') || (st.bulk && st.bulk.size) || document.querySelector(':popover-open, #fsrcPop')) return;
+  const el = evEl(e); if (el.closest && el.closest('input, textarea, select, [contenteditable], [popover]:popover-open, .menu')) return;
+  if (st.scope === 'ignored') st.scope = 'review'; else leavePending();
+  view();
+  /* What had the focus is drawn anew: it goes to the Pending tab, so the keyboard keeps its place. */
+  const tab = $('#tabsbar .tab-review'); if (tab) tab.focus();
+}, true);
+/* Back from Pending devices (or Ignored) to the inventory, in the same view (List, Table). */
+export function leavePending(){ st.scope = null; st.rvSrc = st.rvWhy = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set(); }
 export function enterCheck(type = null){
   markPendingSeen();
   resetFilters();
@@ -241,7 +253,13 @@ export function renderFilterBar(){
   const seg = (label, items) => html`<span class="vswitch fb-seg" role="group" aria-label="${label}">${items}</span>`;
   const scope = !list || !st.scope ? '' : st.scope === 'ignored'
     ? html`<div class="fb-inbox">${backInv}<span class="fb-inbox-t">${rawHtml(INBOX_ICON)}<b>Ignored</b><span class="muted">${pool} ${pool === 1 ? 'device' : 'devices'} kept out of the inventory and every sync</span></span><span class="grow"></span><button type="button" data-ckign>Back to pending (${waitAll.length})</button></div>`
-    : html`<div class="fb-inbox">${backInv}<span class="fb-inbox-t">${rawHtml(INBOX_ICON)}<b>Pending devices</b><span class="muted">found by the syncs, not in the inventory yet: add, merge or ignore them</span></span><span class="grow"></span>${ignAll.length ? html`<button type="button" data-ckign title="Kept out of the inventory and of every sync">Ignored (${ignAll.length})</button>` : ''}</div>${!waitAll.length ? '' : html`<div class="fb-person fb-check fb-ckrow">${seg('Why they wait', WHY.filter(([k]) => !k || whyN(k) || st.rvWhy === k).map(([k, l]) => html`<button type="button" class="${st.rvWhy === k ? 'on' : ''}" aria-pressed="${st.rvWhy === k}" data-ckwhy="${k}">${l} <span class="cnt">${whyN(k)}</span></button>`))}${srcs.length > 1 ? seg('Found by', [['', 'All sources', ofType.length], ...srcs].map(([k, l, c]) => html`<button type="button" class="${st.rvSrc === k ? 'on' : ''}" aria-pressed="${st.rvSrc === k}" data-cksrc="${k}">${l} <span class="cnt">${c}</span></button>`)) : ''}</div>`}`;
+    /* Pending devices: no bar of its own (its tab says where you are, and a second click on it, or Esc, goes back): only
+       its filters, with Ignored at the end. */
+    : (() => {
+      const ign = ignAll.length ? html`<span class="grow"></span><button type="button" data-ckign title="Kept out of the inventory and of every sync">Ignored (${ignAll.length})</button>` : '';
+      const segs = !waitAll.length ? '' : html`${seg('Why they wait', WHY.filter(([k]) => !k || whyN(k) || st.rvWhy === k).map(([k, l]) => html`<button type="button" class="${st.rvWhy === k ? 'on' : ''}" aria-pressed="${st.rvWhy === k}" data-ckwhy="${k}">${l} <span class="cnt">${whyN(k)}</span></button>`))}${srcs.length > 1 ? seg('Found by', [['', 'All sources', ofType.length], ...srcs].map(([k, l, c]) => html`<button type="button" class="${st.rvSrc === k ? 'on' : ''}" aria-pressed="${st.rvSrc === k}" data-cksrc="${k}">${l} <span class="cnt">${c}</span></button>`)) : ''}`;
+      return segs || ign ? html`<div class="fb-person fb-check fb-ckrow">${segs}${ign}</div>` : '';
+    })();
   /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
   const who = !list || !person ? '' : html`<div class="fb-person"><b>${person.name}</b>${person.active === false ? html` <span class="chip warn">left</span>` : ''}<span class="muted">${[person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · ')}</span>
@@ -351,15 +369,19 @@ new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('ari
 function setSidePin(on){ try { localStorage.setItem('ni-side-pin', on ? '1' : '0'); } catch { /* not kept */ } document.body.classList.remove('side-open'); placeSide(); }
 $('#sidePin').onclick = () => { setSidePin(false); $('#sideRail')?.focus(); };
 /* Dragging the edge (or the strip): the width follows the pointer; let go nearer the left edge than SIDE_SNAP, the
-   filters fold away (the width before is kept for when they open again). A click on the strip opens them. */
+   filters fold away (the width before is kept for when they open again). A click on the strip opens them, a click on
+   the small tab in the middle of the edge folds them. */
 function dragSide(e, fromRail){
   if (!wide() || e.button !== 0) return;
   e.preventDefault();
-  const left = $('#main').getBoundingClientRect().left, startX = e.clientX, was = sideWidth();
-  let moved = false, w = sidePinned() ? was : 0;
+  const left = $('#main').getBoundingClientRect().left, startX = e.clientX, startY = e.clientY, was = sideWidth();
+  /* The small tab on the edge: a click hides the filters (a drag from it still sets the width). */
+  const fold = !fromRail && !!(e.target instanceof Element && e.target.closest('.side-fold'));
+  let moved = false, movedY = false, w = sidePinned() ? was : 0;
   document.body.classList.add('side-dragging');
   const move = ev => {
     if (Math.abs(ev.clientX - startX) > 3) moved = true;
+    if (Math.abs(ev.clientY - startY) > 3) movedY = true;
     if (!moved) return;
     w = Math.max(0, Math.min(SIDE_MAX, ev.clientX - left));
     if (w >= SIDE_SNAP && !sidePinned()) setSidePin(true);
@@ -369,7 +391,7 @@ function dragSide(e, fromRail){
   const up = () => {
     removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
     document.body.classList.remove('side-dragging', 'side-snap');
-    if (!moved){ if (fromRail) setSidePin(true); return; }
+    if (!moved){ if (fromRail) setSidePin(true); else if (fold && !movedY){ setSidePin(false); $('#sideRail')?.focus(); } return; }
     if (w < SIDE_SNAP){ keepWidth(was); setSidePin(false); return; }
     keepWidth(Math.max(SIDE_MIN, w)); setSidePin(true);
   };
@@ -455,7 +477,7 @@ export function renderTabs(){
     /* In Pending devices (or Ignored) only its own tab is the one open, not Devices. */
     const inbox = !!st.scope && LIST_TABS.includes(st.tab);
     const on = id === 'review' ? inbox : members.includes(st.tab) && !(inbox && members.some(m => LIST_TABS.includes(m)));
-    return `<button class="tab ${on ? 'active' : ''}" draggable="true" data-tab="${open}"${on ? ' aria-current="page"' : ''}${id === 'review' ? ' title="Pending devices: found by the syncs, waiting for a decision before they go into the inventory"' : ''}>${id === 'review' ? `${INBOX_ICON}<span class="tlbl">Pending</span>` : g ? TAB_GROUPS[g][0] : FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
+    return `<button class="tab ${on ? 'active' : ''}" draggable="true" data-tab="${open}"${on ? ' aria-current="page"' : ''}${id === 'review' ? (on && st.scope === 'review' ? ' title="Back to the inventory (Esc)" aria-pressed="true"' : ' title="Pending devices: found by the syncs, waiting for a decision before they go into the inventory" aria-pressed="false"') : ''}>${id === 'review' ? `${INBOX_ICON}<span class="tlbl">Pending</span>` : g ? TAB_GROUPS[g][0] : FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
   };
   /* Pending devices sits on its own at the right end of the bar: an inbox, not one of the views. */
   /* Sync (admins) and Pending devices sit on their own at the right end of the bar: actions and an inbox, not views. */
@@ -560,6 +582,8 @@ const onTabClick = e => {
   if (t && t.dataset.tab === 'cards' && st.tab === 'net' && byId(st.portsDevice)){ openObj(st.portsDevice); return; }
   /* From an open device, Ports shows that device when it has ports (otherwise the one shown before), and Map is centred
      on it. */
+  /* Pending devices' tab is a switch: pressed again while in it, it goes back to the inventory (from Ignored it opens Pending). */
+  if (t && t.classList.contains('tab-review') && st.scope === 'review' && LIST_TABS.includes(st.tab)){ leavePending(); view(); return; }
   /* The Devices tab is the inventory: from Pending devices it goes back to it. */
   if (t && st.scope && !t.classList.contains('tab-review') && LIST_TABS.includes(t.dataset.tab)){ st.scope = null; st.rvSrc = st.rvWhy = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set(); }
   if (t){ st.planFlash = null; if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))){ if (st.portsDevice !== st.tab) st.portNo = null; st.portsDevice = st.tab; } if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; view(); }

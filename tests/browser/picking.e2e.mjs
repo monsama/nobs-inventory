@@ -71,7 +71,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).st.tab !== 'cards');
 
   // Pending devices: the corner picks one, Shift+click the range; Accept takes those three in, Undo puts them back
-  await p.click('#tabsbar [data-tab=review]'); await p.waitForSelector('#fbar .fb-inbox');
+  await p.click('#tabsbar [data-tab=review]'); await p.waitForSelector('#tabsbar .tab-review[aria-pressed="true"]');
   assert.match(await p.textContent('#toolbar'), /6 of 6 pending/);
   const rv = p.locator('#cards .card');
   assert.equal(await rv.count(), 6);
@@ -103,7 +103,7 @@ try {
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.scope === 'review' && c.st.tab === 'cards'; });
   await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.waitForSelector('table.grid');
   // back to the inventory, where the waiting and the ignored ones are not
-  await p.click('#fbar [data-fx=scope]');
+  await p.click('#tabsbar .tab-review');
   await until(p, async () => (await import('/js/01-core.js')).st.scope === null);
   assert.equal(await p.locator('table.grid tbody tr:has-text("NEW-PC")').count(), 0);
 

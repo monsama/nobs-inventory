@@ -112,14 +112,30 @@ const locCell = (o, idx) => {
   const r = runsOn(o, idx);
   return r ? html`<span class="c-loc sub">on ${r.name}</span>` : html`<span class="c-loc"></span>`;
 };
+/* The state of a row as two small icons in fixed places, so they line up down the list and are never cut: the status
+   when it is not In use (In stock, Retired), then an ended warranty. The words are in the tooltip and read out. */
+const ST_ICON = {
+  stock: '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+  retired: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9"/><path d="M10 13h4"/>',
+  wty: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/><path d="M5 5l14 14"/>',
+};
+/* The word is kept beside the icon for paper (the printed list shows it, the screen does not). */
+const stIcon = (k, cls, label, word) => html`<span class="st-ico ${cls}" role="img" aria-label="${label}" title="${label}">${rawHtml(`<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ST_ICON[k]}</svg>`)}<span class="st-txt" aria-hidden="true">${word}</span></span>`;
+function stateIcons(o){
+  const s = STATUS[o.status];
+  const hasSt = o.status !== 'active' && !!s, hasW = warrantyState(o) === 'ended';
+  /* Nothing to say: no cell at all, so the row stays as short as it can (on a phone the chips take a line of their own). */
+  if (!hasSt && !hasW) return '';
+  const st = hasSt ? stIcon(o.status === 'retired' ? 'retired' : 'stock', o.status, s.label, s.label) : html`<span class="st-ico"></span>`;
+  const w = hasW ? stIcon('wty', 'wty-ended', `Warranty ended on ${dayText(o.warranty)}`, 'Warranty ended') : html`<span class="st-ico"></span>`;
+  return html`<span class="c-st">${st}${w}</span>`;
+}
 /* The chips of an inventory row, in order of what needs a look. */
 function rowChips(o, idx){
-  const out = [], s = STATUS[o.status];
+  const out = [];
   if (o.excluded || o.detached) out.push(syncChip(o));
   if (twinOf(o)) out.push(String(twinChip(o))); else if (twinsOf(o).length) out.push(String(twinsChip(o)));
   const gp = graphProblem(o); if (gp) out.push(gp);
-  if (warrantyState(o) === 'ended') out.push(String(html`<span class="chip warn wty ended" title="The warranty ended on ${dayText(o.warranty)}">Warranty ended</span>`));
-  if (o.status !== 'active' && s) out.push(String(html`<span class="chip ${s.cls}">${s.label}</span>`));
   const h = hostOf(o, idx); if (h && ((!o.user && h.user) || (!o.loc && h.loc))) out.push(String(html`<span class="chip via" title="User and location come from ${h.name}, the device it is attached to">via ${h.name}</span>`));
   if ((['switch', 'patch', 'router', 'firewall'].includes(o.type) || hasPorts(o)) && (+o.ports || +o.sfp)){ const pt = cardLine(o, 'ports', idx)[1]; if (pt) out.push(String(html`<span class="chip">${pt}</span>`)); }
   if (o.handAt && Date.parse(o.handAt) > SYNC.time) out.push(handHtml(o));
@@ -143,9 +159,11 @@ export function cardHtml(o, idx, join = showJoin()){
   const t = TYPES[o.type] || { label: o.type };
   const [dl, dv] = cardLine(o, detailOf(o.type), idx);
   const tip = [o.purpose, o.serial && 'Serial number ' + o.serial, o.model && o.model].filter(Boolean).join(' · ');
-  /* The description (purpose) is a second, quieter line under the name, when there is one. */
-  const desc = String(o.purpose || '').trim();
-  const name = html`<span class="c-name${desc ? ' has-desc' : ''}"><span class="c-nl"><button type="button" class="nm card-open" data-open="${o.id}" title="${tip || 'Open ' + o.name}">${o.name}</button>${rawHtml(markHtml(o, false))}${o.code && !o.review ? html`<small class="code">${o.code}</small>` : ''}</span>${desc ? html`<span class="c-desc" title="${desc}">${desc}</span>` : ''}</span>`;
+  /* Every row has two lines: the name, and under it, quieter, the description; a device without one shows its serial
+   number there instead (in the code font). The rows are all as tall; a name with nothing under it sits in the middle. */
+  const purpose = String(o.purpose || '').trim(), alt = !purpose && o.serial ? `Serial number ${o.serial}` : '';
+  const desc = purpose || alt;
+  const name = html`<span class="c-name has-desc${desc ? '' : ' nodesc'}"><span class="c-nl"><button type="button" class="nm card-open" data-open="${o.id}" title="${tip || 'Open ' + o.name}">${o.name}</button>${rawHtml(markHtml(o, false))}${o.code && !o.review ? html`<small class="code">${o.code}</small>` : ''}</span>${desc ? html`<span class="c-desc${alt ? ' alt' : ''}" title="${desc}">${purpose || html`<span class="mono">${o.serial}</span>`}</span>` : ''}</span>`;
   const head = html`<button type="button" class="cardtick" title="Select (Shift + click selects a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button><span class="c-ico" title="${t.label}">${rawHtml(tico(o.type))}</span>${name}${userCell(o, idx)}${locCell(o, idx)}<span class="c-ip mono">${o.ip || ''}</span>`;
   if (o.review){
     const why = !o.review.ignored && waitReason(o).text;
@@ -156,7 +174,7 @@ export function cardHtml(o, idx, join = showJoin()){
       : html`<button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>`;
     return String(html`<article class="card lrow${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${`${o.name}: pending`}">${head}<span class="c-src rv-from" title="${alsoIn(o).length ? 'Also in ' + alsoIn(o).join(', ') : ''}">${REVIEW_SRC[o.review.src] || o.review.src}${alsoIn(o).length ? html`<span class="rv-also"> +${alsoIn(o).length}</span>` : ''}</span><span class="c-chips rv-chips">${why ? html`<span class="rv-why" title="${why}">${why}</span>` : ''}${chipsCell(chips)}</span>${seenCell(o)}<span class="rv-acts">${acts}${o.review.ignored || !isAdmin() ? '' : html`<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button>`}</span></article>`);
   }
-  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? dl : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}${rawHtml(quickEditBtn(o))}</article>`);
+  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? dl : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${stateIcons(o)}${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}${rawHtml(quickEditBtn(o))}</article>`);
 }
 /* On a device waiting in Pending devices: the other sources that know it. */
 export const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
