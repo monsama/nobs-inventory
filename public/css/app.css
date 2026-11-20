@@ -2763,9 +2763,10 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
 /* The List: a device's description under its name, a second line in a quieter colour (one line, cut with …); the name
    line keeps its look. Compact rows leave it out (it is in the name's tooltip). */
 .lrow .c-name{min-width:0}
-.lrow .c-name.has-desc{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(16px,auto) 16px;row-gap:1px;align-content:center;padding:4px 0}
+.lrow .c-name.has-desc{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:18px 16px;row-gap:1px;align-content:center;padding:4px 0}
 .lrow .c-name.nodesc>.c-nl{grid-row:1 / -1;align-self:center}
-.lrow .c-nl{display:flex;align-items:baseline;gap:8px;min-width:0}
+.lrow .c-nl{display:flex;align-items:baseline;gap:8px;min-width:0;line-height:18px}
+.lrow .c-name.has-desc>.c-nl{height:18px}
 .lrow .c-desc{font-size:12px;line-height:16px;height:16px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
 .lrow .c-desc .mono{font-size:11.5px;line-height:16px}
 body.dense .lrow .c-desc{display:none}
