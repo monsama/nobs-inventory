@@ -163,8 +163,8 @@ try {
   await p.evaluate(async () => (await import('/js/19-modal.js')).closeModal());
 
   // Filters: Hide folds them into the strip at the left, a click on it opens them again (side-resize.e2e.mjs: dragging)
-  await go('cards'); await p.waitForSelector('#sidePin');
-  await p.click('#sidePin'); await until(p, () => document.body.classList.contains('side-shut'));
+  await go('cards'); await p.waitForSelector('#sideGrip .side-fold');
+  await p.hover('#side'); await p.click('#sideGrip .side-fold'); await until(p, () => document.body.classList.contains('side-shut'));
   await p.click('#sideRail'); await until(p, () => !document.body.classList.contains('side-shut'));
 
   assert.deepEqual(errors, [], 'page errors');

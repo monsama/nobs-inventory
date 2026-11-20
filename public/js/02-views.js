@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { scanSpan, whereSignOf, NEW_DAYS, stampTime, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
+import { scanSpan, whereSignOf, NEW_DAYS, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -11,7 +11,7 @@ import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { USERS, isAdmin, ownOnly, seenSites } from './04-settings.js';
 import { sheetModal } from './08-sheets.js';
 import { handOutToModal, takeBackModal } from './27-handout.js';
-import { reviewDo, waitReason } from './15-review.js';
+import { waitReason } from './15-review.js';
 import { QUALITY_FIX, qfix, tableShownList } from './views-table.js';
 import { renderSavedViews } from './views-saved.js';
 import { html, rawHtml } from './html.js';
@@ -166,12 +166,8 @@ $('#side').addEventListener('click', e => {
   view();
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
-/* Pending devices, from its tab, the line over the inventory or a type's +3: a list of its own, so the inventory's filters go;
+/* Pending devices, from its tab, the bell or the Overview: a list of its own, so the inventory's filters go;
    type: only the ones of that type. */
-/* When this person last looked at Pending devices (kept in this browser): the line over the inventory says only what
-   came after. */
-const pendingSeen = () => { try { return +localStorage.getItem('ni-pending-seen') || 0; } catch { return 0; } };
-const markPendingSeen = () => { try { localStorage.setItem('ni-pending-seen', String(Date.now())); } catch { /* not kept */ } };
 /* Esc in Pending devices goes back to the inventory (from Ignored, back to Pending devices). Not while typing, in a
    dialog or with devices picked (Esc takes the pick back first). Caught before the pick's own Esc. */
 document.addEventListener('keydown', e => {
@@ -185,7 +181,6 @@ document.addEventListener('keydown', e => {
 /* Back from Pending devices (or Ignored) to the inventory, in the same view (List, Table). */
 export function leavePending(){ st.scope = null; st.rvSrc = st.rvWhy = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set(); }
 export function enterCheck(type = null){
-  markPendingSeen();
   resetFilters();
   Object.assign(st, { scope: 'review', rvSrc: '', rvWhy: '', rvKnown: false, rvOld: false, bulk: new Set(), person: null, live: false, type });
   if (!LIST_TABS.includes(st.tab)) st.tab = 'cards';
@@ -268,30 +263,18 @@ export function renderFilterBar(){
   const hf = list && st.handField && isAdmin() ? html`<div class="fb-person fb-qfix"><b>Set by hand: ${SYNC_FIELD_LABEL[st.handField] || st.handField}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
   const qf = st.tab === 'table' && qfix() && QUALITY_FIX[st.quality] && QUALITY[st.quality];
   const qbar = !qf ? '' : html`<div class="fb-person fb-qfix"><b>${QUALITY[st.quality][0]}</b><span class="muted">${QUALITY_FIX[st.quality][2]}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && isAdmin() ? html`<button type="button" data-qfix="1" id="qfixSel">Select all ${qfix().n}</button>` : ''}</div>`;
-  /* Devices the syncs found that wait in Pending devices: said over the inventory's lists, so none is missed. */
-  const waitingAll = REVIEW.filter(o => o.review && !o.review.ignored);
-  const typeSum = l => Object.entries(l.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
-  /* Only news: the devices that came into Pending since this person last looked there (or closed this line). The tab's
-     count says how many wait in all. */
-  /* Found times are kept to the minute: one found in the minute Pending devices was last opened counts as new. */
-  const fresh = waitingAll.filter(o => stampTime(o.review.at) >= Math.floor(pendingSeen() / 6e4) * 6e4);
-  const waitBar = !list || st.scope || !fresh.length || leftFilters() || st.q.trim() || person ? '' : html`<div class="fb-person fb-wait"><span class="dot warn" aria-hidden="true"></span><b>${fresh.length} new ${fresh.length === 1 ? 'device waits' : 'devices wait'} in Pending devices</b><span class="muted">${typeSum(fresh).slice(0, 5).map(([t, n]) => `${n} ${TYPES[t] ? TYPES[t].label : t}`).join(' · ')}${typeSum(fresh).length > 5 ? ' · …' : ''}</span><span class="grow"></span><button type="button" data-gowait="1">Show them</button><button type="button" class="fb-x" data-waitok="1" title="Got it: hide this until more come" aria-label="Hide this until more come">×</button></div>`;
-  /* In Pending devices: the ones with nothing unclear, added at once by their type; the others are decided one by one. */
-  const clear = list && st.scope === 'review' && isAdmin() ? filtered().filter(o => waitReason(o).clear) : [];
-  const groups = typeSum(clear);
-  const addBar = !clear.length ? '' : html`<div class="fb-person fb-wait fb-ckrow"><b>Add at once</b><span class="muted">${clear.length} shown with nothing unclear</span>${groups.map(([t, n]) => html`<button type="button" data-addtype="${t}" title="Add the ${n} clear ${TYPES[t] ? TYPES[t].label : t} to the inventory (Undo in the message)">${TYPES[t] ? TYPES[t].label : t} (${n})</button>`)}</div>`;
+  /* No line over the inventory about devices waiting in Pending devices: the Pending tab says how many. In Pending
+     devices, the clear ones are taken in with the filter Nothing unclear and Accept all. */
   /* Gone from a source: the devices listed can be retired in one go (admins, in the inventory's lists). */
   const goneN = list && !st.scope && (st.gone || st.where) && isAdmin() ? goneShown().length : 0;
   const goneBar = !goneN ? '' : html`<div class="fb-person fb-wait"><b>${goneN} ${goneN === 1 ? 'device' : 'devices'} ${st.gone ? 'gone' : 'may no longer be there'}</b><span class="muted">check where they are, then retire the ones no longer there</span><span class="grow"></span><button type="button" data-goneretire="1">Retire these ${goneN}…</button></div>`;
-  bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !waitBar && !addBar && !goneBar;
-  bar.innerHTML = html`${waitBar}${who}${qbar}${hf}${scope}${addBar}${goneBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
+  bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !goneBar;
+  bar.innerHTML = html`${who}${qbar}${hf}${scope}${goneBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
 /* The devices a Gone from list shows, not retired: in the Table only the rows its column filters leave. */
 const goneShown = () => ((st.tab === 'table' && tableShownList()) || filtered()).filter(o => o.status !== 'retired');
 $('#fbar').addEventListener('click', e => {
-  if (e.target.closest('[data-gowait]')){ enterCheck(); view(); return; }
   if (e.target.closest('[data-goneretire]')){ import('./gone-retire.js').then(m => m.retireGoneModal(goneShown())); return; }
-  if (e.target.closest('[data-waitok]')){ markPendingSeen(); view(); return; }
   /* Pending devices's own filters: why they wait, which source found them, the ignored ones. */
   const ck = e.target.closest('[data-ckwhy], [data-cksrc], [data-ckign]');
   if (ck){
@@ -304,8 +287,6 @@ $('#fbar').addEventListener('click', e => {
     const again = $('#fbar ' + sel); if (again && e.detail === 0) again.focus();
     return;
   }
-  const at = e.target.closest('[data-addtype]');
-  if (at && isAdmin()){ const t = at.dataset.addtype; reviewDo('accept', filtered().filter(o => waitReason(o).clear && (t === '*' || o.type === t))); return; }
   if (e.target.closest('[data-qfix]')){ if (qfix()) qfix().select(); return; }
   if (e.target.closest('[data-handback]') && st.handField){
     const k = st.handField, list = filtered(), snap = snapshot(list);
@@ -367,7 +348,6 @@ export function placeSide(){
 /* The Filters button says whether the drawer is open, however it closes (Escape, a tap beside it, a filter picked). */
 new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('aria-expanded', String(document.body.classList.contains('side-open'))); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 function setSidePin(on){ try { localStorage.setItem('ni-side-pin', on ? '1' : '0'); } catch { /* not kept */ } document.body.classList.remove('side-open'); placeSide(); }
-$('#sidePin').onclick = () => { setSidePin(false); $('#sideRail')?.focus(); };
 /* Dragging the edge (or the strip): the width follows the pointer; let go nearer the left edge than SIDE_SNAP, the
    filters fold away (the width before is kept for when they open again). A click on the strip opens them, a click on
    the small tab in the middle of the edge folds them. */
@@ -391,7 +371,7 @@ function dragSide(e, fromRail){
   const up = () => {
     removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
     document.body.classList.remove('side-dragging', 'side-snap');
-    if (!moved){ if (fromRail) setSidePin(true); else if (fold && !movedY){ setSidePin(false); $('#sideRail')?.focus(); } return; }
+    if (!moved){ if (fromRail) setSidePin(true); else if (fold && !movedY){ setSidePin(false); /* by mouse: no focus on the strip (its blue ring); by keyboard (Enter on the edge) it gets it */ } return; }
     if (w < SIDE_SNAP){ keepWidth(was); setSidePin(false); return; }
     keepWidth(Math.max(SIDE_MIN, w)); setSidePin(true);
   };

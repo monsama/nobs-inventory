@@ -40,7 +40,7 @@ try {
   const a = await signIn('admin', 'adminpass123');
   assert.equal(await a.isHidden('#viewHdr'), true, 'Views shows while there are none');
   await a.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); });
-  await a.waitForSelector('#svSave');
+  await a.waitForSelector('#toolbar .tb-more');
   /* The Network columns, PCs only, a search, a filter under Location and the sort by Name, downwards. */
   await a.click('#colMenu > .menu-btn'); await a.click('[data-colpreset="network"]');
   await a.click('#typeList [data-type="pc"]');
@@ -52,7 +52,7 @@ try {
   const want = { rows: await rows(a), heads: await heads(a) };
   assert.deepEqual(want.heads, ['Name', 'Type', 'IP', 'MAC', 'Location', 'Connected to', 'Status', 'Last seen']);
 
-  await a.click('#svSave'); await a.fill('#svName', 'Office PCs'); await a.click('#svOk');
+  await a.click('#toolbar .tb-more .menu-btn'); await a.click('#svSave'); await a.fill('#svName', 'Office PCs'); await a.click('#svOk');
   await a.waitForSelector('#viewList .item.sel:has-text("Office PCs")');
   await storedBy(() => loadState(db), s => s.savedViews.length === 1 && s.savedViews[0].name === 'Office PCs');
   const saved = loadState(db).savedViews[0];
@@ -78,12 +78,12 @@ try {
   await a.click('#clearF');
   await a.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'cards'; (await import('/js/07-render.js')).render(); });
   await a.click('#statList [data-status="stock"]');
-  await a.click('#svSave'); await a.fill('#svName', 'In stock'); await a.press('#svName', 'Enter');
+  await a.click('#toolbar .tb-more .menu-btn'); await a.click('#svSave'); await a.fill('#svName', 'In stock'); await a.press('#svName', 'Enter');
   await a.waitForSelector('#viewList .item.sel:has-text("In stock")');
   /* Saving under the name of another view says so first; Save again replaces it, and Undo gives it back. */
   const office = () => JSON.stringify(loadState(db).savedViews.find(x => x.name === 'Office PCs'));
   const before = office();
-  await a.click('#svSave'); await a.fill('#svName', 'office pcs'); await a.click('#svOk');
+  await a.click('#toolbar .tb-more .menu-btn'); await a.click('#svSave'); await a.fill('#svName', 'office pcs'); await a.click('#svOk');
   await a.waitForSelector('#svTwin:has-text("already called “Office PCs”")');
   assert.equal(office(), before, 'replaced without asking');
   await a.click('#svOk');

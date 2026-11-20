@@ -50,12 +50,13 @@ export function renderBell(changed = false){
 /* Draws the bell's count, colour and label, the dot on More, and the list of the notices not hidden in its popover. */
 function drawBell(){
   const btn = $('#bellBtn'), pop = $('#bellPop'), badge = $('#bellN');
-  const shown = shownNotices(NOTICES, hiddenN), n = shown.length, worst = shown.some(x => x.sev === 'bad') ? 'bad' : n ? 'warn' : '';
+  /* Devices waiting in Pending devices are counted on the Pending tab, not here a second time. */
+  const pool = NOTICES.filter(x => x.id !== 'review'), shown = shownNotices(pool, hiddenN), n = shown.length, worst = shown.some(x => x.sev === 'bad') ? 'bad' : n ? 'warn' : '';
   const say = n ? `${n} ${n === 1 ? 'notification' : 'notifications'}` : 'No notifications';
   badge.textContent = n > 99 ? '99+' : String(n); badge.hidden = !n; badge.className = `bell-n ${worst}`;
   btn.setAttribute('aria-label', say); btn.title = say;
 
-  const hid = NOTICES.length - n;
+  const hid = pool.length - n;
   pop.innerHTML = html`<div class="bell-hdr"><b>Notifications</b><span class="muted">${n || 'none'}</span></div>
     ${n ? html`<div class="bell-list">${shown.map(x => html`<div class="bell-item ${x.sev}"><button type="button" class="bell-go" data-bell="${x.id}"><span class="dot ${x.sev}" aria-hidden="true"></span><span class="bell-t"><b>${x.title}</b><small>${x.text}</small></span></button><button type="button" class="icon bell-x" data-bellhide="${x.id}" title="Hide until it changes" aria-label="${`Hide until it changes: ${x.title}`}">×</button></div>`)}</div>`
       : html`<p class="muted bell-none">No notifications right now.</p>`}

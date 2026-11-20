@@ -1,23 +1,25 @@
 /* Print the list on screen: the devices the filters leave, as cards or as a table, in a page of its own made for paper
    (light, no buttons), with what was filtered and when. The browser's print dialog also saves it as a PDF. */
-import { $, filtered, menuHtml, relIndex, st, toast } from './01-core.js';
+import { $, MORE_DOTS, filtered, menuHtml, relIndex, st, toast } from './01-core.js';
 import { cardHtml, listHead, sortCards } from './views-cards.js';
 import { tablePrintData } from './views-table.js';
 import { html, rawHtml } from './html.js';
 
-/* The download arrow every Export menu has. */
+/* The download arrow of the export items in the ⋯ menus. */
 export const EXPORT_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>';
-/* The two ways to print the devices shown, as buttons of an Export menu. */
+/* The two ways to print the devices shown, as buttons of a ⋯ menu. */
 export const printItems = () => String(html`<button type="button" data-print="cards">Print as a list<span class="muted">, the devices shown</span></button>
   <button type="button" data-print="table">Print as a table<span class="muted">, the columns of the Table</span></button>`);
-/* The Export menu of the List: printing, and the files, which the Table makes from its columns. */
-export const printMenuHtml = () => menuHtml(EXPORT_ICON + 'Export', String(html`<button type="button" data-goexport>Excel or CSV<span class="muted">, from the Table's columns</span></button><hr class="msep">${rawHtml(printItems())}`), { id: 'printMenu' });
+/* The List's one menu (⋯): Save view… (admins) first, then export and print. */
+export const printMenuHtml = (before = '') => menuHtml(MORE_DOTS, String(html`${before ? html`${rawHtml(before)}<hr class="msep">` : ''}<button type="button" data-goexport>${rawHtml(EXPORT_ICON)}Excel or CSV<span class="muted">, from the Table's columns</span></button><hr class="msep">${rawHtml(printItems())}`), { id: 'printMenu', cls: 'tb-more', btn: moreBtnAttrs([before && 'save view', 'export', 'print']) });
+/* The ⋯ button's name: what its menu holds here (a viewer has no Save view, Pending devices no import). */
+export const moreBtnAttrs = parts => { const t = parts.filter(Boolean).join(', '); return `aria-label="More: ${t}" title="${t.charAt(0).toUpperCase() + t.slice(1)}"`; };
 export function bindPrintMenu(){
   document.querySelectorAll('#printMenu [data-print], #csvMenu [data-print]').forEach(b => b.addEventListener('click', () => {
     const box = /** @type {HTMLElement|null} */ (b.closest('.menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }
     printView(/** @type {HTMLElement} */ (b).dataset.print);
   }));
-  /* Excel or CSV from the List: the Table has the columns, so it opens there with its Export menu open. */
+  /* Excel or CSV from the List: the Table has the columns, so it opens there with its ⋯ menu open. */
   const go = document.querySelector('#printMenu [data-goexport]');
   if (go) go.addEventListener('click', async () => {
     const box = /** @type {HTMLElement|null} */ (go.closest('.menubox')); if (box) try { box.hidePopover(); } catch { /* not open */ }

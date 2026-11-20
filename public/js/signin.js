@@ -17,7 +17,6 @@ export async function loadVersion(){
   if (!APP_VERSION){
     try { const r = await fetch('api/health', {credentials: 'same-origin'}); if (r.ok) setAppVersion((await r.json()).version || ''); } catch { /* no version is shown when it cannot be read */ }
   }
-  const foot = $('#verFoot'); if (foot) foot.textContent = 'NOBS Inventory ' + APP_VERSION;
   return APP_VERSION;
 }
 /* Starts the page: reads the version and who is signed in (api/me) and what the server offers. Without a server it says

@@ -36,7 +36,8 @@ try {
 
   // a monitor: the user and location of the PC it is attached to, marked; no warranty anywhere
   const mon = await p.textContent('#cards .card[data-open="m"]');
-  assert.match(mon, /Alex Example/); assert.match(mon, /HQ \/ Office/); assert.match(mon, /via PC-10/);
+  assert.match(mon, /Alex Example/); assert.match(mon, /Office/); assert.match(mon, /via PC-10/);
+  assert.equal(await p.getAttribute('#cards .card[data-open="m"] .c-loc', 'title'), 'HQ / Office, from PC-10', 'one site shown: the room, the whole location in the tooltip');
   assert.doesNotMatch(mon, /Warranty/);
   assert.doesNotMatch(await p.textContent('#cards .card[data-open="1"]'), /Warranty/, 'no warranty on a PC');
 

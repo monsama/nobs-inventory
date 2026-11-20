@@ -107,7 +107,7 @@ try {
   await p.click('#nOk');
   await storedBy(() => loadState(db), t => t.objs.some(o => o.name === 'PC-TWIN'));
   // Last seen → never: only the devices no source has seen; the export of the shown columns is named after it
-  await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); }); await p.waitForSelector('#tblCount');
+  await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); }); await p.waitForSelector('#tblCount', { state: 'attached' });
   await p.evaluate(() => { document.querySelector('#moreFilters').open = true; });
   await p.click('[data-seen=never]');
   await until(p, () => document.querySelector('#tblCount').textContent.trim().startsWith('4 of '));

@@ -71,7 +71,7 @@ try {
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).byId('a').custom.tag), 'T-1');
 
   // the saves reached the server
-  await until(p, async () => document.querySelector('#stSave').textContent.trim() === 'All changes saved');
+  await until(p, async () => document.querySelector('#stSave').textContent.trim() === '');
   await new Promise(r => setTimeout(r, 600));
   const s = loadState(db);
   assert.equal(s.objs.find(o => o.id === 'b').fw, '');

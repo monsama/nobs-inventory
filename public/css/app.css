@@ -1415,7 +1415,6 @@ button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--dange
 .jb.no{border-left:1px dashed var(--bd);background:transparent;border-style:solid;border-color:var(--bd2)}
 /* Not known (no Microsoft Graph): faded, so it does not read as "not joined". */
 .jb.unk{background:transparent;opacity:.6;border-style:solid;border-color:var(--bd2)}
-@media (max-width:760px){#verFoot{display:none!important}}
 @media (hover:none){.sechdr:hover{background:inherit}}
 /* In the Lansweeper panel the status chip shows its whole text, in the page's font: the fixed width is for cards and rows. */
 .lsbox .chip.lsst{width:auto;max-width:100%;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif}
@@ -2225,7 +2224,6 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .panelbox>details.how.ds-how .ds-explain{margin:6px 0 10px}
 /* How many more of a type wait in Pending devices, beside its count in the sidebar. */
 #side .item .cnt-wait{font-size:11px;color:var(--warntext);font-weight:600;font-variant-numeric:tabular-nums}
-.fb-wait .dot{flex:none}
 /* Pending devices's own filters, over its list: why they wait and which source found them. */
 .fb-ckrow{flex-wrap:wrap;row-gap:8px;min-width:0;max-width:100%}
 .fb-seg>button{display:inline-flex;align-items:center;gap:6px}
@@ -2295,7 +2293,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 @media (max-width:760px){ #barMoreBtn{width:32px;padding:0} #barMoreBtn>svg{display:inline} .bar-who{display:none} }
 /* ---------- the device list (List view): one row per device, headings that sort, groups as bands ---------- */
 #cards.lst{display:block;gap:0;margin:12px 16px 16px;padding:0;background:var(--card);border:1px solid var(--card-bd);border-radius:var(--r-m);overflow:clip;
-  --cols:16px 18px minmax(150px,1.15fr) minmax(110px,.9fr) minmax(150px,1.35fr) 104px minmax(100px,1fr) minmax(0,170px) 84px}
+  --cols:16px 18px minmax(150px,1.15fr) var(--w-user,minmax(110px,.9fr)) var(--w-loc,minmax(150px,1.35fr)) var(--w-ip,104px) var(--w-det,minmax(100px,1fr)) var(--w-chips,minmax(0,170px)) var(--w-seen,84px)}
 #cards.lst.pend{--cols:16px 18px minmax(150px,1.1fr) minmax(100px,.8fr) minmax(130px,1.1fr) 104px 104px minmax(150px,1.6fr) 84px 168px}
 #view:has(#cards.lst){background:var(--canvas)}
 .lst .lhead,.lst .lrow{display:grid;grid-template-columns:var(--cols);gap:12px;align-items:center;padding:0 14px}
@@ -2382,7 +2380,9 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 }
 .lrow .c-chips,.lrow .c-chips.rv-chips{flex-wrap:nowrap;padding:0;overflow:hidden}
 .lrow .rv-acts{justify-content:flex-end}
-#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) minmax(110px,.9fr) minmax(150px,1.3fr) 104px minmax(100px,1fr) 214px minmax(0,130px) 84px}
+#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) var(--w-user,minmax(110px,.9fr)) var(--w-loc,minmax(150px,1.3fr)) var(--w-ip,104px) var(--w-det,minmax(100px,1fr)) 214px var(--w-chips,minmax(0,130px)) var(--w-seen,84px)}
+/* A column with nothing in it on any row shown (renderCardsBody takes it out of the grid): its heading and cells go too. */
+#cards.lst.no-user .c-user,#cards.lst.no-loc .c-loc,#cards.lst.no-ip .c-ip,#cards.lst.no-det .c-det,#cards.lst.no-chips .c-chips,#cards.lst.no-seen .seen{display:none}
 /* The Directory column of the List: the dot and a short label each, no boxes, so the four (AD, Entra, Intune, Defender)
    fit its width side by side; the full words and states are in each one's tooltip and on the device page. */
 .lrow .c-dir{overflow:hidden;min-width:0}
@@ -2409,14 +2409,14 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .lst .lhead>.c-chips,.lst .lhead>.seen{display:block}
 .lst .lhead>.seen{text-align:right}
 @media (min-width:761px){ @container devlist (max-width:980px){
-  .lst:not(.pend) .lhead,.lst:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) minmax(90px,.9fr) minmax(110px,1.3fr) minmax(80px,.9fr) minmax(0,150px) 76px}
-  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) minmax(90px,.9fr) minmax(110px,1.3fr) minmax(80px,.9fr) 214px minmax(0,110px) 76px}
+  .lst:not(.pend) .lhead,.lst:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) var(--w-user,minmax(90px,.9fr)) var(--w-loc,minmax(110px,1.3fr)) var(--w-det,minmax(80px,.9fr)) var(--w-chips,minmax(0,150px)) var(--w-seen,76px)}
+  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) var(--w-user,minmax(90px,.9fr)) var(--w-loc,minmax(110px,1.3fr)) var(--w-det,minmax(80px,.9fr)) 214px var(--w-chips,minmax(0,110px)) var(--w-seen,76px)}
   .lst:not(.pend) .c-ip{display:none}
   .lst.pend .lhead,.lst.pend .lrow{grid-template-columns:16px 18px minmax(120px,1.1fr) minmax(90px,.8fr) minmax(110px,1fr) minmax(140px,1.5fr) 76px 168px}
   .lst.pend .c-ip,.lst.pend .c-src{display:none}
 } }
 @media (min-width:761px){ @container devlist (max-width:760px){
-  .lst:not(.pend) .lhead,.lst:not(.pend) .lrow,.lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(110px,1.2fr) minmax(80px,.9fr) minmax(100px,1.2fr) minmax(0,130px) 76px}
+  .lst:not(.pend) .lhead,.lst:not(.pend) .lrow,.lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(110px,1.2fr) var(--w-user,minmax(80px,.9fr)) var(--w-loc,minmax(100px,1.2fr)) var(--w-chips,minmax(0,130px)) var(--w-seen,76px)}
   .lst:not(.pend) .c-det,.lst .c-dir{display:none}
   .lst.pend .lhead,.lst.pend .lrow{grid-template-columns:16px 18px minmax(110px,1.1fr) minmax(90px,1fr) minmax(120px,1.4fr) 76px 168px}
   .lst.pend .c-loc{display:none}
@@ -2466,14 +2466,12 @@ table.grid:is(.ips,.prns,.sw,.contracts) tbody tr:hover td{background:var(--card
 @media (max-width:760px){ .obj.otabbed .ogrid{grid-template-columns:minmax(0,1fr)} .obj.otabbed .otabs{overflow-x:auto} .obj.otabbed .ofacts{gap:6px 18px} }
 /* Filters as a drawer on a wide screen too (unless kept open): the Filters button in the bar opens them over the list. */
 #sideBtn .side-lbl,#sideBtn .side-n{display:none}
-.side-pinrow{display:none}
 @media (min-width:821px){
   body.side-drawer:not(.noside) #sideBtn{display:inline-flex;width:auto;padding:0 10px;gap:6px}
   body.side-drawer #sideBtn .side-lbl{display:inline}
   body.side-drawer #sideBtn .side-n:not([hidden]){display:inline-flex;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--accent);color:#fff;font-size:11px;font-weight:600;align-items:center;justify-content:center}
   body.side-drawer #side{position:absolute;inset:0 auto 0 0;z-index:20;box-shadow:var(--shadow);display:none}
   body.side-drawer.side-open #side{display:flex}
-  .side-pinrow{display:flex;justify-content:flex-end;padding:6px 10px 0}
 }
 /* The bar for the selected devices floats over the bottom of the list, where the eye goes after picking rows, and
    does not push the list down. The message at the bottom moves above it while it is there. */
@@ -2712,12 +2710,12 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
   body.side-dragging #sideGrip .side-fold{opacity:0}
   body:not(.noside).side-shut #sideRail{display:flex;flex:none;align-self:stretch;height:auto;max-height:none;flex-direction:column;align-items:center;gap:6px;width:14px;padding:10px 0;margin:0;border:0;border-right:1px solid var(--bd);border-radius:0;background:var(--bg);color:var(--muted);cursor:col-resize;touch-action:none;min-height:0}
   #sideRail:hover,#sideRail:focus-visible{background:var(--sub);color:var(--fg)}
+  #sideRail:focus:not(:focus-visible){outline:0}
   #sideRail:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   #sideRail .i{width:12px;height:12px}
   #sideRail .rail-n:not([hidden]){display:inline-flex;align-items:center;justify-content:center;min-width:14px;height:14px;border-radius:7px;background:var(--accent);color:#fff;font-size:10px;font-weight:600}
   body.side-dragging,body.side-dragging *{cursor:col-resize!important;user-select:none}
   body.side-snap #side{opacity:.45}
-  .side-pinrow{display:flex;justify-content:flex-end;padding:6px 10px 0}
 }
 /* Settings → Locations: sites and rooms as a list (left) and the one picked (right), as Device types. */
 .lc-split{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:340px}

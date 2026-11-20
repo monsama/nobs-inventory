@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { REVIEW, addedTime, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
+import { REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
 import { SERVER, view, viewSig } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -104,11 +104,14 @@ const userCell = (o, idx) => {
   const r = respText(o);
   return html`<span class="c-user resp" title="${r ? 'Responsible' : ''}">${r}</span>`;
 };
+/* The one site every device shown is at (set while the List is drawn): the rows then say the room only. */
+let oneSite = '';
+const shortLoc = l => oneSite && l.startsWith(oneSite + ' / ') ? l.slice(oneSite.length + 3) : l;
 /* Where it is: its location; else its host's (a monitor on a PC, marked in the chips); a virtual machine "on" its host. */
 const locCell = (o, idx) => {
-  if (o.loc) return html`<span class="c-loc" title="${o.loc}">${o.loc}</span>`;
+  if (o.loc) return html`<span class="c-loc" title="${o.loc}">${shortLoc(o.loc)}</span>`;
   const h = hostOf(o, idx);
-  if (h && h.loc) return html`<span class="c-loc" title="${h.loc}, from ${h.name}">${h.loc}</span>`;
+  if (h && h.loc) return html`<span class="c-loc" title="${h.loc}, from ${h.name}">${shortLoc(h.loc)}</span>`;
   const r = runsOn(o, idx);
   return r ? html`<span class="c-loc sub">on ${r.name}</span>` : html`<span class="c-loc"></span>`;
 };
@@ -231,14 +234,15 @@ export const SHOW_FIRST = 500;
 export function renderCardsBody(){
   let list = sortCards(filtered());
   const pool = scopePool();
-  $('#toolbar').innerHTML = html`<span class="muted">${listCount(list.length, pool.length)}</span><span class="tbsep"></span>
+  const count = listCountShown(list.length, pool.length);
+  $('#toolbar').innerHTML = html`${count ? html`<span class="muted">${count}</span>` : ''}<span class="tbsep"></span>
     <span class="tb-grp"><label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select></span>
     <span class="tb-grp ph-only"><label class="muted" for="cardSortM">Sort by</label><select id="cardSortM">${[['', 'Default'], ...(st.scope ? PEND_HEADS : HEADS).filter(h => h[0]).flatMap(([k, l]) => [[k + ':1', l + (k === 'seen' ? ', oldest first' : ', A to Z')], [k + ':-1', l + (k === 'seen' ? ', newest first' : ', Z to A')]])].map(([v, l]) => html`<option value="${v}" ${(cardSort.k ? cardSort.k + ':' + cardSort.dir : '') === v ? 'selected' : ''}>${l}</option>`)}</select></span>
     ${list.length ? html`<button type="button" class="ph-only" data-pickall="1">${st.bulk && st.bulk.size ? 'Clear selection' : 'Select all'}</button>` : ''}
     ${st.cardsGroup !== 'none' ? html`<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>` : ''}
     ${joinCardsAvailable() && !st.scope ? html`<span class="tbsep"></span><label class="pchk" title="A column that shows whether computers and phones are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Directory status</label>` : ''}
-    ${saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(saveViewBtn())}` : ''}${list.length ? html`<span class="tbsep"></span>${rawHtml(printMenuHtml())}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;
-  bindScopeActs(list); bindSaveView(); bindPrintMenu();
+    ${list.length || saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(printMenuHtml(saveViewBtn()))}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;
+  bindScopeActs(list); bindSaveView(); bindPrintMenu(); closeMoreOnPick();
   const cj = $('#cardJoin');
   if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   $('#grp').value = st.cardsGroup;
@@ -262,6 +266,8 @@ export function renderCardsBody(){
   const cut = st.cardsAll !== viewSig() && list.length > SHOW_FIRST + 100;
   const more = cut ? html`<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length}. Search or filter to narrow them down.</span><button id="cardsAll">Show all ${list.length}</button></div>` : '';
   if (cut) list = list.slice(0, SHOW_FIRST);
+  const sites = new Set(list.map(o => String(o.loc || '').split(' / ')[0]).filter(Boolean));
+  oneSite = !pend && sites.size === 1 && list.every(o => !o.loc || o.loc.includes(' / ')) ? [...sites][0] : '';
   let rows;
   if (st.cardsGroup === 'none') rows = list.map(o => card(o)).join('');
   else {
@@ -276,6 +282,15 @@ export function renderCardsBody(){
     }).join('');
   }
   $('#view').innerHTML = html`<div id="cards" class="lst${pend ? ' pend' : ''}${join ? ' join' : ''}${isAdmin() && !pend ? ' qe' : ''}${st.bulk && st.bulk.size ? ' picking' : ''}" aria-label="${pend ? 'Pending devices' : 'Devices'}">${listHead(pend, join)}${rawHtml(rows)}</div>${more}`;
+  /* One site: its name goes in the Location heading, once. */
+  const lh = $('#cards .lhead .c-loc .lh-sort');
+  if (lh && oneSite && lh.firstChild && lh.firstChild.nodeType === 3){
+    lh.firstChild.textContent = `Room in ${oneSite}`;
+    /* The name read out starts with what is shown, then what the button does. */
+    lh.setAttribute('aria-label', `Room in ${oneSite}: ${lh.getAttribute('aria-label') || 'sort by location'}`);
+  }
+  oneSite = '';
+  if (!pend) fitColumns();
   const b = $('#cardsAll'); if (b) b.onclick = () => { st.cardsAll = viewSig(); renderCards(); };
   $('#view').querySelectorAll('[data-csort]').forEach(h => h.addEventListener('click', e => { e.stopPropagation(); sortBy(h.dataset.csort); renderCards(); const again = $(`#view [data-csort="${h.dataset.csort}"]`); if (again) again.focus(); }));
   $('#view').querySelectorAll('.grphdr').forEach(h => {
@@ -289,6 +304,18 @@ export function renderCardsBody(){
   if (ea) ea.onclick = () => setAll(false);
 }
 
+/* A column with nothing in any row drawn (no IP anywhere, no one seen…) takes no room, not even its gap: the others get it. */
+const FIT_COLS = { user: 'c-user', loc: 'c-loc', ip: 'c-ip', det: 'c-det', chips: 'c-chips', seen: 'seen' };
+function fitColumns(){
+  const box = /** @type {HTMLElement|null} */ ($('#cards')); if (!box) return;
+  const rows = [...box.querySelectorAll(':scope .lrow')]; if (!rows.length) return;
+  for (const [k, cls] of Object.entries(FIT_COLS)){
+    const empty = rows.every(r => { const c = r.querySelector(':scope > .' + cls); return !c || (!c.textContent.trim() && !c.querySelector('svg, img, button, .chip')); });
+    box.classList.toggle('no-' + k, empty);
+    /* An empty value takes the column out of the grid (no width, no gap); its cells are not drawn (CSS no-…). */
+    if (empty) box.style.setProperty('--w-' + k, ' '); else box.style.removeProperty('--w-' + k);
+  }
+}
 export function renderCards(){ st.bulk = pickedInPool(); renderCardsBody(); addSearchHits(); bindPickBar(); }
 /* Accept, Merge and Ignore on a card in Pending devices act on it straight away, without opening it. */
 const rvAct = e => {
