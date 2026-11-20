@@ -15,8 +15,9 @@ const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const dev = (id, more) => ({ id, code: 'INV-' + id, type: 'notebook', name: 'NB-' + id, status: 'active', loc: 'Main / Office', ovr: {}, inAd: true, ...more });
 saveState(db, { ...loadState(db), sites: ['Main'], locs: ['Main / Office', 'Main / Lab'], locMap: { Lab: 'Main / Lab' }, objs: [
-  dev('1', { ad: { location: 'Main / Office' } }), dev('2', { ad: { location: 'Bern 2. OG' } }), dev('3', { ad: { location: 'lab' } }), dev('4', { loc: '', ad: { location: 'Annex Hall' } }), dev('5', {}),
-], rels: [], history: {} });
+  dev('1', { ad: { location: 'Main / Office' } }), dev('2', { ad: { location: 'Bern 2. OG' } }), dev('3', { ad: { location: 'lab' } }), dev('4', { loc: '', ad: { location: 'Annex Hall' } }), dev('5', {}), dev('6', { loc: '', ad: { location: 'Lab' } }),
+  dev('7', { loc: '', inAd: false, uid: 'u1' }), dev('h', { type: 'pc', name: 'PC-H', inAd: false }), dev('m', { type: 'monitor', name: 'MON-M', loc: '', inAd: false, ad: { location: 'Bern 2. OG' } }),
+], rels: [{ id: 'r1', from: 'm', to: 'h', kind: 'attached', port: null, vlan: null }], users: [...loadState(db).users, { id: 'u1', name: 'Pat Example', login: 'pat', role: 'viewer', profile: { office: 'Annex Hall' } }], history: {} });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -36,15 +37,18 @@ try {
   assert.deepEqual(await line('4'), ['ls-new', 'AD: Annex Hall new']);
   assert.equal(await p.locator('#cards .lrow[data-open="4"] .c-ll').count(), 0, 'no room: the AD line alone');
   assert.equal(await line('5'), null);
+  assert.deepEqual(await line('6'), ['ls-fill', 'AD: Lab'], 'a room the device does not have yet: not counted as differing');
+  assert.equal(await line('7'), null, 'the user\'s office only with "Use the office of the device\'s user" on');
+  assert.equal((await p.textContent('#cards .lrow[data-open="m"] .c-ll')).trim(), 'Office', 'an attached device keeps its host\'s room above the AD line');
   assert.match(await p.getAttribute('#cards .lrow[data-open="3"] .c-lsrc', 'title'), /is the room Main \/ Lab, not Main \/ Office/);
 
   // the Overview: two data quality items, which open the devices in the Table with the AD location column's words
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).view(); });
   await p.waitForSelector('[data-ovq="locnew"]');
-  assert.match(await p.textContent('[data-ovq="locnew"]'), /^2/);
+  assert.match(await p.textContent('[data-ovq="locnew"]'), /^3/);
   assert.match(await p.textContent('[data-ovq="locdiff"]'), /^1/);
   await p.click('[data-ovq="locnew"]');
-  await until(p, () => document.querySelectorAll('table.grid tbody tr').length === 2);
+  await until(p, () => document.querySelectorAll('table.grid tbody tr').length === 3);
 
   assert.deepEqual(errors, []);
   console.log('round 164: all checks passed');

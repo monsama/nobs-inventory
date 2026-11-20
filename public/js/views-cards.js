@@ -111,18 +111,18 @@ const shortLoc = l => oneSite && l.startsWith(oneSite + ' / ') ? l.slice(oneSite
 /* Under the room, what AD (or the user's office) says, when it is not this room: a place that is no room here yet, or
    another room. Nothing when they agree. */
 const dirLine = o => { const d = dirLocOf(o); if (!d || d.state === 'same') return null;
-  const tip = d.state === 'new' ? `${d.src === 'AD' ? 'AD location' : 'Office of the user'} “${d.text}” is no room here yet: add it, or map it to a room, in Settings → Locations`
-    : `${d.src === 'AD' ? 'AD location' : 'Office of the user'} “${d.text}” is the room ${d.room}${o.loc ? `, not ${o.loc}` : ''}`;
+  const who = `${d.src === 'AD' ? 'AD location' : 'Office of the user'} “${d.text}”`;
+  const tip = d.state === 'new' ? (d.auto ? `${who} is no room here yet: the next AD sync makes it a room (Settings → Locations)` : `${who} is no room here yet: add it, or map it to a room, in Settings → Locations`)
+    : d.state === 'fill' ? `${who} is the room ${d.room}; this device has no room yet` : `${who} is the room ${d.room}, not ${o.loc}`;
   return html`<span class="c-lsrc ls-${d.state}" title="${tip}">${d.src}: ${d.text}${d.state === 'new' ? html` <b>new</b>` : ''}</span>`; };
 const locCell = (o, idx) => {
   const dl = dirLine(o);
-  if (dl && o.loc) return html`<span class="c-loc has-src"><span class="c-ll" title="${o.loc}">${shortLoc(o.loc)}</span>${dl}</span>`;
-  /* No room here: what AD says is the only line. */
-  if (dl) return html`<span class="c-loc">${dl}</span>`;
+  /* The room line: its own room, else its host's, else the host a virtual machine runs on. */
+  const h = !o.loc && hostOf(o, idx), r = !o.loc && !(h && h.loc) && runsOn(o, idx);
+  const first = o.loc ? html`<span class="c-ll" title="${o.loc}">${shortLoc(o.loc)}</span>` : h && h.loc ? html`<span class="c-ll" title="${h.loc}, from ${h.name}">${shortLoc(h.loc)}</span>` : r ? html`<span class="c-ll sub">on ${r.name}</span>` : '';
+  if (dl) return first ? html`<span class="c-loc has-src">${first}${dl}</span>` : html`<span class="c-loc">${dl}</span>`;
   if (o.loc) return html`<span class="c-loc" title="${o.loc}">${shortLoc(o.loc)}</span>`;
-  const h = hostOf(o, idx);
   if (h && h.loc) return html`<span class="c-loc" title="${h.loc}, from ${h.name}">${shortLoc(h.loc)}</span>`;
-  const r = runsOn(o, idx);
   return r ? html`<span class="c-loc sub">on ${r.name}</span>` : html`<span class="c-loc"></span>`;
 };
 /* The state of a row as two small icons in fixed places, so they line up down the list and are never cut: the status

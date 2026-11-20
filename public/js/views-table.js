@@ -52,7 +52,7 @@ export const TABLE_COLS = [
   /* AD, Entra, Intune and Defender as in the List's Directory column; the words (joined, compliant…) in the export. */
   {k:'dir', w:132, label:'Directory', cell: o => String(html`<td class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</td>`)},
   /* What AD (or the user's office) gives as location; marked when it is no room here yet, or another room. */
-  {k:'dloc', w:200, label:'AD location', cell: o => { const d = dirLocOf(o); return String(html`<td>${d ? html`${d.src === 'Office' ? 'Office: ' : ''}${d.text}${d.state === 'new' ? html` <span class="wty soon">not a room</span>` : d.state === 'diff' ? html` <span class="wty soon">${d.room}</span>` : ''}` : ''}</td>`); }},
+  {k:'dloc', w:200, label:'AD location', cell: o => { const d = dirLocOf(o); return String(html`<td>${d ? html`${d.src === 'Office' ? 'Office: ' : ''}${d.text}${d.state === 'new' ? html` <span class="mk wty soon">not a room</span>` : d.state === 'diff' ? html` <span class="mk wty soon">${d.room}</span>` : ''}` : ''}</td>`); }},
   {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return String(html`<td class="n">${t ? html`${t.name}${up.port != null ? html` · ${portLabel(t, up.port)}` : ''}` : ''}</td>`); }},
   {k:'urls', w:200, label:'Links', cell: o => String(html`<td>${(o.urls || []).map((l, i) => html`${i ? ' · ' : ''}<a class="lnk" href="${linkHref(l.url)}" target="_blank" rel="noopener noreferrer" title="${l.url}">${l.label || linkKind(l.url)}</a>`)}</td>`)},
