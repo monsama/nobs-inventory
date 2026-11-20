@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { ofTypeSel, listTypes, scanSpan, whereSignOf, NEW_DAYS, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
+import { SRV_KINDS, kindOf, ofTypeSel, listTypes, scanSpan, whereSignOf, NEW_DAYS, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -42,7 +42,9 @@ function drawSide(){
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
      picked stays. "All devices" is marked only when nothing at all narrows the list. */
   const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
-  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span><span class="cnt">${byType[k] || 0}</span></button>`;
+  /* Under Server: its Kind (virtual, physical, not known), the way rooms are under a site. */
+  const kinds = k => k !== 'server' || !byType.server ? '' : html`${Object.entries(SRV_KINDS).map(([kk, l]) => html`<button class="item sub ${st.type === 'server' && st.srvKind === kk ? 'sel' : ''}" data-srvkind="${kk}"><span class="lbl">${l}</span><span class="cnt">${pool.filter(o => kindOf(o) === kk).length}</span></button>`)}`;
+  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k && !(k === 'server' && st.srvKind)?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span><span class="cnt">${byType[k] || 0}</span></button>${kinds(k)}`;
   const types = listTypes(), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
   /* Clear filters only while something is filtered: an idle button is noise. */
   $('#clearF').hidden = !leftFilters() && !st.q.trim() && !colFiltered();
@@ -135,7 +137,8 @@ $('#side').addEventListener('click', e => {
   if (more){ st.sideAllTypes = more.dataset.alltypes === '1'; renderSide(); return; }
   const b = e.target.closest('.item'); if (!b) return;
   /* A type clicked again goes back to all types. */
-  if ('type' in b.dataset) st.type = b.dataset.type && st.type !== b.dataset.type ? b.dataset.type : null;
+  if ('type' in b.dataset){ st.type = b.dataset.type && (st.type !== b.dataset.type || st.srvKind) ? b.dataset.type : null; st.srvKind = null; }
+  if ('srvkind' in b.dataset){ const k = b.dataset.srvkind; st.srvKind = st.type === 'server' && st.srvKind === k ? null : k; st.type = 'server'; }
   if ('loc' in b.dataset) st.loc = st.loc === b.dataset.loc ? null : b.dataset.loc;
   if ('live' in b.dataset) st.live = false;
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
@@ -186,7 +189,7 @@ export function enterCheck(type = null){
   if (!LIST_TABS.includes(st.tab)) st.tab = 'cards';
 }
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.seen = st.gone = st.where = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
+  st.type = st.srvKind = st.loc = st.status = st.warranty = st.seen = st.gone = st.where = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = st.newWeek = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 /** A filter typed under a column of the device table counts too: Clear filters clears it. */
@@ -212,6 +215,7 @@ export function renderFilterBar(){
   const qOnly = !list && ['plans', 'sw', 'contracts', 'contacts'].includes(st.tab) && st.q.trim();
   const chips = qOnly ? [['q', 'Filter', '“' + st.q.trim() + '”']] : !list ? [] : [
     st.type && TYPES[st.type] && ['type', 'Type', TYPES[st.type].label],
+    st.type === 'server' && st.srvKind && SRV_KINDS[st.srvKind] && ['srvKind', 'Kind', SRV_KINDS[st.srvKind]],
     st.loc && ['loc', 'Location', st.loc],
     st.status && STATUS[st.status] && ['status', 'Status', STATUS[st.status].label],
     st.live && ['live', '', 'Not retired'],
@@ -309,7 +313,7 @@ $('#fbar').addEventListener('click', e => {
   else if (k === 'q') st.q = '';
   else if (k === 'scope'){ st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); }
   else if (k === 'scanOld' || k === 'where' || k === 'twins' || k === 'live' || k === 'rvKnown' || k === 'rvOld' || k === 'newWeek') st[k] = false;
-  else st[k] = null;
+  else { st[k] = null; if (k === 'type') st.srvKind = null; }
   view();
 });
 /* When the filters on the left (a type, a place, a status …) hide every object the search finds: says so and how many
@@ -343,7 +347,7 @@ export function placeSide(){
   const g = $('#sideGrip'); if (g){ g.setAttribute('aria-valuenow', String(sidePinned() ? sideWidth() : 0)); g.setAttribute('aria-valuemin', '0'); g.setAttribute('aria-valuemax', String(SIDE_MAX)); }
   const rail = $('#sideRail'); if (rail) rail.setAttribute('aria-expanded', String(sidePinned()));
   const sb = $('#sideBtn');
-  const n = $('#sideN'), rn = $('#sideRailN'); if (n){ const k = [st.type, st.loc, st.status, st.warranty, st.seen, st.gone, st.where, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; if (rn){ rn.textContent = String(k); rn.hidden = !k; } const rl = $('#sideRail'); if (rl) rl.setAttribute('aria-label', `Show the filters${k ? `, ${k} in force` : ''}`); if (sb) sb.setAttribute('aria-label', `Filters${k ? `, ${k} in force` : ''}${sidePinned() ? ', kept open' : ''}`); }
+  const n = $('#sideN'), rn = $('#sideRailN'); if (n){ const k = [st.type, st.srvKind, st.loc, st.status, st.warranty, st.seen, st.gone, st.where, st.adGroup, st.intune, st.osFam, st.resp, st.quality, st.handField].filter(Boolean).length + (st.scanOld ? 1 : 0) + (st.twins ? 1 : 0) + (st.live ? 1 : 0) + (st.newWeek ? 1 : 0); n.textContent = String(k); n.hidden = !k; if (rn){ rn.textContent = String(k); rn.hidden = !k; } const rl = $('#sideRail'); if (rl) rl.setAttribute('aria-label', `Show the filters${k ? `, ${k} in force` : ''}`); if (sb) sb.setAttribute('aria-label', `Filters${k ? `, ${k} in force` : ''}${sidePinned() ? ', kept open' : ''}`); }
 }
 /* The Filters button says whether the drawer is open, however it closes (Escape, a tap beside it, a filter picked). */
 new MutationObserver(() => { const b = $('#sideBtn'); if (b) b.setAttribute('aria-expanded', String(document.body.classList.contains('side-open'))); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });

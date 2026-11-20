@@ -3,7 +3,7 @@
 import { editText, fieldNote, fieldValue } from './restore.js';
 
 /* The built-in fields offered, in this order, with their usual names; the custom fields of the types follow. */
-export const BULK_BUILTIN = { model: 'Model', supplier: 'Supplier', purchased: 'Purchased', warranty: 'Warranty ends', price: 'Price', invoice: 'Invoice no.', os: 'Operating system', notes: 'Notes' };
+export const BULK_BUILTIN = { kind: 'Kind (servers)', model: 'Model', supplier: 'Supplier', purchased: 'Purchased', warranty: 'Warranty ends', price: 'Price', invoice: 'Invoice no.', os: 'Operating system', notes: 'Notes' };
 /* Fields every device has a value of its own in: one value for all of them would be wrong. */
 export const BULK_UNIQUE = ['name', 'serial', 'ip', 'mac'];
 export const UNIQUE_WHY = 'Name, serial number, IP address and MAC address are not offered: each device has its own.';
@@ -34,6 +34,7 @@ export function bulkFields(list, fieldsOf) {
    '' or null) and num (a number or undefined) are the page's readers of a day and an amount. */
 export function parseBulkValue(f, raw, { parseDay, num }) {
   const t = f.kind === 'notes' ? String(raw ?? '').replace(/\s+$/, '') : String(raw ?? '').trim();
+  if (f.kind === 'kind') return t === 'vm' || t === 'physical' ? { ok: true, value: t } : { ok: false, msg: 'Kind: pick Virtual machine or Physical, or choose Clear for Not known.' };
   if (!t.trim()) return { ok: false, msg: `Type a value for ${f.label}, or choose Clear.` };
   if (f.kind === 'date') { const d = parseDay(t); return d ? { ok: true, value: d } : { ok: false, msg: `${f.label}: ${t} is not a day: write it as dd.mm.yyyy.` }; }
   if (f.kind === 'money') { const n = num(t); return n === undefined ? { ok: false, msg: `${f.label}: the price is a number up to 1 000 000 000, e.g. 1290 or 99.50.` } : { ok: true, value: n }; }
@@ -45,6 +46,7 @@ export function parseBulkValue(f, raw, { parseDay, num }) {
 /* A value as the preview and the history show it: a day as 31.12.2026, notes on one short line. */
 export function shownValue(f, v) {
   if (empty(v)) return '';
+  if (f.kind === 'kind') return v === 'vm' ? 'Virtual machine' : v === 'physical' ? 'Physical' : String(v);
   if (f.kind === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v.slice(8, 10)}.${v.slice(5, 7)}.${v.slice(0, 4)}`;
   const s = String(v).replace(/\s+/g, ' ').trim();
   return s.length > 60 ? s.slice(0, 59) + '…' : s;

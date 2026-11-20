@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
+import { GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
 import { SERVER, view, viewSig } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -121,17 +121,21 @@ const ST_ICON = {
   stock: '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
   retired: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9"/><path d="M10 13h4"/>',
   wty: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/><path d="M5 5l14 14"/>',
+  gone: '<path d="M7 18h10a4 4 0 00.6-7.96A6 6 0 006.2 9.1 4.5 4.5 0 007 18z"/><path d="M4 4l16 16"/>',
 };
 /* The word is kept beside the icon for paper (the printed list shows it, the screen does not). */
 const stIcon = (k, cls, label, word) => html`<span class="st-ico ${cls}" role="img" aria-label="${label}" title="${label}">${rawHtml(`<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ST_ICON[k]}</svg>`)}<span class="st-txt" aria-hidden="true">${word}</span></span>`;
 function stateIcons(o){
   const s = STATUS[o.status];
   const hasSt = o.status !== 'active' && !!s, hasW = warrantyState(o) === 'ended';
+  /* Gone from every source it was in (one at least; never for a retired device, nor one only ever entered by hand). */
+  const gone = GONE_FILTERS.all[1](o) ? goneFrom(o) : [];
   /* Nothing to say: no cell at all, so the row stays as short as it can (on a phone the chips take a line of their own). */
-  if (!hasSt && !hasW) return '';
+  if (!hasSt && !hasW && !gone.length) return '';
   const st = hasSt ? stIcon(o.status === 'retired' ? 'retired' : 'stock', o.status, s.label, s.label) : html`<span class="st-ico"></span>`;
   const w = hasW ? stIcon('wty', 'wty-ended', `Warranty ended on ${dayText(o.warranty)}`, 'Warranty ended') : html`<span class="st-ico"></span>`;
-  return html`<span class="c-st">${st}${w}</span>`;
+  const g = gone.length ? stIcon('gone', 'gone', `No longer in any source: ${gone.map(x => `${x.name} (${x.when})`).join(', ')}`, 'Gone from every source') : html`<span class="st-ico"></span>`;
+  return html`<span class="c-st">${st}${w}${g}</span>`;
 }
 /* The chips of an inventory row, in order of what needs a look. */
 function rowChips(o, idx){

@@ -25,7 +25,10 @@ export * from './signin.js';
 /* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
-const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw'];
+/* The tabs without the left bar: it is there only where its filters act on what is shown (the device lists, the floor
+   plans, the IP addresses), so a bar that changes nothing is never shown; Racks, Ports and Printers have their own
+   pickers. Shown or not, its open or folded state is one for the whole app. */
+const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw', 'net', 'prn', 'rack'];
 let lastSbw = -1;
 /* save: false only redraws, without looking for unsaved changes. The tab picks the view; any other tab is a device. */
 /* A redraw asked for while one runs (a field left as the page is drawn again fires its own save and redraw) waits for it
