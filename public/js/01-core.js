@@ -120,6 +120,7 @@ export const typeText = o => { const l = (TYPES[o && o.type] || {}).label || (o 
 /* The type filter: the type, or vm for every virtual machine (a saved view or a view mail from before 0.9.160). */
 /* A server's Kind for the filter under Server: vm, physical, or none (not known). */
 export const SRV_KINDS = { vm: 'Virtual', physical: 'Physical', none: 'Not known' };
+export const SRV_KIND_TEXT = { vm: 'Virtual machine', physical: 'Physical', none: 'Not known' };
 export const kindOf = o => o.type !== 'server' ? '' : o.kind === 'vm' || o.kind === 'physical' ? o.kind : 'none';
 export const ofTypeSel = (o, t) => !t || (t === 'vm' ? o.type === 'vm' || o.kind === 'vm' : o.type === t);
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
@@ -485,14 +486,14 @@ export const joinBadges = o => {
   const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
   /* data-k: the short mark the List's Directory column shows, one fixed slot per source (AD, EN Entra, IN Intune,
      DF Defender), so the same source sits in the same place on every row. */
-  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b data-k="${JB_SHORT[label]}">${label}</b><small>${esc(state)}</small></span>`;
+  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b data-k="${JB_SHORT[label]}">${label}</b> <small>${esc(state)}</small></span>`;
   const tips = [
     ad ? (o.inAd ? 'Active Directory: has a computer account' + (j === 'Hybrid joined' ? ', hybrid joined' : '') : 'Active Directory: hybrid joined') : 'Active Directory: no computer account found',
     en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
     it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? `Microsoft Intune: not managed${otherManager(g.managed) ? ' (' + otherManager(g.managed) + ')' : ''}` : 'Microsoft Intune: not managed',
   ];
   /* Without Microsoft Graph set up this app cannot know Entra or Intune: those two say so instead of "not joined". */
-  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b data-k="${JB_SHORT[label]}">${label}</b><small>not checked</small></span>`;
+  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b data-k="${JB_SHORT[label]}">${label}</b> <small>not checked</small></span>`;
   if (!SYNC.graph) { tips[1] = 'Microsoft Entra ID (Azure AD): not known, Microsoft Graph is not set up'; tips[2] = 'Microsoft Intune: not known, Microsoft Graph is not set up'; }
   /* Defender for Endpoint, once it has been read (Settings): active and low risk is green, inactive or medium risk amber,
      high risk red. */
@@ -591,6 +592,8 @@ export const QUALITY = {
     return ![p.entra && p.entra.upn, p.profile && p.profile.mail, p.login].some(v => low(v) === owner) && !(g.ownerName && low(g.ownerName) === low(p.name))
       && !(p.source === 'ldap' && owner.split('@')[0] === low(p.login));
   }],
+  /* Virtual or physical: a server no source could tell about (from AD only, entered by hand). */
+  nokind: ['Server, virtual or physical not known', 'Set its Kind on its page, or for many at once with Edit fields (Kind)', o => o.type === 'server' && o.status !== 'retired' && o.kind !== 'vm' && o.kind !== 'physical'],
   reported: ['Problem reported by its user', 'Its user reported a problem: look at it, then mark it as done on the device', o => !!o.reported && !o.reported.done],
   conflict: ['Sources disagree', 'Lansweeper, Intune or AD give a field different values: compare and pick one', o => !!o.vals && Object.keys(o.vals).some(k => sourcesDisagree(o, k))],
 };

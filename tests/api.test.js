@@ -370,15 +370,15 @@ test('a link Lansweeper stops reporting is removed; a link made by hand stays', 
   assert.deepEqual(linked, [['PC2', 'attached', 'hand']], 'the link to PC1 is gone; the hand-made link to PC2 is kept as it is');
 });
 
-test('a virtual machine is not linked to its host from Lansweeper; runs-on links are made by hand', async () => {
+test('a virtual machine is linked to the host its scan names (Runs on), from Lansweeper (0.9.163)', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
   const counts = mergeRecords(s, recordsFromJson([
     { name: 'ESX01', assetType: 'VMware', ref: 'h1' },
     { name: 'VM-APP', assetType: 'Virtual machine', ref: 'v1', links: [{ name: 'ESX01', kind: 'hosted' }] }
   ]));
-  assert.equal(counts.links, 0);
-  assert.equal(s.rels.length, 0);
+  assert.equal(counts.links, 1);
+  assert.deepEqual(s.rels.map(r => [s.objs.find(o => o.id === r.from).name, r.kind, s.objs.find(o => o.id === r.to).name, r.src]), [['VM-APP', 'hosted', 'ESX01', 'Lansweeper']]);
 });
 
 

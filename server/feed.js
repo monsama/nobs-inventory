@@ -62,11 +62,12 @@ export function recordsFromJson(list) {
     const r = {};
     /* A field that is not text or a number (an object, a list) is left empty, not stored as "[object Object]". */
     for (const k of FEED_TEXT) r[k] = raw && raw[k] != null && typeof raw[k] !== 'object' ? String(raw[k]).trim().slice(0, LONG_TEXT.includes(k) ? 1000 : 200) : '';
-    /* A link joins this object to another one: by the other object's Lansweeper ref (or its name), with a port. */
-    r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && l.kind === 'attached').slice(0, 50).map(l => ({
+    /* A link joins this object to another one: by the other object's Lansweeper ref (or its name), with a port. Two
+       kinds come: attached (a monitor on its computer) and hosted (a virtual machine on its host). */
+    r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && (l.kind === 'attached' || l.kind === 'hosted')).slice(0, 50).map(l => ({
       ref: String(l && l.ref != null ? l.ref : '').trim().slice(0, 200),
       name: String(l && l.name != null ? l.name : '').trim().slice(0, 200),
-      kind: 'attached',
+      kind: l.kind,
       port: String(l && l.port != null ? l.port : '').trim().slice(0, 100)
     })) : [];
     /* Installed software: null when the push did not send it, so the software already on the object stays. */

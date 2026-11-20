@@ -54,6 +54,8 @@ const STATS_KEY = 'ni-ov-stats';
 const statsOpen = () => { try { return localStorage.getItem(STATS_KEY) === '1'; } catch { return false; } };
 /* Draws the Overview: the figures, Needs attention, hand-backs, reported problems, maintenance, replacement plan and data
    quality, then Statistics. Each line opens the list behind it, with the filters reset. */
+/* Servers, virtual and physical: " · 12 virtual, 4 physical" (the ones not known are a data quality item). */
+const serverSplit = list => { const v = list.filter(o => o.type === 'server' && o.kind === 'vm').length, p = list.filter(o => o.type === 'server' && o.kind === 'physical').length; return v || p ? ` · ${v} virtual, ${p} physical` : ''; };
 export function renderOverview(){
   const live = objs.filter(o => o.status !== 'retired');
   const inUse = objs.filter(o => o.status === 'active');
@@ -137,7 +139,7 @@ export function renderOverview(){
     const inner = html`<span class="ov-tl">${label}</span><span class="ov-tv">${value}</span><span class="ov-ts">${sub}</span>`;
     return attr ? html`<button ${rawHtml(attr)} class="ov-tile">${inner}</button>` : html`<div class="ov-tile">${inner}</div>`;
   };
-  const byType = Object.entries(live.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).map(([t, n]) => ({ key: t, label: TYPES[t] ? TYPES[t].label : t, n, icon: rawHtml(tico(t, 'tico sm')) })).sort((a, b) => b.n - a.n);
+  const byType = Object.entries(live.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).map(([t, n]) => ({ key: t, label: (TYPES[t] ? TYPES[t].label : t) + (t === 'server' ? serverSplit(live) : ''), n, icon: rawHtml(tico(t, 'tico sm')) })).sort((a, b) => b.n - a.n);
   const sites = [...new Set(LOCS.map(l => l.split(' / ')[0]))];
   const bySite = sites.map(s => ({ key: s, label: s, n: live.filter(o => String(o.loc || '').split(' / ')[0] === s).length })).filter(r => r.n).sort((a, b) => b.n - a.n);
   const noLoc = live.filter(o => !o.loc).length;
