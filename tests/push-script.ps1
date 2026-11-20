@@ -128,13 +128,15 @@ $script:Cols = @{ tblHyperVGuest = @{ assetid = 'AssetID'; name = 'Name' } }
 $vrecs = @(
   [ordered]@{ ref = '10'; name = 'HV-01'; links = @() }, [ordered]@{ ref = '11'; name = 'app-01.example.local'; links = @() },
   [ordered]@{ ref = '12'; name = 'DUP'; links = @() }, [ordered]@{ ref = '13'; name = 'dup'; links = @() }, [ordered]@{ ref = '14'; name = 'FILE-01'; links = @() })
-$guests = New-Table @('AssetID','Name') @(@('10', 'APP-01'), @('10', 'dup'), @('99', 'FILE-01'), @('10', 'hv-01'))
+$vrecs += [ordered]@{ ref = '15'; name = 'MOVING'; links = @() }
+$guests = New-Table @('AssetID','Name') @(@('10', 'APP-01'), @('10', 'dup'), @('99', 'FILE-01'), @('10', 'hv-01'), @('10', 'moving'), @('11', 'MOVING'))
 Check 'vm hosts: one linked' (Add-VmHostRelations (New-Conn $guests) $vrecs) 1
 Check 'vm hosts: to its host' $vrecs[1]['links'][0].ref '10'
 Check 'vm hosts: kind' $vrecs[1]['links'][0].kind 'hosted'
 Check 'vm hosts: a shared name is passed over' $vrecs[2]['links'].Count 0
 Check 'vm hosts: an unknown host is passed over' $vrecs[4]['links'].Count 0
 Check 'vm hosts: the host is not its own guest' $vrecs[0]['links'].Count 0
+Check 'vm hosts: a guest two hosts list is passed over' $vrecs[5]['links'].Count 0
 Check 'vm hosts: none without the tables' (& { $script:Cols = @{}; Add-VmHostRelations (New-Conn $guests) $vrecs }) 0
 $script:Cols = $saveCols
 

@@ -42,7 +42,7 @@ try {
   assert.equal(await cell('OLD-01', 'Kind'), 'Not known');
   assert.equal(await cell('APP-01', 'Runs on'), 'HV-01');
   assert.equal(await cell('APP-02', 'Runs on'), '');
-  assert.match(await cell('PC-01', 'Directory'), /^AD joined/, 'the words in the cell (export, sort)');
+  assert.equal((await cell('PC-01', 'Directory')).replace(/\s+/g, ' '), 'AD joined Entra not checked Intune not checked', 'the words in the cell (export, sort, filter)');
   assert.equal(await cell('HV-01', 'Directory'), '', 'servers have none, as in the List');
   assert.equal(await p.locator('table.grid td.c-dir .jb b[data-k="AD"]').first().isVisible(), true, 'the short marks');
 

@@ -500,7 +500,7 @@ export const joinBadges = o => {
   const df = SYNC.defender ? defenderState(o) : null;
   if (df) tips.push(df.tip);
   return `<div class="jbar${df ? ' jbar4' : ''}" role="img" aria-label="${esc(tips.join('. '))}">
-    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${SYNC.graph ? `${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}` : unk('Entra', 'Microsoft Entra ID (Azure AD)') + unk('Intune', 'Microsoft Intune')}${df ? seg(df.on, df.cls, 'Defender', df.state, df.tip) : ''}
+    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])} ${SYNC.graph ? `${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])} ${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}` : unk('Entra', 'Microsoft Entra ID (Azure AD)') + ' ' + unk('Intune', 'Microsoft Intune')}${df ? ' ' + seg(df.on, df.cls, 'Defender', df.state, df.tip) : ''}
   </div>`;
 };
 /* What Defender for Endpoint says of a device, for its mark and its page. */

@@ -254,21 +254,26 @@ function applyLinks(s, pairs, counts, seen) {
       }
       /* The same rule as for a link made by hand (relations.js): a monitor on one computer, types that fit. Lansweeper
          moving a monitor it made to another computer moves it; one attached by hand stays and the new link is counted. */
-      if (HOST_KINDS.includes(l.kind)) {
-        const mine = s.rels.filter(x => x.from === obj.id && HOST_KINDS.includes(x.kind) && x.src === 'Lansweeper');
-        for (const x of mine) s.rels.splice(s.rels.indexOf(x), 1);
+      /* A server a host scan lists as its guest is a virtual machine, when nothing said what it is yet. */
+      if (l.kind === 'hosted' && obj.type === 'server' && !obj.kind && to.type === 'server' && to.kind !== 'vm') {
+        obj.kind = 'vm'; ((s.history ??= {})[obj.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Kind set to Virtual machine (it runs on ${to.name})` });
       }
-      if (relationProblem(l.kind, obj, to, s.rels)) { counts.linkRefused = (counts.linkRefused || 0) + 1; continue; }
+      /* The check first, against the links without the ones Lansweeper made from it before: a host that does not fit
+         leaves the old link as it is. */
+      const mine = HOST_KINDS.includes(l.kind) ? s.rels.filter(x => x.from === obj.id && HOST_KINDS.includes(x.kind) && x.src === 'Lansweeper') : [];
+      if (relationProblem(l.kind, obj, to, s.rels.filter(x => !mine.includes(x)))) { counts.linkRefused = (counts.linkRefused || 0) + 1; for (const x of mine) wanted.add(x.to + '|' + x.kind); continue; }
+      for (const x of mine) { s.rels.splice(s.rels.indexOf(x), 1); n++; }
       s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null, src: 'Lansweeper' });
       n++;
     }
   }
   if (!wantedOf.size) return n;
   const before = s.rels.length;
-  /* Only monitor links are managed; a connection of another kind that Lansweeper made earlier is left alone (it keeps
+  /* Monitor and host links are managed: one Lansweeper made that its record no longer brings (a virtual machine
+     deleted, a host retired) goes. A connection of another kind that Lansweeper made earlier is left alone (it keeps
      its Lansweeper mark, but nothing changes or removes it any more). */
   /* Only for a device whose own record came: a dock's record alone adds its links, and takes none away. */
-  s.rels = s.rels.filter(x => !(x.src === 'Lansweeper' && x.kind === 'attached' && own.has(x.from) && !wantedOf.get(x.from).has(x.to + '|' + x.kind)));
+  s.rels = s.rels.filter(x => !(x.src === 'Lansweeper' && HOST_KINDS.includes(x.kind) && own.has(x.from) && !wantedOf.get(x.from).has(x.to + '|' + x.kind)));
   n += before - s.rels.length;
   return n;
 }

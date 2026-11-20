@@ -542,7 +542,9 @@ function Add-MonitorRelations($conn, $records) {
 
 # Virtual machines linked to their host: the guests a Hyper-V or VMware host scan lists, matched to the assets by name
 # (the part before the first dot, without case; a name two assets share is passed over, as is a guest that is its own
-# host). The guest gets the link "hosted" to the host. Changes the records in place and returns how many got a link.
+# host, and one two hosts list). The guest gets the link "hosted" to the host. Changes the records in place and returns
+# how many got a link. A guest new in this push whose host is new too gets its link on the next push (the server links
+# to the devices it already has).
 function Add-VmHostRelations($conn, $records) {
     $byName = @{}; $twice = @{}; $byRef = @{}
     $short = { param($n) ("$n" -split '\.')[0].Trim().ToLowerInvariant() }
@@ -552,7 +554,9 @@ function Add-VmHostRelations($conn, $records) {
         $k = & $short $rec['name']; if (-not $k) { continue }
         if ($byName.ContainsKey($k)) { $twice[$k] = $true } else { $byName[$k] = $rec }
     }
-    $n = 0
+    # First the host each guest name has; a name two hosts list (a live migration until the old host is scanned again, or
+    # a guest under both Hyper-V and VMware) is passed over, so the link does not swap back and forth between pushes.
+    $hostOf = @{}; $twoHosts = @{}
     foreach ($table in @('tblHyperVGuest', 'tblVMwareGuest')) {
         if (-not ((Test-Col $table 'AssetID') -and (Test-Col $table 'Name'))) { continue }
         $cmd = $conn.CreateCommand()
@@ -562,13 +566,19 @@ function Add-VmHostRelations($conn, $records) {
         try {
             while ($reader.Read()) {
                 $host_ = ConvertTo-Text $reader['AssetID']; $k = & $short $reader['Name']
-                if (-not $k -or $twice.ContainsKey($k) -or -not $byName.ContainsKey($k) -or -not $byRef.ContainsKey($host_)) { continue }
-                $guest = $byName[$k]
-                if ([string]$guest['ref'] -eq $host_) { continue }
-                $guest['links'] = @(@($guest['links']) | Where-Object { $_ -and $_.kind -ne 'hosted' }) + @([ordered]@{ ref = $host_; kind = 'hosted'; port = '' })
-                $n++
+                if (-not $k -or -not $host_) { continue }
+                if ($hostOf.ContainsKey($k) -and $hostOf[$k] -ne $host_) { $twoHosts[$k] = $true } else { $hostOf[$k] = $host_ }
             }
         } finally { $reader.Close() }
+    }
+    $n = 0
+    foreach ($k in @($hostOf.Keys)) {
+        $host_ = $hostOf[$k]
+        if ($twoHosts.ContainsKey($k) -or $twice.ContainsKey($k) -or -not $byName.ContainsKey($k) -or -not $byRef.ContainsKey($host_)) { continue }
+        $guest = $byName[$k]
+        if ([string]$guest['ref'] -eq $host_) { continue }
+        $guest['links'] = @(@($guest['links']) | Where-Object { $_ -and $_.kind -ne 'hosted' }) + @([ordered]@{ ref = $host_; kind = 'hosted'; port = '' })
+        $n++
     }
     return $n
 }
