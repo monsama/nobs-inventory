@@ -13,9 +13,7 @@ import { HttpError } from './errors.js';
 
 export const PASSWORD_DAYS = 14;
 /* The names of the built-in types, as the page shows them (TYPES in public/js/01-core.js). A type of one's own has its label in the state. */
-const TYPE_LABELS = { pc: 'PC', notebook: 'Notebook', camera: 'Camera / Recorder', bmc: 'iLO / iDRAC', server: 'Server', vm: 'Virtual machine', accesspoint: 'Access point', sip: 'VoIP phone', pbx: 'Telephone system',
-  monitor: 'Monitor', switch: 'Switch', printer: 'Printer', patch: 'Patch panel', router: 'Router', firewall: 'Firewall', modem: 'Modem', storage: 'Storage',
-  android: 'Android device', ios: 'iOS device', mobile: 'Other mobile device', plc: 'PLC / Controller', rack: 'Rack', other: 'Other' };
+import { typeLabelOf } from '../public/js/type-labels.js';
 
 /* The key: from the secret when set, else a key file made once in the data folder. Any text works; it is hashed to 32 bytes. */
 export function sheetKeyOf(env, dataDir) {
@@ -83,7 +81,7 @@ export function createSheet(db, key, state, { userId, deviceIds = [], login = ''
   if (!person) throw new HttpError(404, 'No such person.');
   const ids = new Set(Array.isArray(deviceIds) ? deviceIds.map(String) : []);
   const devices = state.objs.filter(o => ids.has(String(o.id))).map(o => ({
-    code: o.code || '', type: (state.types[o.type] || {}).label || TYPE_LABELS[o.type] || o.type, name: o.name, model: o.model || '', serial: o.serial || ''
+    code: o.code || '', type: typeLabelOf(o, state.types), name: o.name, model: o.model || '', serial: o.serial || ''
   }));
   if (devices.length !== ids.size) throw new HttpError(400, 'A device on the sheet is not in the inventory.');
   const account = String(login || person.login || '').trim().slice(0, 120);

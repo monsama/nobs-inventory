@@ -55,8 +55,27 @@ export function printView(kind){
       /* The list made for paper: small type, no ticks or buttons, the heading on every page. */
       .pv-list{margin:0!important;border:1px solid #bbb!important;overflow:visible!important}
       .pv-list .lhead{position:static!important;background:#f0f0f0!important;color:#333!important}
-      .pv-list .lrow,.pv-list .lhead{gap:8px!important;padding:0 6px!important;font-size:9.5px!important;min-height:22px!important;grid-template-columns:0 14px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.4fr) 80px minmax(0,1fr) minmax(0,1fr) 62px!important}
-      .pv-list.pend .lrow,.pv-list.pend .lhead{grid-template-columns:0 14px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.2fr) 80px 70px minmax(0,1.4fr) 62px 0!important}
+      /* No tick on paper (it is a button, hidden below): the icon is the first column. */
+      .pv-list .lrow,.pv-list .lhead{gap:8px!important;padding:3px 6px!important;font-size:9.5px!important;min-height:22px!important;grid-template-columns:14px minmax(0,1.6fr) minmax(0,1fr) minmax(0,1.2fr) 70px minmax(0,1fr) minmax(0,1.2fr) 52px!important;grid-template-areas:none!important}
+      .pv-list.pend .lrow,.pv-list.pend .lhead{grid-template-columns:14px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.2fr) 80px 70px minmax(0,1.4fr) 62px!important}
+      .pv-list .lrow>*{grid-area:auto!important}
+      .pv-list .lhead>span:first-child{display:none!important}
+      /* Paper is narrow: the list's own narrow layout would leave out IP and Detail; here every column shows, and text
+         wraps instead of being cut. */
+      .pv-list .c-ip,.pv-list .c-det,.pv-list .lhead>.c-ip,.pv-list .lhead>.c-det{display:block!important}
+      .pv-list .c-name.has-desc,.pv-list .c-loc.has-src{grid-template-rows:auto!important;padding:0!important}
+      .pv-list .c-nl,.pv-list .nm,.pv-list .c-desc,.pv-list .c-ll,.pv-list .c-lsrc,.pv-list .c-loc,.pv-list .c-det,.pv-list .c-user{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;height:auto!important;overflow-wrap:anywhere}
+      .pv-list .c-chips{overflow:visible!important;flex-wrap:wrap!important;min-width:0}
+      .pv-list .chip,.pv-list .st-ico{white-space:normal!important;max-width:100%}
+      .pv-list,.pv-list .lrow,.pv-list .lhead{width:auto!important;min-width:0!important;max-width:100%!important;box-sizing:border-box}
+      .pv-list .c-st{display:flex!important;flex:0 1 auto!important;flex-wrap:wrap;min-width:0}
+      /* The name as plain lines: the name, then its description or serial; the same size as the rest. */
+      .pv-list .c-name,.pv-list .c-name.has-desc,.pv-list .c-nl{display:block!important;height:auto!important}
+      .pv-list .nm{font-size:10.5px!important;font-weight:700}
+      .pv-list .c-nl .code{margin-left:4px}
+      .pv-list .c-desc{display:block!important;font-size:9px!important;line-height:12px!important}
+      .pv-list .c-lsrc{font-size:9px!important;line-height:12px!important}
+      .pv-list .c-st{flex-wrap:wrap;gap:2px 4px}
       .pv-list .lrow{break-inside:avoid;border-top:1px solid #ddd!important}
       .pv-list .lrow>span{white-space:normal!important;overflow-wrap:anywhere}
       .pv-list .chip{font-size:8.5px;padding:0 4px;line-height:14px;height:auto}

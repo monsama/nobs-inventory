@@ -10,6 +10,15 @@ import zlib from 'node:zlib';
 const M = 36, PW = 841.89, PH = 595.28, W = PW - 2 * M;   /* A4 landscape, margins */
 const money = n => typeof n === 'number' ? n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(n ?? '');
 const cellText = (col, v) => col.money ? money(v) : typeof v === 'number' ? String(v) : String(v ?? '');
+/* A text cut to one line of width w in the current font, with … at its end: PDFKit only cuts a text given a height, and
+   otherwise wraps it into the row below. Line breaks in the value become spaces. */
+const fit = (doc, text, w) => {
+  let t = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!t || doc.widthOfString(t) <= w) return t;
+  let lo = 0, hi = t.length;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (doc.widthOfString(t.slice(0, mid).trimEnd() + '…') <= w) lo = mid; else hi = mid - 1; }
+  return t.slice(0, lo).trimEnd() + '…';
+};
 
 /* r is a report as public/js/reports.js builds it ({ title, subtitle, columns, groups, total, currency }). Resolves to
    the PDF as a Buffer. A cell too long for its column is cut with an ellipsis. */
@@ -22,10 +31,12 @@ export function reportPdf(r, company = {}) {
     const widths = r.columns.map(c => (c.w || 1) / weights * W);
     const xs = widths.map((_, i) => M + widths.slice(0, i).reduce((t, w) => t + w, 0));
     const right = c => c.num || c.money;
+    /* A cell's room: a number column keeps a gap on its right, so it does not run into the text of the next one. */
+    const cw = i => widths[i] - (right(r.columns[i]) && i < r.columns.length - 1 ? 14 : 4);
     let y = M;
     const head = () => {
       doc.font('Helvetica-Bold').fontSize(8).fillColor('#475569');
-      r.columns.forEach((c, i) => doc.text(c.label, xs[i] + 2, y, { width: widths[i] - 4, align: right(c) ? 'right' : 'left', lineBreak: false, ellipsis: true }));
+      r.columns.forEach((c, i) => doc.text(fit(doc, c.label, cw(i)), xs[i] + 2, y, { width: cw(i), align: right(c) ? 'right' : 'left', lineBreak: false }));
       y += 12; doc.moveTo(M, y).lineTo(M + W, y).lineWidth(0.6).strokeColor('#94a3b8').stroke(); y += 4;
     };
     const room = h => { if (y + h > PH - M - 18) { doc.addPage(); y = M; head(); } };
@@ -46,7 +57,7 @@ export function reportPdf(r, company = {}) {
       g.rows.forEach((row, n) => {
         room(13);
         if (n % 2) doc.rect(M, y - 2, W, 13).fill('#f1f5f9').fillColor('#0f172a');
-        r.columns.forEach((c, i) => doc.text(cellText(c, row[i]), xs[i] + 2, y, { width: widths[i] - 4, align: right(c) ? 'right' : 'left', lineBreak: false, ellipsis: true }));
+        r.columns.forEach((c, i) => doc.text(fit(doc, cellText(c, row[i]), cw(i)), xs[i] + 2, y, { width: cw(i), align: right(c) ? 'right' : 'left', lineBreak: false }));
         y += 13;
       });
       if (typeof g.total === 'number') {
