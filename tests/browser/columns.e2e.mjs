@@ -47,7 +47,7 @@ try {
   assert.ok(!(await heads()).includes('Model'), 'Model did not hide');
   await p.keyboard.press('Escape');
   assert.equal(await p.evaluate(() => !!document.querySelector('#colMenu .menubox:popover-open')), false, 'Esc closes the menu');
-  assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('ni-hidden-cols'))), ['kind', 'host', 'dir', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot', 'model'], 'the choice was not remembered (Kind, Runs on, Directory, the cost, Responsible, Links, replacement, maintenance and Secure Boot columns are hidden until picked)');
+  assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('ni-hidden-cols'))), ['kind', 'host', 'dir', 'dloc', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot', 'model'], 'the choice was not remembered (Kind, Runs on, Directory, AD location, the cost, Responsible, Links, replacement, maintenance and Secure Boot columns are hidden until picked)');
   await p.reload(); await p.waitForSelector('#lgUser, #tabsbar');
   if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); }
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });

@@ -3,7 +3,7 @@ import { goneAllWith, sourcesOfWith } from './gone.js';
 import { html } from './html.js';
 import { graphSeen, isIntune, otherManager } from './intune.js';
 import { span, SCAN_OLD_DAYS as SCAN_DAYS_DEFAULT, neverScannedWith, scanOldWith, seenDates, whereAreThey, whereCtxOf, whereSign } from './where.js';
-import { ORDER_FIELDS, maySet } from './sync-map.js';
+import { ORDER_FIELDS, fieldOrder, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
 import { netChain } from './cabling.js';
@@ -120,6 +120,31 @@ export const typeText = o => { const l = (TYPES[o && o.type] || {}).label || (o 
 /* The type filter: the type, or vm for every virtual machine (a saved view or a view mail from before 0.9.160). */
 /* A server's Kind for the filter under Server: vm, physical, or none (not known). */
 export const SRV_KINDS = { vm: 'Virtual', physical: 'Physical', none: 'Not known' };
+/* The room a location text names or is mapped to (Settings → Locations), as the server's mappedRoom finds it: one Map,
+   made again only when the rooms or the mappings change. */
+let roomMapKey = '', roomMap = new Map();
+const roomOfText = text => {
+  const key = LOCS.length + '|' + LOCS.join('\n') + '|' + JSON.stringify(st.adLocMap || {}) + JSON.stringify(st.locMap || {});
+  if (key !== roomMapKey){
+    roomMapKey = key; roomMap = new Map();
+    for (const [k, r] of Object.entries({ ...(st.adLocMap || {}), ...(st.locMap || {}) })) if (LOCS.includes(r)) roomMap.set(String(k).trim().toLowerCase(), r);
+    for (const l of LOCS) roomMap.set(l.trim().toLowerCase(), l);
+  }
+  return roomMap.get(String(text).trim().toLowerCase()) || '';
+};
+/* The location a directory gives a device, as the syncs use it: its computer account's location in AD while AD is a
+   source of the location (Settings → Data sources), else, with "Use the office of the device's user" on and no room
+   here yet, the office of its user (AD or Entra). What it means here: the room it names or is mapped to, and whether
+   that is the device's room ('same'), another room ('diff'), a room the device does not have yet ('fill'), or no room
+   ('new'; auto: rooms are made from AD's text at the next sync). null when no directory says anything. */
+export function dirLocOf(o){
+  const adText = fieldOrder(st, 'loc').includes('ad') && o.ad && o.ad.location ? String(o.ad.location).trim() : '';
+  const u = !adText && st.locFromOffice && !o.loc && o.uid && personOf(o.uid), text = adText || String((u && u.profile && u.profile.office) || '').trim();
+  if (!text) return null;
+  const room = roomOfText(text);
+  return { text, src: adText ? 'AD' : 'Office', room, auto: !room && !!adText && !!st.adLocAuto,
+    state: !room ? 'new' : !o.loc ? 'fill' : room === o.loc ? 'same' : 'diff' };
+}
 export const SRV_KIND_TEXT = { vm: 'Virtual machine', physical: 'Physical', none: 'Not known' };
 export const kindOf = o => o.type !== 'server' ? '' : o.kind === 'vm' || o.kind === 'physical' ? o.kind : 'none';
 export const ofTypeSel = (o, t) => !t || (t === 'vm' ? o.type === 'vm' || o.kind === 'vm' : o.type === t);
@@ -594,6 +619,9 @@ export const QUALITY = {
   }],
   /* Virtual or physical: a server no source could tell about (from AD only, entered by hand). */
   nokind: ['Server, virtual or physical not known', 'Set its Kind on its page, or for many at once with Edit fields (Kind)', o => o.type === 'server' && o.status !== 'retired' && o.kind !== 'vm' && o.kind !== 'physical'],
+  /* What AD (or the user's office) gives as location, and the rooms here. */
+  locnew: ['Location from AD not a room yet', 'AD or the user\'s office names a place that is no room here: add it, or map it to a room, in Settings → Locations', o => { if (o.status === 'retired') return false; const d = dirLocOf(o); return !!d && d.state === 'new' && !d.auto; }],
+  locdiff: ['Room differs from AD', 'AD or the user\'s office names another room than the one recorded here', o => o.status !== 'retired' && (dirLocOf(o) || {}).state === 'diff'],
   reported: ['Problem reported by its user', 'Its user reported a problem: look at it, then mark it as done on the device', o => !!o.reported && !o.reported.done],
   conflict: ['Sources disagree', 'Lansweeper, Intune or AD give a field different values: compare and pick one', o => !!o.vals && Object.keys(o.vals).some(k => sourcesDisagree(o, k))],
 };
