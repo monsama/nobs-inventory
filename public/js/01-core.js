@@ -473,21 +473,23 @@ export const JOIN_STATE = { 'Entra joined': ['en', 'joined'], 'Hybrid joined': [
 export const COMPLIANCE_SHORT = { compliant: 'compliant', noncompliant: 'not compliant', inGracePeriod: 'grace', conflict: 'conflict', error: 'error' };
 /* The AD, Entra and Intune marks of a device (and Defender, once read) as HTML, as described above. '' for a type
    Graph does not cover. */
+const JB_SHORT = { AD: 'AD', Entra: 'EN', Intune: 'IN', Defender: 'DF' };
 export const joinBadges = o => {
   if (!GRAPH_TYPES.includes(o.type)) return '';
   /* What Graph said counts only while Graph is set up, as for the Graph chip: an old record is not shown as current. */
   const g = SYNC.graph && o.graph && !o.graph.gone ? o.graph : null, j = g ? joinOf(o) : o.inAd ? 'AD joined' : '';
   const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && isIntune(g.managed));
   const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
-  /* data-s: the label the List's Directory column shows (the full source names). */
-  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b data-s="${label}">${label}</b><small>${esc(state)}</small></span>`;
+  /* data-k: the short mark the List's Directory column shows, one fixed slot per source (AD, EN Entra, IN Intune,
+     DF Defender), so the same source sits in the same place on every row. */
+  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b data-k="${JB_SHORT[label]}">${label}</b><small>${esc(state)}</small></span>`;
   const tips = [
     ad ? (o.inAd ? 'Active Directory: has a computer account' + (j === 'Hybrid joined' ? ', hybrid joined' : '') : 'Active Directory: hybrid joined') : 'Active Directory: no computer account found',
     en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
     it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? `Microsoft Intune: not managed${otherManager(g.managed) ? ' (' + otherManager(g.managed) + ')' : ''}` : 'Microsoft Intune: not managed',
   ];
   /* Without Microsoft Graph set up this app cannot know Entra or Intune: those two say so instead of "not joined". */
-  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b data-s="${label}">${label}</b><small>not checked</small></span>`;
+  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b data-k="${JB_SHORT[label]}">${label}</b><small>not checked</small></span>`;
   if (!SYNC.graph) { tips[1] = 'Microsoft Entra ID (Azure AD): not known, Microsoft Graph is not set up'; tips[2] = 'Microsoft Intune: not known, Microsoft Graph is not set up'; }
   /* Defender for Endpoint, once it has been read (Settings): active and low risk is green, inactive or medium risk amber,
      high risk red. */

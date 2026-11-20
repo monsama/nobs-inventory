@@ -2380,18 +2380,23 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 }
 .lrow .c-chips,.lrow .c-chips.rv-chips{flex-wrap:nowrap;padding:0;overflow:hidden}
 .lrow .rv-acts{justify-content:flex-end}
-#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) var(--w-user,minmax(110px,.9fr)) var(--w-loc,minmax(150px,1.3fr)) var(--w-ip,104px) var(--w-det,minmax(100px,1fr)) var(--w-dir,214px) var(--w-chips,minmax(0,130px)) var(--w-seen,84px)}
+#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) var(--w-user,minmax(110px,.9fr)) var(--w-loc,minmax(150px,1.3fr)) var(--w-ip,104px) var(--w-det,minmax(100px,1fr)) var(--w-dir,118px) var(--w-chips,minmax(0,130px)) var(--w-seen,84px)}
 /* A column with nothing in it on any row shown (renderCardsBody takes it out of the grid): its heading and cells go too. */
 #cards.lst.no-user .c-user,#cards.lst.no-loc .c-loc,#cards.lst.no-ip .c-ip,#cards.lst.no-det .c-det,#cards.lst.no-dir .c-dir,#cards.lst.no-chips .c-chips,#cards.lst.no-seen .seen{display:none}
 /* The Directory column of the List: the dot and a short label each, no boxes, so the four (AD, Entra, Intune, Defender)
    fit its width side by side; the full words and states are in each one's tooltip and on the device page. */
 .lrow .c-dir{overflow:hidden;min-width:0}
-.lrow .c-dir .jbar{display:flex;padding:0;border:0;gap:7px;flex-wrap:nowrap;background:none;min-width:0}
-.lrow .c-dir .jb{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:11px;padding:0;min-height:0;border:0;background:none;box-shadow:none}
-.lrow .c-dir .jb b{font-size:0;font-weight:600;letter-spacing:0}
-.lrow .c-dir .jb b::after{content:attr(data-s);font-size:11px}
-.lrow .c-dir .jb.no b,.lrow .c-dir .jb.unk b{font-weight:500}
-.lrow .c-dir .jb small{display:none}
+/* Four short marks in fixed slots (AD, EN, IN, DF): filled in the source's state colour when the device is there,
+   outlined when it is not, dotted when it cannot be known (Graph not set up). */
+.lrow .c-dir .jbar{display:grid;grid-template-columns:repeat(4,26px);gap:4px;padding:0;border:0;background:none;min-width:0;align-items:center}
+.lrow .c-dir .jb{display:flex;align-items:center;justify-content:center;width:26px;height:18px;padding:0;gap:0;font-size:10px;border-radius:4px;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);background:color-mix(in srgb,var(--c) 16%,transparent);box-shadow:none;opacity:1}
+.lrow .c-dir .jb i,.lrow .c-dir .jb small{display:none}
+.lrow .c-dir .jb b{font-size:0;letter-spacing:0;line-height:1}
+.lrow .c-dir .jb b::after{content:attr(data-k);font-size:10px;font-weight:700;letter-spacing:.3px;color:color-mix(in srgb,var(--c) 60%,var(--fg))}
+.lrow .c-dir .jb.no{border:1px solid var(--bd2);background:transparent}
+.lrow .c-dir .jb.no b::after{color:var(--muted);font-weight:500}
+.lrow .c-dir .jb.unk{border:1px dotted var(--bd2);background:transparent}
+.lrow .c-dir .jb.unk b::after{color:var(--muted);font-weight:500;opacity:.7}
 @media screen and (max-width:760px){
   .lst .lrow,#cards.lst.pend .lrow,#cards.lst.join .lrow{grid-template-columns:24px 18px minmax(0,1fr) auto}
   .lst button.cardtick{width:36px;height:36px;margin:-10px;border:0;background:transparent;opacity:1}
@@ -2410,7 +2415,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .lst .lhead>.seen{text-align:right}
 @media (min-width:761px){ @container devlist (max-width:980px){
   .lst:not(.pend) .lhead,.lst:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) var(--w-user,minmax(90px,.9fr)) var(--w-loc,minmax(110px,1.3fr)) var(--w-det,minmax(80px,.9fr)) var(--w-chips,minmax(0,150px)) var(--w-seen,76px)}
-  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) var(--w-user,minmax(90px,.9fr)) var(--w-loc,minmax(110px,1.3fr)) var(--w-det,minmax(80px,.9fr)) var(--w-dir,214px) var(--w-chips,minmax(0,110px)) var(--w-seen,76px)}
+  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) var(--w-user,minmax(90px,.9fr)) var(--w-loc,minmax(110px,1.3fr)) var(--w-det,minmax(80px,.9fr)) var(--w-dir,118px) var(--w-chips,minmax(0,110px)) var(--w-seen,76px)}
   .lst:not(.pend) .c-ip{display:none}
   .lst.pend .lhead,.lst.pend .lrow{grid-template-columns:16px 18px minmax(120px,1.1fr) minmax(90px,.8fr) minmax(110px,1fr) minmax(140px,1.5fr) 76px 168px}
   .lst.pend .c-ip,.lst.pend .c-src{display:none}

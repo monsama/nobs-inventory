@@ -75,7 +75,8 @@ try {
   await until(p, () => !/Support Firewall/.test(document.querySelector('table.contracts tbody').textContent));
   assert.equal(await p.inputValue('#vq'), 'lease');
 
-  // the List's Directory column: AD, Entra, Intune and Defender side by side, none past its cell or over another
+  // the List's Directory column: AD, Entra, Intune and Defender as short marks in fixed slots, none past its cell or over
+  // another, each source in the same place on every row
   await p.evaluate(async () => { localStorage.setItem('ni-card-join', '1'); });
   await p.goto(base + '/'); await p.waitForSelector('#cards .lrow');
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.SYNC.graph = true; c.SYNC.defender = true; c.st.tab = 'cards'; c.st.q = ''; (await import('/js/07-render.js')).render(); });
@@ -85,7 +86,8 @@ try {
       const bs = [...cell.querySelectorAll('.jb')].map(b => b.getBoundingClientRect());
       bs.forEach((r, i) => { if (r.right > cr.right + 0.5) out.push('past its cell'); if (i && r.left < bs[i - 1].right) out.push('over another'); }); }
     return [...new Set(out)]; }), []);
-  assert.equal(await p.locator('#cards .lrow .c-dir .jb').first().locator('b').getAttribute('data-s'), 'AD');
+  assert.deepEqual(await p.evaluate(() => [...document.querySelector('#cards .lrow .c-dir').querySelectorAll('.jb b')].map(b => b.dataset.k)), ['AD', 'EN', 'IN', 'DF']);
+  assert.equal(await p.evaluate(() => new Set([...document.querySelectorAll('#cards .lrow .c-dir')].filter(c => c.getBoundingClientRect().width).map(c => [...c.querySelectorAll('.jb')].map(j => Math.round(j.getBoundingClientRect().left)).join())).size), 1, 'the same slots on every row');
 
   assert.deepEqual(errors, [], 'page errors');
   console.log('gone extras: all checks passed');
