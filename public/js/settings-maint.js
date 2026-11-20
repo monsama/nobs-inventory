@@ -384,6 +384,8 @@ function wirePhotosShrink(){
    E-mail, or Health with the certificate and the photos. Starts reading what is not loaded yet; most of it is for an
    admin only. */
 export function renderSetMaint(){
+  /* Settings closed, or a dialog opened from it in its place: nothing to draw (it is drawn afresh when it comes back). */
+  if (!$('#mdl #setMaint')) return;
   const edit = isAdmin();
   if (edit && BACKUPS === null) loadBackups();
   /* Read again when Maintenance is opened a minute or more after the last read. */

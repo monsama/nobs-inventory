@@ -142,8 +142,10 @@ export function applyTable(t){
   /* The shade at the edge of the pinned columns shows only while the table is scrolled sideways, when something passes
      under them; at rest it would read as a thick line between Name and the next column. */
   const box = t.parentElement;
+  /* A box drawn just now is not scrolled: its scrollLeft is not read, which would lay out every row once more. */
+  const fresh = !!box && !box._pinShade;
   if (box && !box._pinShade){ box._pinShade = true; box.addEventListener('scroll', () => { const tt = box.querySelector('table.grid'); if (tt) tt.classList.toggle('hscrolled', box.scrollLeft > 0); }, { passive: true }); }
-  t.classList.toggle('hscrolled', !!box && box.scrollLeft > 0);
+  t.classList.toggle('hscrolled', !!box && !fresh && box.scrollLeft > 0);
   applyView(t);
 }
 /* Sorting and filtering on the rows, after the columns are in their order. Numbers and dates sort by value. */

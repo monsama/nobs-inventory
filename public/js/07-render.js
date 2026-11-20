@@ -84,6 +84,9 @@ function renderNow({ save = true } = {}){
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
 const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'seen', 'gone', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids', 'handField', 'where', 'ctDue', 'cnKind'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
+/* What the list shows (the view, its filters and search), as text: Show all holds for that list only, so a list of
+   thousands is not drawn whole again on every later change. */
+export const viewSig = () => JSON.stringify(navOf());
 let navRestoring = false;
 function noteNav(){
   if (navRestoring || typeof history === 'undefined') return;

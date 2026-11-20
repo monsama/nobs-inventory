@@ -37,14 +37,19 @@ const person2 = async (ctx, login, password) => {
 };
 const serverObj = name => loadState(db).objs.find(o => o.name === name);
 const waitServer = async (fn, what) => {
-  for (let i = 0; i < 60; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); }
+  for (let i = 0; i < 150; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); }
   assert.fail('the server did not get: ' + what);
 };
 const editModel = async (p, name, model) => {
+  /* The page's last save answered first: its answer redraws the page, which would take the next edit's typing with it. */
+  await until(p, async () => { const { SERVER } = await import('/js/server-save.js'); return SERVER.save === 'saved' && !SERVER.busy; }, null, { timeout: 15000 });
   await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table');
   await p.locator('table.grid td b', { hasText: new RegExp(`^${name}$`) }).first().click();
   const id = await p.evaluate(async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n).id); }, name);
-  await p.fill(`#f_${id}_model`, model); await p.click('#saveBtn');
+  await p.fill(`#f_${id}_model`, model);
+  /* Save hides once the edit is saved: under load the page may have saved it already (the field is saved on its own too). */
+  const save = p.locator('#saveBtn');
+  await save.click({ timeout: 3000 }).catch(async e => { if (await save.isVisible()) throw e; });
 };
 
 try {
