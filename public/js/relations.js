@@ -7,7 +7,7 @@
    - patched: a patch cord from a panel port to a switch port (cabling.js checks it) */
 export const NET_GEAR = ['switch', 'router', 'firewall'];
 export const HOST_KINDS = ['attached', 'hosted'];
-export const isVm = o => !!o && (o.type === 'vm' || (o.type === 'server' && o.kind === 'vm'));
+export const isVm = o => !!o && (o.type === 'vm' || o.kind === 'vm');
 const ported = o => !!o && o.type !== 'patch' && (['switch', 'router', 'firewall', 'server'].includes(o.type) || o.ports > 0);
 /* Other too: a docking station is kept as Other, and its monitors are attached to it. */
 const ATTACH_TO = ['pc', 'notebook', 'server', 'android', 'ios', 'mobile', 'other'];

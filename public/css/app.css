@@ -2380,9 +2380,9 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 }
 .lrow .c-chips,.lrow .c-chips.rv-chips{flex-wrap:nowrap;padding:0;overflow:hidden}
 .lrow .rv-acts{justify-content:flex-end}
-#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) var(--w-user,minmax(110px,.9fr)) var(--w-loc,minmax(150px,1.3fr)) var(--w-ip,104px) var(--w-det,minmax(100px,1fr)) 214px var(--w-chips,minmax(0,130px)) var(--w-seen,84px)}
+#cards.lst.join{--cols:16px 18px minmax(150px,1.15fr) var(--w-user,minmax(110px,.9fr)) var(--w-loc,minmax(150px,1.3fr)) var(--w-ip,104px) var(--w-det,minmax(100px,1fr)) var(--w-dir,214px) var(--w-chips,minmax(0,130px)) var(--w-seen,84px)}
 /* A column with nothing in it on any row shown (renderCardsBody takes it out of the grid): its heading and cells go too. */
-#cards.lst.no-user .c-user,#cards.lst.no-loc .c-loc,#cards.lst.no-ip .c-ip,#cards.lst.no-det .c-det,#cards.lst.no-chips .c-chips,#cards.lst.no-seen .seen{display:none}
+#cards.lst.no-user .c-user,#cards.lst.no-loc .c-loc,#cards.lst.no-ip .c-ip,#cards.lst.no-det .c-det,#cards.lst.no-dir .c-dir,#cards.lst.no-chips .c-chips,#cards.lst.no-seen .seen{display:none}
 /* The Directory column of the List: the dot and a short label each, no boxes, so the four (AD, Entra, Intune, Defender)
    fit its width side by side; the full words and states are in each one's tooltip and on the device page. */
 .lrow .c-dir{overflow:hidden;min-width:0}
@@ -2410,7 +2410,7 @@ table.grid.prns td{white-space:normal;vertical-align:top}
 .lst .lhead>.seen{text-align:right}
 @media (min-width:761px){ @container devlist (max-width:980px){
   .lst:not(.pend) .lhead,.lst:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) var(--w-user,minmax(90px,.9fr)) var(--w-loc,minmax(110px,1.3fr)) var(--w-det,minmax(80px,.9fr)) var(--w-chips,minmax(0,150px)) var(--w-seen,76px)}
-  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) var(--w-user,minmax(90px,.9fr)) var(--w-loc,minmax(110px,1.3fr)) var(--w-det,minmax(80px,.9fr)) 214px var(--w-chips,minmax(0,110px)) var(--w-seen,76px)}
+  .lst.join:not(.pend) .lhead,.lst.join:not(.pend) .lrow{grid-template-columns:16px 18px minmax(120px,1.2fr) var(--w-user,minmax(90px,.9fr)) var(--w-loc,minmax(110px,1.3fr)) var(--w-det,minmax(80px,.9fr)) var(--w-dir,214px) var(--w-chips,minmax(0,110px)) var(--w-seen,76px)}
   .lst:not(.pend) .c-ip{display:none}
   .lst.pend .lhead,.lst.pend .lrow{grid-template-columns:16px 18px minmax(120px,1.1fr) minmax(90px,.8fr) minmax(110px,1fr) minmax(140px,1.5fr) 76px 168px}
   .lst.pend .c-ip,.lst.pend .c-src{display:none}

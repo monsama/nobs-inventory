@@ -4,7 +4,7 @@ import { DELIMITER_NAME, DEVICE_FIELDS, guessDeviceMapping, planDeviceImport, re
 import { decodeText } from './contacts-import.js';
 import { parseDay } from './datefield.js';
 import { num } from './09-costs.js';
-import { $$, HISTORY, markHand, restoreSnapshot, snapshot, toastUndo, $, LOCS, O, STATUS, TYPES, hist, now, objs, toast } from './01-core.js';
+import { typeText, $$, HISTORY, markHand, restoreSnapshot, snapshot, toastUndo, $, LOCS, O, STATUS, TYPES, hist, now, objs, toast } from './01-core.js';
 import { render } from './07-render.js';
 import { bindUser } from './04-settings.js';
 import { closeModal, modal } from './19-modal.js';
@@ -17,7 +17,7 @@ export const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t
    ({ head, rows }): the columns as the Table shows them, their texts as they are seen. name: the file's name. */
 export function exportCsv(list, shown = null, name = 'inventory.csv'){
   const head = shown ? shown.head : ['code','name','type','model','serial','ip','mac','location','user','status','purchased','warranty','price','supplier','invoice'];
-  const rows = shown ? shown.rows : list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label, o.purchased, o.warranty, o.price, o.supplier, o.invoice]);
+  const rows = shown ? shown.rows : list.map(o => [o.code, o.name, typeText(o), o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label, o.purchased, o.warranty, o.price, o.supplier, o.invoice]);
   const lines = [head.map(csvCell).join(',')].concat(rows.map(r => r.map(csvCell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'});
   const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: name});

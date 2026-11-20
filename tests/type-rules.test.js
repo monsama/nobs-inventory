@@ -16,8 +16,8 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('', 'FortiAP 231F', 'AP-01'), 'accesspoint');
   assert.equal(t('', 'VMware, Inc.', 'VMware 172.21.103.100'), 'server', 'a hypervisor host is a server');
   assert.equal(t('', 'Wistron', 'acmeesxi21.corp.local'), 'server');
-  assert.equal(t('Windows', 'VMware Virtual Platform', 'srv-app01'), 'vm', 'its virtual machines stay VMs');
-  assert.equal(t('VMware Guest', '', 'vm-x'), 'vm');
+  assert.equal(t('Windows', 'VMware Virtual Platform', 'srv-app01'), 'server', 'its virtual machines are servers (their Kind says virtual)');
+  assert.equal(t('VMware Guest', '', 'vm-x'), 'server');
   assert.equal(t('', 'Wistron Infocomm', 'jdoe-iphone'), 'ios');
   assert.equal(t('', 'Avaya Inc', 'Avaya Inc 172.21.103.112'), 'sip');
   // naming schemes: NB for a notebook, PC for a desktop, with a number after it
@@ -42,9 +42,9 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-hmilton'), 'pc', 'hmi as a whole word only');
   assert.equal(t('Network device', 'TAS TELEFONBAU A. SCHWABE GMBH & CO. KG', 'TAS TELEFONBAU A. SCHWABE GMBH & CO. KG'), 'pbx', 'a TAS phone system');
   assert.equal(t('Remote Access Controller', 'HPE iLO 5', 'srv01-ilo'), 'bmc', 'an iLO');
-  assert.equal(t('Windows', 'VMware, Inc. VMware Virtual Platform', 'acmeapp01', '', 'server'), 'vm', 'a VMware guest is a VM, also with the server role');
-  assert.equal(t('Windows', 'Microsoft Corporation Virtual Machine', 'acmehv-vm1', '', 'workstation'), 'vm', 'a Hyper-V guest');
-  assert.equal(t('Remote Access Controller', 'VMware, Inc. nginx', 'HPE SimpliVity OmniStack'), 'vm', 'the OmniStack controller is a VM, not an iLO');
+  assert.equal(t('Windows', 'VMware, Inc. VMware Virtual Platform', 'acmeapp01', '', 'server'), 'server', 'a VMware guest is a server, also with the server role');
+  assert.equal(t('Windows', 'Microsoft Corporation Virtual Machine', 'acmehv-vm1', '', 'workstation'), 'pc', 'a Hyper-V guest that Windows calls a workstation: a virtual desktop, a PC');
+  assert.equal(t('Remote Access Controller', 'VMware, Inc. nginx', 'HPE SimpliVity OmniStack'), 'server', 'the OmniStack controller is a (virtual) server, not an iLO');
   assert.equal(t('Network device', 'Dell iDRAC9', 'srv02-idrac'), 'bmc', 'an iDRAC');
   assert.equal(t('Network device', 'IBM IBM Integrated Management Module', 'acmeimm04.corp.local'), 'bmc', 'an IBM IMM');
   assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-silo'), 'pc', 'ilo as a whole word only');
@@ -53,8 +53,8 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('Network device', 'Supermicro BMC', 'host7-mgmt'), 'bmc', 'BMC in the model is');
   assert.equal(t('Network device', 'Raritan Dominion KX III', 'KVM-RZ1'), 'other', 'a KVM switch');
   assert.equal(t('Network device', 'ATEN CN8000A KVM over IP', ''), 'other', 'a KVM-over-IP box');
-  assert.equal(t('Windows', 'KVM', 'app-vm03', '', 'server'), 'vm', 'a KVM virtual machine');
-  assert.equal(t('Linux', 'Standard PC (Q35 + ICH9, 2009)', 'pve-guest'), 'vm', 'a Proxmox virtual machine');
+  assert.equal(t('Windows', 'KVM', 'app-vm03', '', 'server'), 'server', 'a KVM virtual machine');
+  assert.equal(t('Linux', 'Standard PC (Q35 + ICH9, 2009)', 'pve-guest'), 'server', 'a Proxmox virtual machine');
   assert.equal(t('VoIP', 'ALE International OXO050/042.001 GW_050/042', 'ALE International 172.21.103.5'), 'pbx', 'an OmniPCX Office is a phone system');
   assert.equal(t('VoIP', 'PATTON ELECTRONICS CO.', 'PATTON ELECTRONICS CO. 172.21.103.6'), 'pbx', 'a Patton VoIP gateway belongs to the phone system');
   assert.equal(t('Network device', 'Hewlett-Packard 8360-24XF2C v2 (JL722C)', 'core-sw'), 'switch', 'an Aruba CX 8360 is a switch');

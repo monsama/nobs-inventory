@@ -7,7 +7,7 @@ import { linksProblem } from '../public/js/links.js';
 import { maintProblem } from '../public/js/maintenance.js';
 import { SVG_ATTRS, SVG_ELEMENTS } from '../public/js/svg-rules.js';
 import { graphSettingsProblem } from './graph-keys.js';
-import { typeRulesProblem } from '../public/js/type-rules.js';
+import { typeByRules, typeRulesProblem } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
 import { fieldModeProblem, fieldOrderProblem } from '../public/js/sync-map.js';
 import { groupRolesProblem } from '../public/js/group-roles.js';
@@ -629,7 +629,37 @@ export function trimHistory(db) {
 }
 /* Replaces the stored inventory with the one sent. Used by the admin's full save and by the server's own jobs
    (feed, directory). Logins and sessions are not touched. */
+/* 0.9.160: a virtual machine is a Server whose Kind is Virtual machine, not a type of its own. Whatever still says
+   type vm (an older backup, an older page, a CSV, the API) becomes a server (a PC when Windows calls it a workstation,
+   a virtual desktop), and a server the type rules know as virtual by its model or Lansweeper type (VMware Virtual
+   Platform, Hyper-V's Virtual Machine, KVM…) gets Kind Virtual machine, unless its Kind is set. That guess (rules) is
+   made for synced devices only, at start (migrate.js) and after a sync, never on a person's save, so a server entered
+   by hand keeps Kind Not known until someone picks. Returns how many changed. */
+export function normalizeVirtual(s, { rules = false } = {}) {
+  let n = 0;
+  for (const o of Array.isArray(s && s.objs) ? s.objs : []) {
+    if (!o || typeof o !== 'object') continue;
+    if (virtualType(o)) { n++; continue; }
+    if (rules && (o.type === 'server' || o.type === 'pc') && !o.kind && o.feed && virtualByRules(s, o)) {
+      o.kind = 'vm'; n++;
+      if (s.history && typeof s.history === 'object') (s.history[o.id] ??= []).unshift({ t: new Date().toISOString(), msg: 'Kind set to Virtual machine (its model or Lansweeper type says virtual)' });
+    }
+  }
+  return n;
+}
+/* One device still saying type vm: a server (a PC when Windows calls it a workstation, a virtual desktop) whose Kind
+   says virtual. True when it changed. */
+export function virtualType(o) {
+  if (!o || typeof o !== 'object' || o.type !== 'vm') return false;
+  o.type = o.feed && o.feed.role === 'workstation' ? 'pc' : 'server';
+  o.kind = 'vm';
+  return true;
+}
+/* What the type rules make of a device's model, Lansweeper type, name and chassis: virtual (their target vm). */
+export const virtualByRules = (s, o) => typeMapSaysVm(s, o) || typeByRules(s.typeRules, { type: (o.feed && o.feed.assetType) || '', model: o.model || '', name: o.name || '', chassis: (o.feed && o.feed.chassis) || '' }).type === 'vm';
+const typeMapSaysVm = (s, o) => { const t = String((o.feed && o.feed.assetType) || '').toLowerCase(), m = s.typeMap || {}; const k = t && Object.keys(m).find(x => x.toLowerCase() === t); return !!k && m[k] === 'vm'; };
 export function saveState(db, s) {
+  normalizeVirtual(s);
   /* A page or backup from before the source picker may still send o.ovr: it becomes picks (fill.js). */
   if (s && Array.isArray(s.objs)) for (const o of s.objs) liftOvr(o, s.policy || {});
   checkState(s);
@@ -712,7 +742,7 @@ export function applyChanges(db, body, guard = () => {}) {
   }
   for (const c of puts) if (c.value === undefined || c.value === null || (c.kind !== 'setting' && typeof c.value !== 'object')) bad('Every saved record needs a value.');
   /* A page from before the source picker may still send o.ovr: it becomes picks (fill.js). */
-  { const policy = settingOf(db, 'policy') || {}; for (const c of puts) if (c.kind === 'object') liftOvr(c.value, typeof policy === 'object' ? policy : {}); }
+  { const policy = settingOf(db, 'policy') || {}; for (const c of puts) if (c.kind === 'object') { liftOvr(c.value, typeof policy === 'object' ? policy : {}); virtualType(c.value); } }
 
   /* The revisions of the records this save names, read one by one: not every record's. */
   const revOf = db.prepare('SELECT rev FROM revs WHERE kind = ? AND id = ?');

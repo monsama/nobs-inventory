@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
+import { typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
 import { SERVER, view, viewSig } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -32,7 +32,7 @@ export const CARD_FIELDS = {
   fw: ['Firmware', o => esc(o.fw || '')],
   ports: ['Ports', (o, idx) => o.type === 'switch' ? `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o, idx)} used` : (o.type === 'patch' || hasPorts(o)) && o.ports ? `${o.ports} · ${used(o, idx)} used` : ''],
   ext: ['Extension', o => mono(o.ext)],
-  kind: ['Kind', o => o.type === 'server' ? (o.kind === 'vm' ? 'Virtual machine' : 'Physical') : ''],
+  kind: ['Kind', o => o.type === 'server' ? (o.kind === 'vm' ? 'Virtual machine' : o.kind === 'physical' ? 'Physical' : '') : ''],
   cap: ['Capacity', o => esc([o.cap, o.proto].filter(Boolean).join(' · '))],
   ssid: ['Wi-Fi', o => esc(o.ssid || '')],
   domain: ['Domain', o => esc(o.domain || '')],
@@ -159,15 +159,16 @@ export function listHead(pend = false, join = showJoin()){
    and the actions instead of the detail. idx: the relation index (relIndex). */
 export function cardHtml(o, idx, join = showJoin()){
   const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
-  const t = TYPES[o.type] || { label: o.type };
-  const [dl, dv] = cardLine(o, detailOf(o.type), idx);
+  const [dl, dv0] = cardLine(o, detailOf(o.type), idx);
+  /* A virtual server says so first: Server is one type, its Kind tells virtual from physical (0.9.160). */
+  const virt = o.kind === 'vm' && (o.type === 'server' || o.type === 'pc') && detailOf(o.type) !== 'kind', dv = virt ? (dv0 ? 'Virtual · ' + dv0 : 'Virtual machine') : dv0;
   const tip = [o.purpose, o.serial && 'Serial number ' + o.serial, o.model && o.model].filter(Boolean).join(' · ');
   /* Every row has two lines: the name, and under it, quieter, the description; a device without one shows its serial
    number there instead (in the code font). The rows are all as tall; a name with nothing under it sits in the middle. */
   const purpose = String(o.purpose || '').trim(), alt = !purpose && o.serial ? `Serial number ${o.serial}` : '';
   const desc = purpose || alt;
   const name = html`<span class="c-name has-desc${desc ? '' : ' nodesc'}"><span class="c-nl"><button type="button" class="nm card-open" data-open="${o.id}" title="${tip || 'Open ' + o.name}">${o.name}</button>${rawHtml(markHtml(o, false))}${o.code && !o.review ? html`<small class="code">${o.code}</small>` : ''}</span>${desc ? html`<span class="c-desc${alt ? ' alt' : ''}" title="${desc}">${purpose || html`<span class="mono">${o.serial}</span>`}</span>` : ''}</span>`;
-  const head = html`<button type="button" class="cardtick" title="Select (Shift + click selects a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button><span class="c-ico" title="${t.label}">${rawHtml(tico(o.type))}</span>${name}${userCell(o, idx)}${locCell(o, idx)}<span class="c-ip mono">${o.ip || ''}</span>`;
+  const head = html`<button type="button" class="cardtick" title="Select (Shift + click selects a range)" aria-pressed="${String(picked)}" aria-label="${`Select ${o.name}`}"></button><span class="c-ico" title="${typeText(o)}">${rawHtml(tico(o.type))}</span>${name}${userCell(o, idx)}${locCell(o, idx)}<span class="c-ip mono">${o.ip || ''}</span>`;
   if (o.review){
     const why = !o.review.ignored && waitReason(o).text;
     const chips = [stale ? String(html`<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>`) : '',
@@ -177,7 +178,7 @@ export function cardHtml(o, idx, join = showJoin()){
       : html`<button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>`;
     return String(html`<article class="card lrow${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${`${o.name}: pending`}">${head}<span class="c-src rv-from" title="${alsoIn(o).length ? 'Also in ' + alsoIn(o).join(', ') : ''}">${REVIEW_SRC[o.review.src] || o.review.src}${alsoIn(o).length ? html`<span class="rv-also"> +${alsoIn(o).length}</span>` : ''}</span><span class="c-chips rv-chips">${why ? html`<span class="rv-why" title="${why}">${why}</span>` : ''}${chipsCell(chips)}</span>${seenCell(o)}<span class="rv-acts">${acts}${o.review.ignored || !isAdmin() ? '' : html`<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button>`}</span></article>`);
   }
-  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? dl : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${stateIcons(o)}${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}${rawHtml(quickEditBtn(o))}</article>`);
+  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? (virt ? (dv0 ? 'Virtual machine · ' + dl : 'Kind') : dl) : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${stateIcons(o)}${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}${rawHtml(quickEditBtn(o))}</article>`);
 }
 /* On a device waiting in Pending devices: the other sources that know it. */
 export const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
@@ -193,7 +194,7 @@ const CARD_SORTS = {
   name: ['Name', o => o.name, 1],
   added: ['Date added', o => addedTime(o) || null, -1],
   seen: ['Last seen', o => { const s = lastSeenOf(o); return s ? s.day : null; }, -1],
-  type: ['Type', o => TYPES[o.type] ? TYPES[o.type].label : o.type, 1],
+  type: ['Type', o => typeText(o), 1],
   loc: ['Location', o => o.loc || null, 1],
   user: ['User', o => o.user || null, 1],
   warranty: ['Warranty end', o => /^\d{4}-\d{2}-\d{2}$/.test(o.warranty || '') ? o.warranty : null, 1],
@@ -305,7 +306,7 @@ export function renderCardsBody(){
 }
 
 /* A column with nothing in any row drawn (no IP anywhere, no one seen…) takes no room, not even its gap: the others get it. */
-const FIT_COLS = { user: 'c-user', loc: 'c-loc', ip: 'c-ip', det: 'c-det', chips: 'c-chips', seen: 'seen' };
+const FIT_COLS = { user: 'c-user', loc: 'c-loc', ip: 'c-ip', det: 'c-det', dir: 'c-dir', chips: 'c-chips', seen: 'seen' };
 function fitColumns(){
   const box = /** @type {HTMLElement|null} */ ($('#cards')); if (!box) return;
   const rows = [...box.querySelectorAll(':scope .lrow')]; if (!rows.length) return;

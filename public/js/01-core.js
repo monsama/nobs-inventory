@@ -53,7 +53,9 @@ export const TYPES = {
   pc:{label:'PC', short:'PC', color:'#2563eb', icon:'pc'},
   notebook:{label:'Notebook', short:'NB', color:'#1d4ed8', icon:'laptop'},
   server:{label:'Server', short:'Server', color:'#6d28d9', icon:'server'},
-  vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
+  /* No type of its own in the lists (0.9.160: a virtual machine is a Server with Kind Virtual machine): only what a type
+     rule or a Lansweeper type name can point at, read as a virtual server. */
+  vm:{label:'Server (virtual)', short:'VM', color:'#7c3aed', icon:'server'},
   accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
   sip:{label:'VoIP phone', short:'VoIP', color:'#16a34a', icon:'sip'},
   pbx:{label:'Telephone system', short:'PBX', color:'#15803d', icon:'pbx'},
@@ -109,6 +111,14 @@ export const portValue = (t, raw) => {
 };
 const patchPortOf = v => { const m = /^p?(\d+)$/i.exec(v); return m ? 'P' + m[1].padStart(2, '0') : v.toUpperCase(); };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
+/* Types not offered in the lists (sidebar, type pickers, Settings → Device types): see vm above. */
+export const LIST_HIDDEN_TYPES = ['vm'];
+/* The types a list offers: [key, type] in their order, without the hidden ones. */
+export const listTypes = () => Object.entries(TYPES).filter(([k]) => !LIST_HIDDEN_TYPES.includes(k));
+/* A device's type as text: Server, or Server (virtual) for one whose Kind says virtual. */
+export const typeText = o => { const l = (TYPES[o && o.type] || {}).label || (o && o.type) || ''; return o && o.kind === 'vm' && (o.type === 'server' || o.type === 'pc') ? `${l} (virtual)` : l; };
+/* The type filter: the type, or vm for every virtual machine (a saved view or a view mail from before 0.9.160). */
+export const ofTypeSel = (o, t) => !t || (t === 'vm' ? o.type === 'vm' || o.kind === 'vm' : o.type === t);
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Three states: in use (handed out or running), in stock (in the IT store, with nobody) and retired (disposed of, kept
    for the record). */
@@ -898,7 +908,7 @@ export function filtered(){
 }
 function filteredAsIs(q){
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.gone || !GONE_FILTERS[st.gone] || GONE_FILTERS[st.gone][1](o)) && (!st.where || !!whereSignOf(o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => ((ofTypeSel(o, st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.gone || !GONE_FILTERS[st.gone] || GONE_FILTERS[st.gone][1](o)) && (!st.where || !!whereSignOf(o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 

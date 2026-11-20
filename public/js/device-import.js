@@ -62,7 +62,7 @@ export function matchDevice(v, objs) {
 }
 
 /* Words for types that are not the type's own name or label. */
-const TYPE_WORDS = { laptop: 'notebook', desktop: 'pc', workstation: 'pc', computer: 'pc', ap: 'accesspoint', smartphone: 'mobile', iphone: 'ios', nas: 'storage' };
+const TYPE_WORDS = { 'virtual machine': 'vm', 'virtual server': 'vm', laptop: 'notebook', desktop: 'pc', workstation: 'pc', computer: 'pc', ap: 'accesspoint', smartphone: 'mobile', iphone: 'ios', nas: 'storage' };
 const typeOf = (t, types) => {
   const n = low(t); if (!n) return '';
   return Object.keys(types).find(k => k === n || low(types[k].label) === n) || (types[TYPE_WORDS[n]] ? TYPE_WORDS[n] : null);
@@ -92,7 +92,7 @@ export function planDeviceImport(rows, mapping, ctx) {
     for (const k of ['name', 'model', 'serial', 'user', 'supplier', 'invoice']) if ((raw[k] || '').length > 500) errs.push(`${DEVICE_FIELDS[k].label.toLowerCase()} longer than 500 characters`);
     if ((raw.notes || '').length > 20000) errs.push('notes longer than 20000 characters');
     const t = typeOf(raw.type, types);
-    if (t === null) errs.push(`unknown type "${raw.type}"`); else if (t) v.type = t;
+    if (t === null) errs.push(`unknown type "${raw.type}"`); else if (t === 'vm'){ v.type = 'server'; v.kind = 'vm'; } else if (t) v.type = t;
     const s = statusOf(raw.status, statuses);
     if (s === null) errs.push(`unknown status "${raw.status}"`); else if (s) v.status = s;
     const l = locOf(raw.loc, locs);

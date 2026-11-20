@@ -6,7 +6,7 @@ import { html, rawHtml } from './html.js';
 import { SOURCES_OF, fieldOrder, fieldMode } from './sync-map.js';
 import { setOrderNow } from './settings-sources.js';
 import { roomFor } from './room-name.js';
-import { REVIEW, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
+import { listTypes, REVIEW, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 import { bindPlaces, placeSelect, placesHtml } from './settings-places.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
@@ -44,7 +44,7 @@ const subnetEditorHtml = (n, key, hint = null) => html`<div class="sn-edit" data
       <div class="sn-ranges">${(n.ranges || []).map(r => rangeRowHtml(r))}</div>
       <p class="note">A device's IP address lists the free addresses of Static ranges and of ones without a use; DHCP and Reserved ranges are left out.</p></div>
     <div class="sn-sect"><div class="sn-sh">Device types that take an address here<span class="sn-tq"><button type="button" class="link" data-tall>All</button><button type="button" class="link" data-tnone>None</button></span></div>
-      <div class="sn-typegrid">${Object.entries(TYPES).map(([k, t]) => html`<label class="sn-type"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''}>${rawHtml(tico(k, 'tico sm'))}<span>${t.label}</span></label>`)}</div></div>
+      <div class="sn-typegrid">${listTypes().map(([k, t]) => html`<label class="sn-type"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''}>${rawHtml(tico(k, 'tico sm'))}<span>${t.label}</span></label>`)}</div></div>
     ${hint && html`<p class="note sn-hint">${hint}</p>`}
     <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span><span class="grow"></span><button type="button" data-scancel>Cancel</button><button type="button" class="primary" data-ssave>${key === 'new' ? 'Add subnet' : 'Save'}</button></div></div>`;
 /* A subnet in the list: its name, address and VLAN, with the gateway, ranges and device types underneath. */

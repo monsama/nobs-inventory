@@ -1,6 +1,7 @@
 import { LOGIN_RE } from './feed.js';
 import { svgProblem, svgWithoutComments } from './state.js';
 import { liftOvr } from './fill.js';
+import { normalizeVirtual } from './state.js';
 /* Brings older data up to the current types. Phones and tablets are now three types: Android device, iOS device and
    Other mobile device. Racks used to be a list in the settings; now each rack is an object of type rack, with the same
    id, so the devices mounted in it keep their place. Running it again changes nothing. */
@@ -17,6 +18,17 @@ const OLD_TYPE_COLORS = {'pc': '#1565c0', 'notebook': '#2563eb', 'server': '#6a3
 const NEW_TYPE_COLORS = {'pc': '#2563eb', 'notebook': '#1d4ed8', 'server': '#6d28d9', 'vm': '#7c3aed', 'accesspoint': '#0891b2', 'sip': '#16a34a', 'pbx': '#15803d', 'monitor': '#64748b', 'switch': '#0d9488', 'printer': '#78716c', 'patch': '#0f766e', 'router': '#0e7490', 'firewall': '#155e75', 'modem': '#57534e', 'storage': '#5b21b6', 'android': '#65a30d', 'ios': '#059669', 'mobile': '#047857', 'plc': '#86198f', 'camera': '#52525b', 'bmc': '#4f46e5', 'rack': '#475569', 'other': '#5a6b7d'};
 export function migrateState(s) {
   let changed = false;
+  if (normalizeVirtual(s, { rules: true })) changed = true;
+  /* The type vm is no list type any more: its stored look goes; as a type rule's target it reads Server (virtual). What
+     was kept for it moves to Server: its own fields (those Server has not), and subnets offered for it. */
+  if (s.types && s.types.vm) { delete s.types.vm; changed = true; }
+  if (s.typeFields && Array.isArray(s.typeFields.vm)) {
+    const srv = Array.isArray(s.typeFields.server) ? s.typeFields.server : [];
+    s.typeFields.server = [...srv, ...s.typeFields.vm.filter(f => f && !srv.some(x => x && x.key === f.key))];
+    delete s.typeFields.vm; changed = true;
+  }
+  if (s.fieldLayout && s.fieldLayout.vm) { delete s.fieldLayout.vm; changed = true; }
+  for (const n of Array.isArray(s.subnets) ? s.subnets : []) if (n && Array.isArray(n.types) && n.types.includes('vm')) { n.types = [...new Set(n.types.map(t => t === 'vm' ? 'server' : t))]; changed = true; }
   /* Only a colour changed counts as an upgrade (with a backup first). */
   for (const [k, c] of Object.entries(OLD_TYPE_COLORS)) if (c !== NEW_TYPE_COLORS[k] && s.types && s.types[k] && String(s.types[k].color || '').toLowerCase() === c) { s.types[k] = { ...s.types[k], color: NEW_TYPE_COLORS[k] }; changed = true; }
   for (const o of s.objs) if (TYPE_RENAMES[o.type]) { o.type = TYPE_RENAMES[o.type]; changed = true; }

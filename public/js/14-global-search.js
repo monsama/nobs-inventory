@@ -2,7 +2,7 @@
    It finds devices (racks too), actions (New device, Back up now, the views), people, contacts, contracts, rooms, saved
    views and settings, and lists them under the field, grouped; a hit opens where it
    lives. On a list (Cards, Table, Relationships) it filters that list too as one types. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
-import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, matchesQ, objs, st, tico } from './01-core.js';
+import { typeText, $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, matchesQ, objs, st, tico } from './01-core.js';
 import { USERS, isAdmin } from './04-settings.js';
 import { settingHits, openSetting } from './settings-find.js';
 import { newObjModal } from './05-new-object.js';
@@ -66,7 +66,7 @@ function results(q){
     .sort((a, b) => +(a.status === 'retired') - +(b.status === 'retired') || a.name.localeCompare(b.name));
   if (devs.length) out.push(['Devices', devs.length, devs.slice(0, MAX.dev).map(o => ({
     icon: rawHtml(tico(o.type, 'tico sm')), main: o.name,
-    sub: [TYPES[o.type] ? TYPES[o.type].label : o.type, o.ip, (o.loc || '').replace(' / ', ' · '), o.status !== 'active' ? STATUS[o.status].label : ''].filter(Boolean).join(' · '),
+    sub: [typeText(o), o.ip, (o.loc || '').replace(' / ', ' · '), o.status !== 'active' ? STATUS[o.status].label : ''].filter(Boolean).join(' · '),
     go: () => openObj(o.id) }))]);
   /* Devices a sync found that wait in Pending devices: found here too, marked as such. */
   const waiting = REVIEW.filter(o => !o.review.ignored && matchesQ(o, q));

@@ -1,6 +1,6 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
-import { $$, $, evEl, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setByHand, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
+import { typeText, listTypes, $$, $, evEl, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setByHand, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
 import { RACKABLE, TYPE_U, isAdmin, rackCheck, rackLocFollow, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
@@ -229,7 +229,7 @@ export function renderPlans(){
   const body = plan ? html`<div class="pl-body${sideOpen() ? '' : ' side-off'}">
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
         <div class="pl-q">
-          <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => html`<option value="${k}" ${st.plType === k ? 'selected' : ''}>${v.label}</option>`)}</select>
+          <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${listTypes().filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => html`<option value="${k}" ${st.plType === k ? 'selected' : ''}>${v.label}</option>`)}</select>
           <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? html`<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${plan.site}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
         <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planMode === 'text' ? 'Click the plan where the text goes. Press Esc to stop.' : planMode === 'area' ? 'Drag one or more rectangles on the plan, then click Done to name the area. Esc discards them (with Undo).' : planEditArea && isAdmin() ? 'Drag the area or use the arrow keys to move it; drag a square on its edge, or Shift + arrow keys, to change its size. ✥ moves one rectangle of several. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
@@ -521,7 +521,7 @@ export function planCanvas(plan){
     ${rawHtml(resizeHandles(plan))}
     ${(plan.labels || []).map(l => html`<div class="pl-label${isAdmin() && planMode === 'view' ? ' movable' : ''}" data-label="${l.id}" style="left:${l.x}%;top:${l.y}%"${isAdmin() ? html` title="Drag to move it; click to change or remove it"` : ''}>${l.text}</div>`)}
     ${planParts.length ? rawHtml(areaShape(planParts, ' pending')) : ''}
-    ${layout.map(({o, box, area, ...pos}) => html`<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? html` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-code">${o.name || o.code || ''}</span>${planRiders(o).length ? html`<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${o.name}</b><span>${TYPES[o.type] ? TYPES[o.type].label : ''}${o.model ? ' · ' + o.model : ''}</span><span class="muted">${[o.code, o.loc || 'No location'].filter(Boolean).join(' · ')}</span>${ridersHtml(o)}</span>${isAdmin() ? html`<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${o.name} from the plan" title="${(plan.areas || []).some(a => areaLocName(plan, a) === o.loc) ? 'Remove from this location' : 'Remove from the plan'}">×</span>` : ''}</button>`)}
+    ${layout.map(({o, box, area, ...pos}) => html`<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? html` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-code">${o.name || o.code || ''}</span>${planRiders(o).length ? html`<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${o.name}</b><span>${typeText(o)}${o.model ? ' · ' + o.model : ''}</span><span class="muted">${[o.code, o.loc || 'No location'].filter(Boolean).join(' · ')}</span>${ridersHtml(o)}</span>${isAdmin() ? html`<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${o.name} from the plan" title="${(plan.areas || []).some(a => areaLocName(plan, a) === o.loc) ? 'Remove from this location' : 'Remove from the plan'}">×</span>` : ''}</button>`)}
   </div>`);
 }
 export function renderPlanList(plan){
@@ -830,7 +830,7 @@ function printPlan(plan){
   ({ planEditArea, planMode, planPlace, planZoom, planParts } = keep);
   const layout = planLayout(plan), byArea = (plan.areas || []).map(a => [a, layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).map(p => p.o)]);
   const rest = layout.map(p => p.o).filter(o => !byArea.some(([, list]) => list.includes(o)));
-  const row = o => html`<li><b>${o.name}</b> <span class="muted">${[TYPES[o.type] ? TYPES[o.type].label : o.type, o.code, o.model].filter(Boolean).join(' · ')}</span></li>`;
+  const row = o => html`<li><b>${o.name}</b> <span class="muted">${[typeText(o), o.code, o.model].filter(Boolean).join(' · ')}</span></li>`;
   const css = new URL('css/app.css', location.href).href;
   w.document.open();
   w.document.write(String(html`<!doctype html><html lang="en" data-theme="light"><head><meta charset="utf-8"><title>${plan.name}${plan.site ? ' · ' + plan.site : ''}</title><link rel="stylesheet" href="${css}">

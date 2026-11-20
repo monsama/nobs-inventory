@@ -7,7 +7,7 @@ import { modal, closeModal } from './19-modal.js';
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { isAdmin, renderSetPane, who } from './04-settings.js';
-import { $$, $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, MODELS, toast, toastUndo, daysSince } from './01-core.js';
+import { typeText, $$, $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, MODELS, toast, toastUndo, daysSince } from './01-core.js';
 import { html, rawHtml } from './html.js';
 import { setupTrackHtml, statusHeaderHtml } from './settings-status.js';
 import { runOf } from './16-sync.js';
@@ -44,9 +44,11 @@ export function applyTypeMap(only){
     for (const o of objs) {
       const fromLs = o.feed && String(o.feed.assetType || '').toLowerCase() === name.toLowerCase();
       /* Not a retired device, nor a type set by hand: the mapping is for what Lansweeper decides. */
-      if (!fromLs || o.excluded || o.detached || o.status === 'retired' || (o.pick && o.pick.type === 'hand') || o.type === type) continue;
-      hist(o, now(), `Type changed to ${TYPES[type].label} by the type mapping of ${name}`);
-      o.type = type; n++;
+      /* vm: a server whose Kind says virtual (a PC stays one, a virtual desktop). */
+      const to = type === 'vm' ? (o.type === 'pc' ? 'pc' : 'server') : type, kind = type === 'vm' ? 'vm' : o.kind;
+      if (!fromLs || o.excluded || o.detached || o.status === 'retired' || (o.pick && o.pick.type === 'hand') || (o.type === to && o.kind === kind)) continue;
+      hist(o, now(), `Type changed to ${typeText({ type: to, kind })} by the type mapping of ${name}`);
+      o.type = to; if (type === 'vm') o.kind = 'vm'; n++;
     }
   }
   return n;
