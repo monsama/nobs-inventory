@@ -135,21 +135,26 @@ function addWindowControls(m){
   strip.querySelector('.wc-close').onclick = closeModal;
   makeMovable(m);
 }
-/* A dialog moves by its title bar, as in NOBS SQL Editor: the bar always stays on the screen, and the dialog opens again
-   where it was last left (kept in this browser, by its title). A double-click on the bar maximizes it or gives it back
-   its size. Settings, which fills the window, and a phone, where every dialog does, do not move. */
+/* A dialog moves by its title bar and is sized by its bottom right corner, as in NOBS SQL Editor: the bar always stays
+   on the screen, and the dialog opens again where it was last left, at the size it was given (kept in this browser, by
+   its title). A double-click on the bar maximizes it, to the whole window, or gives it back its size. On a phone every
+   dialog fills the screen and does not move. */
 const PLACES_KEY = 'ni-dlg-pos';
 const places = () => { try { return JSON.parse(localStorage.getItem(PLACES_KEY)) || {}; } catch { return {}; } };
-const keepPlace = (key, xy) => { try { const all = places(); if (xy) all[key] = xy; else delete all[key]; localStorage.setItem(PLACES_KEY, JSON.stringify(all)); } catch { /* not kept: the dialog opens in the middle */ } };
-/* Lets dialog m be dragged by its title bar, puts it back where it was last left and saves where it is dropped.
-   A double-click on the bar maximizes it. Does nothing for Settings or a dialog without a title bar. */
+const keepPlace = (key, v) => { try { const all = places(); if (v) all[key] = v; else delete all[key]; localStorage.setItem(PLACES_KEY, JSON.stringify(all)); } catch { /* not kept: the dialog opens in the middle */ } };
+/* The smallest a dialog can be made, Settings (a menu beside its page) a little wider. */
+const MIN_W = 360, MIN_H = 200, MIN_W_SETTINGS = 640;
+/* Lets dialog m be dragged by its title bar and sized by its corner, puts it back where and as large as it was last
+   left and keeps that when let go. A double-click on the bar maximizes it. Does nothing for a dialog without a title bar. */
 function makeMovable(m){
   const head = m.querySelector('.mh'), box = m.querySelector('.box');
-  if (!head || box.classList.contains('settings') || box.querySelector('#setPane')) return;
+  if (!head) return;
   const key = m.getAttribute('aria-label') || 'Dialog';
+  const settings = box.classList.contains('settings') || !!box.querySelector('#setPane');
   const fixed = () => box.classList.contains('maxed') || matchMedia('(max-width:760px)').matches;
-  let x = 0, y = 0;
+  let x = 0, y = 0, w = 0, h = 0;
   const place = (nx, ny) => { x = nx; y = ny; box.style.transform = x || y ? `translate(${x}px, ${y}px)` : ''; };
+  const size = (nw, nh) => { w = nw; h = nh; box.style.width = w ? w + 'px' : ''; box.style.height = h ? h + 'px' : ''; box.classList.toggle('sized', !!(w || h)); };
   /* The bar stays reachable: at least 120px of it across, and its top inside the window. */
   const clamp = () => {
     const r = box.getBoundingClientRect();
@@ -157,19 +162,43 @@ function makeMovable(m){
     const dy = r.top < 0 ? -r.top : r.top > window.innerHeight - 40 ? window.innerHeight - 40 - r.top : 0;
     if (dx || dy) place(x + dx, y + dy);
   };
+  const keep = () => keepPlace(key, x || y || w || h ? [x, y, w, h] : null);
   const kept = places()[key];
-  if (kept && !fixed()) { place(kept[0], kept[1]); clamp(); }
+  /* Checked once it is shown: before that it has no place to measure. */
+  if (kept && !fixed()) { size(kept[2] || 0, kept[3] || 0); place(kept[0] || 0, kept[1] || 0); requestAnimationFrame(clamp); }
+  const skip = e => e.target.closest('button, input, select, textarea, a, .wctl');
   head.classList.add('movable');
   head.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || fixed() || e.target.closest('button, input, select, textarea, a, .wctl')) return;
+    if (e.button !== 0 || fixed() || skip(e)) return;
     e.preventDefault();
     const sx = e.clientX, sy = e.clientY, x0 = x, y0 = y;
     head.setPointerCapture(e.pointerId); box.classList.add('moving');
     const move = ev => { place(x0 + ev.clientX - sx, y0 + ev.clientY - sy); clamp(); };
-    const up = () => { head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up); head.removeEventListener('pointercancel', up); box.classList.remove('moving'); keepPlace(key, x || y ? [x, y] : null); };
+    const up = () => { head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up); head.removeEventListener('pointercancel', up); box.classList.remove('moving'); keep(); };
     head.addEventListener('pointermove', move); head.addEventListener('pointerup', up); head.addEventListener('pointercancel', up);
   });
-  head.addEventListener('dblclick', e => { if (!e.target.closest('button, input, select, textarea, a, .wctl')) { const b = head.querySelector('.wc-max'); if (b) b.click(); } });
+  head.addEventListener('dblclick', e => { if (!skip(e)) { const b = head.querySelector('.wc-max'); if (b) b.click(); } });
+  /* The corner: the dialog is centred, so its top left stays put by moving it half of what it grows. A double-click
+     on the corner gives it back its own size. */
+  const grip = document.createElement('span');
+  grip.className = 'dlg-grip'; grip.title = 'Drag to size the dialog, double-click for its own size'; grip.setAttribute('aria-hidden', 'true');
+  box.appendChild(grip);
+  grip.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || fixed()) return;
+    e.preventDefault(); e.stopPropagation();
+    const r = box.getBoundingClientRect(), sx = e.clientX, sy = e.clientY, x0 = x, y0 = y;
+    const minW = Math.min(settings ? MIN_W_SETTINGS : MIN_W, r.width), minH = Math.min(MIN_H, r.height);
+    /* Not past the window's right and bottom edge, less the dialog's 16px margin. */
+    const maxW = window.innerWidth - 16 - r.left, maxH = window.innerHeight - 16 - r.top;
+    grip.setPointerCapture(e.pointerId); box.classList.add('moving');
+    const move = ev => {
+      const nw = Math.round(Math.max(minW, Math.min(maxW, r.width + ev.clientX - sx))), nh = Math.round(Math.max(minH, Math.min(maxH, r.height + ev.clientY - sy)));
+      size(nw, nh); place(Math.round(x0 + (nw - r.width) / 2), Math.round(y0 + (nh - r.height) / 2));
+    };
+    const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); box.classList.remove('moving'); keep(); };
+    grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+  });
+  grip.addEventListener('dblclick', e => { e.stopPropagation(); if (fixed()) return; size(0, 0); place(0, 0); keep(); });
 }
 /* A minimized dialog is closed (not modal), so the page works while it waits; restoring makes it modal again. */
 export function minimizeModal(){
