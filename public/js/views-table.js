@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
+import { dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
 import { SERVER, viewSig } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -51,6 +51,8 @@ export const TABLE_COLS = [
   {k:'purpose', w:180, label:'Description', cell: o => String(html`<td>${o.purpose || ''}</td>`)},
   /* AD, Entra, Intune and Defender as in the List's Directory column; the words (joined, compliant…) in the export. */
   {k:'dir', w:132, label:'Directory', cell: o => String(html`<td class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</td>`)},
+  /* What AD (or the user's office) gives as location; marked when it is no room here yet, or another room. */
+  {k:'dloc', w:200, label:'AD location', cell: o => { const d = dirLocOf(o); return String(html`<td>${d ? html`${d.src === 'Office' ? 'Office: ' : ''}${d.text}${d.state === 'new' ? html` <span class="wty soon">not a room</span>` : d.state === 'diff' ? html` <span class="wty soon">${d.room}</span>` : ''}` : ''}</td>`); }},
   {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return String(html`<td class="n">${t ? html`${t.name}${up.port != null ? html` · ${portLabel(t, up.port)}` : ''}` : ''}</td>`); }},
   {k:'urls', w:200, label:'Links', cell: o => String(html`<td>${(o.urls || []).map((l, i) => html`${i ? ' · ' : ''}<a class="lnk" href="${linkHref(l.url)}" target="_blank" rel="noopener noreferrer" title="${l.url}">${l.label || linkKind(l.url)}</a>`)}</td>`)},
@@ -85,16 +87,16 @@ export function tablePrintData(){
 }
 export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope) && (c.k !== 'why' || st.scope === 'review'));
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-export const DEFAULT_HIDDEN_COLS = ['kind', 'host', 'dir', 'rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot'];
+export const DEFAULT_HIDDEN_COLS = ['kind', 'host', 'dir', 'dloc', 'rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
-const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls'], 5: ['purchased', 'due', 'replPrice'], 6: ['maint'], 7: ['secureBoot'], 8: ['kind', 'host', 'dir']};
+const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls'], 5: ['purchased', 'due', 'replPrice'], 6: ['maint'], 7: ['secureBoot'], 8: ['kind', 'host', 'dir'], 9: ['dloc']};
 export function hiddenCols(){
   if (!st.hiddenCols){
     try {
       st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS;
       const seen = +localStorage.getItem('ni-cols-v') || 1;
       for (const [v, cols] of Object.entries(LATER_COLS)) if (seen < +v) st.hiddenCols = [...new Set([...st.hiddenCols, ...cols])];
-      localStorage.setItem('ni-cols-v', '8');
+      localStorage.setItem('ni-cols-v', '9');
     } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;

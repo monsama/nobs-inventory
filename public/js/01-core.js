@@ -120,6 +120,17 @@ export const typeText = o => { const l = (TYPES[o && o.type] || {}).label || (o 
 /* The type filter: the type, or vm for every virtual machine (a saved view or a view mail from before 0.9.160). */
 /* A server's Kind for the filter under Server: vm, physical, or none (not known). */
 export const SRV_KINDS = { vm: 'Virtual', physical: 'Physical', none: 'Not known' };
+/* The location a directory gives a device: its computer account's location in AD, else the office of its user (AD or
+   Entra), and what it means here: the room it names or is mapped to (Settings → Locations), and whether that is the
+   device's room ('same'), another room ('diff') or no room yet ('new'). null when no directory says anything. */
+export function dirLocOf(o){
+  const u = !(o.ad && o.ad.location) && o.uid && personOf(o.uid), text = String((o.ad && o.ad.location) || (u && u.profile && u.profile.office) || '').trim();
+  if (!text) return null;
+  const t = text.toLowerCase(), map = { ...(st.adLocMap || {}), ...(st.locMap || {}) };
+  const mapped = Object.entries(map).find(([k]) => k.trim().toLowerCase() === t);
+  const room = LOCS.find(l => l.toLowerCase() === t) || (mapped && LOCS.includes(mapped[1]) ? mapped[1] : '');
+  return { text, src: o.ad && o.ad.location ? 'AD' : 'Office', room, state: !room ? 'new' : room === o.loc ? 'same' : 'diff' };
+}
 export const SRV_KIND_TEXT = { vm: 'Virtual machine', physical: 'Physical', none: 'Not known' };
 export const kindOf = o => o.type !== 'server' ? '' : o.kind === 'vm' || o.kind === 'physical' ? o.kind : 'none';
 export const ofTypeSel = (o, t) => !t || (t === 'vm' ? o.type === 'vm' || o.kind === 'vm' : o.type === t);
@@ -594,6 +605,9 @@ export const QUALITY = {
   }],
   /* Virtual or physical: a server no source could tell about (from AD only, entered by hand). */
   nokind: ['Server, virtual or physical not known', 'Set its Kind on its page, or for many at once with Edit fields (Kind)', o => o.type === 'server' && o.status !== 'retired' && o.kind !== 'vm' && o.kind !== 'physical'],
+  /* What AD (or the user's office) gives as location, and the rooms here. */
+  locnew: ['Location from AD not a room yet', 'AD or the user\'s office names a place that is no room here: add it, or map it to a room, in Settings → Locations', o => o.status !== 'retired' && (dirLocOf(o) || {}).state === 'new'],
+  locdiff: ['Room differs from AD', 'AD or the user\'s office names another room than the one recorded here', o => o.status !== 'retired' && (dirLocOf(o) || {}).state === 'diff'],
   reported: ['Problem reported by its user', 'Its user reported a problem: look at it, then mark it as done on the device', o => !!o.reported && !o.reported.done],
   conflict: ['Sources disagree', 'Lansweeper, Intune or AD give a field different values: compare and pick one', o => !!o.vals && Object.keys(o.vals).some(k => sourcesDisagree(o, k))],
 };

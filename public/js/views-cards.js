@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
+import { dirLocOf, GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
 import { SERVER, view, viewSig } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -108,7 +108,17 @@ const userCell = (o, idx) => {
 let oneSite = '';
 const shortLoc = l => oneSite && l.startsWith(oneSite + ' / ') ? l.slice(oneSite.length + 3) : l;
 /* Where it is: its location; else its host's (a monitor on a PC, marked in the chips); a virtual machine "on" its host. */
+/* Under the room, what AD (or the user's office) says, when it is not this room: a place that is no room here yet, or
+   another room. Nothing when they agree. */
+const dirLine = o => { const d = dirLocOf(o); if (!d || d.state === 'same') return null;
+  const tip = d.state === 'new' ? `${d.src === 'AD' ? 'AD location' : 'Office of the user'} “${d.text}” is no room here yet: add it, or map it to a room, in Settings → Locations`
+    : `${d.src === 'AD' ? 'AD location' : 'Office of the user'} “${d.text}” is the room ${d.room}${o.loc ? `, not ${o.loc}` : ''}`;
+  return html`<span class="c-lsrc ls-${d.state}" title="${tip}">${d.src}: ${d.text}${d.state === 'new' ? html` <b>new</b>` : ''}</span>`; };
 const locCell = (o, idx) => {
+  const dl = dirLine(o);
+  if (dl && o.loc) return html`<span class="c-loc has-src"><span class="c-ll" title="${o.loc}">${shortLoc(o.loc)}</span>${dl}</span>`;
+  /* No room here: what AD says is the only line. */
+  if (dl) return html`<span class="c-loc">${dl}</span>`;
   if (o.loc) return html`<span class="c-loc" title="${o.loc}">${shortLoc(o.loc)}</span>`;
   const h = hostOf(o, idx);
   if (h && h.loc) return html`<span class="c-loc" title="${h.loc}, from ${h.name}">${shortLoc(h.loc)}</span>`;
