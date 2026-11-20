@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
+import { typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
 import { SERVER, viewSig } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -25,7 +25,7 @@ export const TABLE_COLS = [
   {k:'code', w:100, label:'Code', cell: o => String(html`<td class="code">${o.code}</td>`)},
   /* The name opens the device, from the keyboard too (Tab to it, Enter): one stop per row, not the whole row as well. */
   {k:'name', w:220, label:'Name', fixed: true, cell: o => String(html`<td class="n"><a class="link rowopen" data-open="${o.id}"><b>${o.name}</b></a>${rawHtml(markHtml(o))}</td>`)},
-  {k:'type', w:160, label:'Type', cell: o => String(html`<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].label}</span></td>`)},
+  {k:'type', w:160, label:'Type', cell: o => String(html`<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${typeText(o)}</span></td>`)},
   {k:'model', w:210, label:'Model', cell: o => String(html`<td>${o.model}</td>`)},
   {k:'ip', w:130, label:'IP', cell: o => String(html`<td class="n">${o.ip || ''}</td>`)},
   {k:'mac', w:150, label:'MAC', cell: o => String(html`<td class="n">${o.mac || ''}</td>`)},

@@ -172,6 +172,6 @@ test('a saved built-in type in its old default colour takes the new one; a colou
   assert.equal(migrateState(s), true);
   assert.equal(s.types.switch.color, '#0d9488'); assert.equal(s.types.printer.color, '#123456');
   assert.equal(migrateState(s), false, 'nothing more the second time');
-  const same = { ...base([]), types: { vm: { label: 'Virtual machine', short: 'VM', color: '#7c3aed', icon: 'server' } } };
+  const same = { ...base([]), types: { notebook: { label: 'Notebook', short: 'NB', color: '#1d4ed8', icon: 'laptop' } } };
   assert.equal(migrateState(same), false, 'a colour that stayed the same is no upgrade');
 });

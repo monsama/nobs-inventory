@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { scanSpan, whereSignOf, NEW_DAYS, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
+import { ofTypeSel, listTypes, scanSpan, whereSignOf, NEW_DAYS, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -38,12 +38,12 @@ function drawSide(){
   /* The sidebar counts what the list shows: in Pending devices only while Cards, Table or the map show it. */
   const pool = LIST_TABS.includes(st.tab) ? scopePool() : objs, cnt = f => pool.filter(f).length;
   /* With an object type selected, the locations count only objects of that type. */
-  const ofType = f => o => (!st.type || o.type === st.type) && f(o);
+  const ofType = f => o => ofTypeSel(o, st.type) && f(o);
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
      picked stays. "All devices" is marked only when nothing at all narrows the list. */
   const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
   const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span><span class="cnt">${byType[k] || 0}</span></button>`;
-  const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
+  const types = listTypes(), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
   /* Clear filters only while something is filtered: an idle button is noise. */
   $('#clearF').hidden = !leftFilters() && !st.q.trim() && !colFiltered();
   $('#typeList').innerHTML = html`<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All devices</span><span class="cnt">${pool.length}</span></button>${
@@ -239,7 +239,7 @@ export function renderFilterBar(){
      in place of the inventory's left bar. */
   const waitAll = REVIEW.filter(o => o.review && !o.review.ignored), ignAll = REVIEW.filter(o => o.review && o.review.ignored);
   /* The counts follow the type picked (+N beside a type), so they add up to what is shown. */
-  const ofType = waitAll.filter(o => !st.type || o.type === st.type);
+  const ofType = waitAll.filter(o => ofTypeSel(o, st.type));
   const bySrc = ofType.filter(o => !st.rvSrc || o.review.src === st.rvSrc);
   const whyN = k => k ? bySrc.filter(o => waitReason(o).kind === k).length : bySrc.length;
   const WHY = [['', 'All'], ['clear', 'Nothing unclear'], ['dup', 'Possible duplicate'], ['ip', 'Address only'], ['old', `Not seen for ${REVIEW_STALE_DAYS} days`]];

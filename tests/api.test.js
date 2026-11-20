@@ -163,7 +163,7 @@ test('Lansweeper asset type names land in the matching app type', async () => {
     'Windows': 'pc', 'Apple Mac': 'pc', 'Computer': 'pc', 'Laptop': 'notebook', 'Notebook': 'notebook', 'Camera': 'camera', 'Linux': 'server', 'VMware': 'server',
     'Switch': 'switch', 'Router': 'router', 'Firewall': 'firewall', 'Printer': 'printer', 'Tablet': 'mobile', 'iPad': 'ios',
     'iPhone': 'ios', 'Android': 'android', 'Mobile': 'mobile', 'Modem': 'modem', 'Phone': 'sip', 'VoIP': 'sip', 'VOIP phone': 'sip', 'DECT': 'sip', 'DECT handset': 'sip', 'Telefon': 'sip', 'Gigaset': 'sip',
-    'Wireless Access point': 'accesspoint', 'Wifi': 'accesspoint', 'UPS': 'other', 'Network device': 'other', 'Webserver': 'other', 'Web': 'other', 'Virtual machine': 'vm'
+    'Wireless Access point': 'accesspoint', 'Wifi': 'accesspoint', 'UPS': 'other', 'Network device': 'other', 'Webserver': 'other', 'Web': 'other', 'Virtual machine': 'server'
   };
   for (const [assetType, type] of Object.entries(expected)) {
     const s = { objs: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0 };

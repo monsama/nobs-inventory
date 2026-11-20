@@ -2,7 +2,7 @@
    typing) a serial number, code or name. A device found in another place can be moved here; something not in the
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
-import { evEl, $$, $, LOCS, SITES, TYPES, hist, now, objs, setByHand, st, tico, toast, toastUndo } from './01-core.js';
+import { typeText, evEl, $$, $, LOCS, SITES, TYPES, hist, now, objs, setByHand, st, tico, toast, toastUndo } from './01-core.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
@@ -89,7 +89,7 @@ function activeHtml(t, edit){
   const rooms = [...new Set(shown.map(o => o.loc || ''))].sort((a, b) => +(a === '') - +(b === '') || a.localeCompare(b));
   const row = o => { const ok = confirmedIn(o, t.id), d = daysSinceVerified(o);
     return html`<label class="stk-row${ok ? ' ok' : ''}"><input type="checkbox" data-stk="${o.id}" ${ok ? 'checked' : ''} ${edit ? '' : 'disabled'}>
-      <span class="stk-name"><b>${o.name}</b> <span class="code">${o.code || ''}</span><small>${[TYPES[o.type] ? TYPES[o.type].label : o.type, o.serial, userName(o)].filter(Boolean).join(' · ')}</small></span>
+      <span class="stk-name"><b>${o.name}</b> <span class="code">${o.code || ''}</span><small>${[typeText(o), o.serial, userName(o)].filter(Boolean).join(' · ')}</small></span>
       <span class="stk-when muted">${ok ? `Confirmed${o.verified.from !== undefined ? ', moved here' : ''}` : d === null ? 'Never confirmed' : `Last ${dateText(o.verified.at)}`}</span></label>`; };
   return html`<div class="panelbox"><div class="hdr">${t.name} <span class="cnt">${[t.name.includes(placeName(t.scope)) ? '' : placeName(t.scope), `started ${dateText(t.started.slice(0, 10))}${t.by ? ' by ' + t.by : ''}`].filter(Boolean).join(' · ')}</span></div>
     <div class="stk-prog stk-pad"><div class="ov-qbar" role="img" aria-label="${done} of ${list.length} confirmed"><span style="width:${pct}%"></span></div><b>${done} of ${list.length}</b>${moved ? html`<span class="muted">${moved} moved here</span>` : ''}${(t.unknown || []).length ? html`<span class="muted">${t.unknown.length} not in the inventory</span>` : ''}</div>

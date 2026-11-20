@@ -14,8 +14,9 @@ export const DEFAULT_TYPE_RULES = [
   r('any', 'simatic, s7-300, s7-400, s7-1200, s7-1500, logo!, modicon, controllogix, compactlogix, guardlogix, micrologix, melsec, plc, programmable controller, saia, pcd, hms industrial, anybus, ewon, wago', 'plc'),
   r('any', 'sinamics, sinumerik, simotion, motion control, powerflex, kinetix, altivar, lexium, movidrive, frequency converter, frequency inverter, servo drive', 'plc'),
   r('any', 'hikvision, ds-2cd, ds-2de, ds-2df, ds-2cv, ds-76, ds-77, ds-86, ds-96, ip camera, network camera, network video recorder, nvr, dvr, axis communications, dahua, cctv', 'camera'),
-  /* HPE SimpliVity's OmniStack Virtual Controller: a VM on each node, though Lansweeper may call it a remote access controller. */
-  r('any', 'simplivity, omnistack', 'vm'),
+  /* HPE SimpliVity's OmniStack Virtual Controller: a VM on each node, though Lansweeper may call it a remote access controller.
+     Not the word SimpliVity: the nodes themselves are physical servers. */
+  r('any', 'omnistack', 'vm'),
   /* A KVM switch (keyboard, video and mouse for several servers) is not a KVM virtual machine. */
   r('any', 'kvm switch, kvm over ip, kvm-over-ip, ip kvm, kvm console, raritan, dominion kx, avocent, aten kvm, aten cn, aten kn, lantronix spider', 'other'),
   /* The names an iLO or iDRAC is given (srv01-ilo) count; the short words that are also common names (bmc, imm, ipmi)

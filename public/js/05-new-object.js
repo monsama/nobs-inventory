@@ -1,4 +1,4 @@
-import { pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
+import { listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
@@ -62,7 +62,7 @@ export function newObjModal(pre={}){
   const ctx = byId(st.tab);
   modal(html`<div class="mh">${c ? 'Duplicate ' + c.code : 'New device'}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => html`<option value="${k}">${v.label}</option>`)}</select>
+      <label for="nType">Type</label><select id="nType">${listTypes().flatMap(/** @returns {[string, {label: string}][]} */ ([k, v]) => k === 'server' ? [[k, v], ['vm', TYPES.vm]] : [[k, v]]).map(([k,v]) => html`<option value="${k}">${v.label}</option>`)}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. PC-0151">
       <label for="nLoc">Location</label><select id="nLoc" class="locpick">${rawHtml(locOptions(''))}</select>
       ${!LOCS.length && html`<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>`}
@@ -150,9 +150,12 @@ export function newObjModal(pre={}){
       if (!$('#nSerialNote')) $('#nSerial').after(document.createElement('span'), n); $('#nSerial').focus(); return;
     }
     askBeforeClosing(null);
-    const o = O($('#nType').value, name, {model:$('#nModel').value.trim(), serial:$('#nSerial').value, loc:$('#nLoc').value});
+    const picked = $('#nType').value;
+    const o = O(picked, name, {model:$('#nModel').value.trim(), serial:$('#nSerial').value, loc:$('#nLoc').value});
+    /* Server (virtual): a server whose Kind is Virtual machine, with no ports of its own; it runs on a host (LINK_OF('vm')). */
+    if (picked === 'vm'){ o.type = 'server'; o.kind = 'vm'; }
     if (o.type === 'switch') Object.assign(o, {ports:24, sfp:4, pfx:'1/'});
-    else if (PORTED.includes(o.type)) o.ports = o.type === 'server' ? 4 : 8;
+    else if (PORTED.includes(o.type) && picked !== 'vm') o.ports = o.type === 'server' ? 4 : 8;
     if (o.type === 'patch') o.ports = 24;
     if (o.type === 'rack'){ const u = +$('#nUnits').value; if (Number.isInteger(u) && u >= 1 && u <= 60) o.units = u; }
     o.status = $('#nStatus').value || 'active';
@@ -162,7 +165,7 @@ export function newObjModal(pre={}){
     /* The port is saved as it was checked above: a patch panel's port as P04, so it shows on the panel and cannot be taken twice. */
     if (up){ const t = byId(up); let p = portValue(t, $('#nPort').value);
       if (p) releaseRetiredPort(t, p);
-      const link = LINK_OF(o.type) || {kind: 'connected', port: true};
+      const link = LINK_OF(picked) || {kind: 'connected', port: true};
       /* Network gear put on network gear is its uplink. */
       rels.push({id:'r'+rid(), from:o.id, to:up, kind: link.kind === 'connected' ? linkKind(o, t) : link.kind, port: link.port ? p || null : null, vlan:null}); }
     if (c){

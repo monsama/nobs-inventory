@@ -50,6 +50,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'VM-TEST'));
   const rel = await p.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.objs.find(x => x.name === 'VM-TEST'); return c.rels.find(r => r.from === o.id); });
   assert.deepEqual([rel.to, rel.kind, rel.port], [srv, 'hosted', null]);
+  assert.deepEqual(await p.evaluate(async () => { const o = (await import('/js/01-core.js')).objs.find(x => x.name === 'VM-TEST'); return [o.type, o.kind, o.ports]; }), ['server', 'vm', undefined], 'Server (virtual): a server, Kind virtual, no ports');
   // a rack keeps the height given
   await open(); await p.selectOption('#nType', 'rack'); await p.fill('#nName', 'RACK-TEST'); await p.fill('#nUnits', '24'); await p.click('#nOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'RACK-TEST' && o.units === 24));

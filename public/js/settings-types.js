@@ -7,7 +7,7 @@ import { renderSetModels } from './settings-feed.js';
 import { applyRole, isAdmin } from './04-settings.js';
 import { closeModal } from './19-modal.js';
 import { queueServerSave, render } from './07-render.js';
-import { VIEWBOX_RE, ICON, iconSvg, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol, tico, relIndex, modelNames, REVIEW } from './01-core.js';
+import { listTypes, VIEWBOX_RE, ICON, iconSvg, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol, tico, relIndex, modelNames, REVIEW } from './01-core.js';
 import { SVG_ELEMENTS, SVG_ATTRS } from './svg-rules.js';
 import { html, rawHtml } from './html.js';
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
@@ -201,7 +201,7 @@ export function renderBuiltinFields(box, type){
 export function renderSetTypes(){
   const root = $('#setTypes');
   if (!root) return;
-  const keys = Object.keys(TYPES);
+  const keys = listTypes().map(([k]) => k);
   if (st.typeSel !== MODELS_KEY && !TYPES[st.typeSel]) st.typeSel = st.fieldType && TYPES[st.fieldType] ? st.fieldType : keys[0];
   if (st.typeSel !== MODELS_KEY) st.fieldType = st.typeSel;
   const q = String(st.typeFind || '').trim().toLowerCase();

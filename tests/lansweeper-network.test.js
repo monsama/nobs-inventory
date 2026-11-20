@@ -63,7 +63,8 @@ test('gateway, DHCP and warranty dates come in under the overwrite rules; the Wi
   assert.equal(o('PC-A').warranty, '2026-01-01', 'a warranty date the device holds is kept');
   assert.equal(o('DC01').type, 'server', 'a domain controller filed as Windows is a server');
   assert.equal(o('WS-LAB').type, 'pc', 'a workstation is a PC whatever its type is called');
-  assert.equal(o('VM-1').type, 'vm', 'a virtual machine stays one');
+  assert.equal(o('VM-1').type, 'server', 'a virtual machine is a server');
+  assert.equal(o('VM-1').kind, 'vm', '... whose Kind says virtual');
   assert.equal(o('PC-NEW').gateway, undefined, 'a gateway that is not an address is not stored');
   assert.equal(o('PC-NEW').dhcp, undefined);
   assert.equal(o('PC-NEW').warranty, undefined, 'a warranty that is not a date is not stored');

@@ -4,7 +4,7 @@ import { isPlaceholderSerial } from '../public/js/serials.js';
 import { HOST_KINDS, relationProblem } from '../public/js/relations.js';
 import { LS_FIELDS, LS_FILL, fieldOrder } from '../public/js/sync-map.js';
 import { HttpError } from './errors.js';
-import { KNOWN_TYPES, intakeOf } from './state.js';
+import { KNOWN_TYPES, intakeOf, normalizeVirtual } from './state.js';
 
 /* Lansweeper merge rules, shared by the file import and the API sync.
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
@@ -288,10 +288,13 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
   /* A mapping to a type that is not there (deleted since) is passed over: the rules decide, instead of the whole push failing. */
-  if (own && s.typeMap[own] && (KNOWN_TYPES.includes(s.typeMap[own]) || (s.types || {})[s.typeMap[own]])) return s.typeMap[own];
-  const byRules = typeByRules(s.typeRules, { type: text, model, name: devName, chassis }).type;
+  /* Virtual (the rules' or a mapping's target vm): a server, whose Kind says virtual (state.js normalizeVirtual); a
+     Windows workstation stays a PC (a virtual desktop). */
+  const virt = t => t === 'vm' ? (role === 'workstation' ? 'pc' : 'server') : t;
+  if (own && s.typeMap[own] && (KNOWN_TYPES.includes(s.typeMap[own]) || (s.types || {})[s.typeMap[own]])) return virt(s.typeMap[own]);
+  const byRules = virt(typeByRules(s.typeRules, { type: text, model, name: devName, chassis }).type);
   /* Windows says whether it is a workstation, a server or a domain controller, which is surer than the type's name:
-     it moves a computer between PC and server. A virtual machine stays one. */
+     it moves a computer between PC and server. */
   if ((role === 'server' || role === 'dc') && ['pc', 'notebook', 'other'].includes(byRules)) return 'server';
   if (role === 'workstation' && byRules === 'server') return 'pc';
   return byRules;
@@ -600,6 +603,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const netsBefore = JSON.stringify([s.lsNets || [], before.ipLocations]);
   if (cleaned.some(r => r.mask)) s.lsNets = suggestNets(s.objs.filter(o => o.status !== 'retired'), s.subnets, ipLocations);
   counts.networks = JSON.stringify([s.lsNets || [], s.lsIpLocations || []]) === netsBefore ? 0 : 1;
+  /* Servers Lansweeper shows as virtual (its type, their model): Kind Virtual machine, before the links (a monitor is
+     not attached to a virtual machine) and before the changes are noted. */
+  normalizeVirtual(s, { rules: true });
   counts.links = applyLinks(s, pairs, counts, seen);
   counts.software = applySoftware(s, pairs);
   counts.printers = applyPrinters(s, pairs);

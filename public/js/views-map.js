@@ -1,5 +1,5 @@
 /* The relations map: layout, drawing, zoom and the toolbar (split out of 02-views.js, which re-exports it). */
-import { isAttached, $, menuHtml, STATUS, TYPES, byId, filtered, objs, portLabel, rels, st, tcol, tico, toast, used, noMatchHtml } from './01-core.js';
+import { typeText, isAttached, $, menuHtml, STATUS, TYPES, byId, filtered, objs, portLabel, rels, st, tcol, tico, toast, used, noMatchHtml } from './01-core.js';
 import { EXPORT_ICON } from './print-view.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
@@ -140,7 +140,7 @@ export function mapInner(L){
   const nodes = L.list.map(o => {
     const p = L.pos[o.id], h = mapH(o), lines = mapLines(o), c = tcol(o.type);
     /* The header names the type next to the code, so each box says what it is (PC, Switch, Server …). */
-    return html`<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})"><title>${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}</title>
+    return html`<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})"><title>${o.name} · ${typeText(o)}</title>
       <rect width="${MAP_W}" height="${h}" rx="5" fill="var(--bg)" stroke="var(--bd)"/>
       <rect width="${MAP_W}" height="20" rx="5" fill="var(--panel2)"/><rect y="12" width="${MAP_W}" height="8" fill="var(--panel2)"/>
       <rect width="3" height="${h}" rx="1.5" fill="${c}"/>
