@@ -200,14 +200,26 @@ function renderTray(){
 export let modalOpener = null;
 /* Leaving Settings, however it is closed, draws the view behind it again, so changes made there show at once. */
 /* The still picture of Settings behind a dialog opened from it: a copy that runs nothing, takes no input and is not read
-   out, under the dialog's dimmed backdrop. Gone when Settings comes back or the dialog closes otherwise. */
+   out, under the dialog's dimmed backdrop. Gone when Settings comes back or the dialog closes otherwise. The copy lives in
+   its own shadow root: it keeps its ids (Settings is styled by them, #setPane, #setTabs), yet no lookup in the page
+   (document.querySelector, getElementById) can find them, so a late redraw can only reach the open Settings. */
+let ghostSheet = null, ghostSheetOf = -1;
+function ghostStyles(){
+  const sheets = [...document.styleSheets];
+  if (ghostSheet && ghostSheetOf === sheets.length) return ghostSheet;
+  const text = sheets.map(sh => { try { return [...sh.cssRules].map(r => r.cssText).join('\n'); } catch { return ''; } }).join('\n');
+  ghostSheet = new CSSStyleSheet(); ghostSheet.replaceSync(`${text}\n.modal .box{box-shadow:none}`); ghostSheetOf = sheets.length;
+  return ghostSheet;
+}
 function keepGhost(box){
   dropGhost(); if (!box) return;
   const g = document.createElement('div');
   g.id = 'mdlGhost'; g.className = 'modal modal-ghost'; g.setAttribute('aria-hidden', 'true'); g.inert = true;
-  /* The copy keeps its ids: Settings is styled by them (#setPane, #setTabs), so it looks as it did. It comes after the
-     dialog in the page, and the checks for an open Settings look in the dialog (#mdl) only. */
-  g.append(box.cloneNode(true)); document.body.append(g);
+  const root = g.attachShadow({ mode: 'open' });
+  root.adoptedStyleSheets = [ghostStyles()];
+  /* .modal around the copy, laid out as if absent, so the rules for a dialog's parts (.modal .box, .modal .mh) apply. */
+  const wrap = document.createElement('div'); wrap.className = 'modal'; wrap.style.display = 'contents';
+  wrap.append(box.cloneNode(true)); root.append(wrap); document.body.append(g);
 }
 function dropGhost(){ const g = document.getElementById('mdlGhost'); if (g) g.remove(); }
 export const closeModal = () => {

@@ -2,7 +2,7 @@
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
 import { REVIEW, addedTime, listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
-import { SERVER, view } from './07-render.js';
+import { SERVER, view, viewSig } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
 import { mergeTarget, resolveModal, reviewDo, reviewStale, waitReason } from './15-review.js';
@@ -241,7 +241,7 @@ export function renderCardsBody(){
   }
   const pend = !!st.scope, join = !pend && showJoin(), idx = relIndex(), card = o => cardHtml(o, idx, join);
   /* Thousands of rows take long to draw: the first ones are drawn, the rest on request. A search or a filter narrows it. */
-  const cut = !st.cardsAll && list.length > SHOW_FIRST + 100;
+  const cut = st.cardsAll !== viewSig() && list.length > SHOW_FIRST + 100;
   const more = cut ? html`<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length}. Search or filter to narrow them down.</span><button id="cardsAll">Show all ${list.length}</button></div>` : '';
   if (cut) list = list.slice(0, SHOW_FIRST);
   let rows;
@@ -258,7 +258,7 @@ export function renderCardsBody(){
     }).join('');
   }
   $('#view').innerHTML = html`<div id="cards" class="lst${pend ? ' pend' : ''}${join ? ' join' : ''}${isAdmin() && !pend ? ' qe' : ''}${st.bulk && st.bulk.size ? ' picking' : ''}" aria-label="${pend ? 'Pending devices' : 'Devices'}">${listHead(pend, join)}${rawHtml(rows)}</div>${more}`;
-  const b = $('#cardsAll'); if (b) b.onclick = () => { st.cardsAll = true; renderCards(); };
+  const b = $('#cardsAll'); if (b) b.onclick = () => { st.cardsAll = viewSig(); renderCards(); };
   $('#view').querySelectorAll('[data-csort]').forEach(h => h.addEventListener('click', e => { e.stopPropagation(); sortBy(h.dataset.csort); renderCards(); const again = $(`#view [data-csort="${h.dataset.csort}"]`); if (again) again.focus(); }));
   $('#view').querySelectorAll('.grphdr').forEach(h => {
     const toggle = () => { const k = st.cardsGroup + ':' + h.dataset.grp; st.groupsClosed[k] = !st.groupsClosed[k]; renderCards(); const again = $(`#view .grphdr[data-grp="${CSS.escape(h.dataset.grp)}"]`); if (again) again.focus(); };

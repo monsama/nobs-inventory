@@ -259,6 +259,8 @@ a.btnlike{text-decoration:none;gap:6px}
 .logerr td{background:rgba(220,38,38,.08)}
 .lrows{display:flex;flex-direction:column}
 .lrow{display:grid;grid-template-columns:minmax(0,1fr) 64px 92px;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--bd2)}
+/* Rows out of sight are not laid out or painted until scrolled near: a list of thousands draws as fast as a short one. */
+#cards article.card.lrow{content-visibility:auto;contain-intrinsic-size:auto 37px}
 .lrow.room{grid-template-columns:120px minmax(0,1fr) 64px 92px}
 .lrow.room.site-first:not(:first-child){border-top:1px solid var(--bd)}   /* a new site starts its group */
 /* Column headers look the same in every table: plain bold text on the header shade. Capitals are for title bars. */
@@ -2659,7 +2661,6 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
 /* The still picture of Settings behind a dialog opened from it (19-modal.js keepGhost): where Settings was, under the
    dialog's backdrop, out of reach of the pointer. */
 .modal-ghost{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;z-index:40;pointer-events:none}
-.modal-ghost .box{box-shadow:none}
 /* A field's sources, changed under its row in Data sources: the Locations list with a column for how each writes. */
 .ds-edrow>td{padding:0 0 4px!important;background:var(--sub)}
 .ds-ed{margin:6px 12px 8px}

@@ -2,11 +2,12 @@
 import { handOutModal } from './27-handout.js';
 import { setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
-import { evEl, scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, LOCS, STATUS, byId, filtered, objs, hist, now, rels, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
+import { evEl, scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, STATUS, byId, filtered, objs, hist, now, rels, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
 import { retireLinks } from './03-object-modals.js';
 import { render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
-import { confirmModal } from './19-modal.js';
+import { closeModal, confirmModal, modal } from './19-modal.js';
+import { locOptions } from './loc-pick.js';
 import { takeBackModal } from './27-handout.js';
 import { html, rawHtml } from './html.js';
 import { dupOf, resolveModal, reviewDo, reviewStale } from './15-review.js';
@@ -67,7 +68,7 @@ export function bindScopeActs(list){
 export function pickBar(list){
   const n = (st.bulk || new Set()).size;
   /* The picked devices' actions on a row of their own, always in one order: count, the Pending devices actions, Resolve, the rest. */
-  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button><button id="cdRetire" title="Retire them: kept for the record, with their history; one Undo">Retire…</button><button id="cdDelete" class="danger-text" title="Delete them for good">Delete…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
+  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdMove" title="Put them all in one room; the next sync does not move them back">Move to room…</button><button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button><button id="cdRetire" title="Retire them: kept for the record, with their history; one Undo">Retire…</button><button id="cdDelete" class="danger-text" title="Delete them for good">Delete…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
     : scopeActs(list, true);
 }
 /* The picked devices that are still among those shown (the inventory, or Pending devices): a pick does not reach across. */
@@ -75,6 +76,7 @@ export const pickedInPool = () => { const ids = new Set(scopePool().map(o => o.i
 export function bindPickBar(){
   const o = $('#cdOpen'); if (o) o.onclick = () => openObjs([...st.bulk]);
   const e = $('#cdEdit'); if (e) e.onclick = () => bulkEditModal([...st.bulk]);
+  const mv = $('#cdMove'); if (mv) mv.onclick = () => moveModal([...st.bulk], () => keepScroll(renderCards));
   const t = $('#cdTable'); if (t) t.onclick = () => { st.tab = 'table'; view(); };
   const c = $('#cdClear'); if (c) c.onclick = () => { st.bulk.clear(); keepScroll(renderCards); };
   const r = $('#cdRetire'); if (r) r.onclick = () => retirePicked();
@@ -148,26 +150,13 @@ document.addEventListener('keydown', e => {
    the status, the responsible or any field of them all. */
 export const tableBulkBar = (list, n) => String(html`${n && st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>${rawHtml(scopeActs(list))}${rawHtml(mergeBtn())}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
 ${n && !st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>${rawHtml(mergeBtn())}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? html`<option value="handout">Hand out to a person…</option><option value="edit">Edit fields…</option>` : ''}
-${isAdmin() ? html`<optgroup label="Move to location">${LOCS.map(l => html`<option value="loc:${l}">${l}</option>`)}</optgroup>
+${isAdmin() ? html`<optgroup label="Move"><option value="move">Move to room…</option></optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => html`<option value="status:${k}">${v.label}</option>`)}<option value="status:__back">Take back into stock (no user)</option></optgroup>
 <optgroup label="Retire or delete"><option value="retire">Retire…</option><option value="delete">Delete…</option></optgroup>
 ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => html`<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => html`<option value="resp:${k}:${c.id}">${contactLabel(c)}</option>`)}<option value="resp:${k}:">- no ${l.toLowerCase()} responsible</option></optgroup>`) : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`);
 /* Wires the Table's bar for the n selected rows: Clear, Open in tabs, and the Actions menu (open, hand out, edit, move,
    set the status or the responsible). Each change has one Undo. */
 export function bindTableBulk(n){
-  /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
-  const bulkLoc = to => {
-    const snap = snapshot([...st.bulk].map(byId));
-    let moved = 0;
-    st.bulk.forEach(id => {
-      const o = byId(id); if (!o || o.loc === to) return;
-      moved++;
-      if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc');
-      o.loc = to; markHand(o, 'loc'); o.handAt = new Date().toISOString();
-      hist(o, now(), 'Moved to ' + to + ' (bulk)');
-    });
-    toastUndo(moved === n ? `${n} moved to ${to}` : `${moved} moved to ${to}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); }); renderTable(); render();
-  };
   const bulkStatus = v => {
     /* Take back: the same dialog as on a device or a person (where they go, with the store room proposed). */
     if (v === '__back'){ takeBackModal([...st.bulk].map(byId).filter(Boolean)); return; }
@@ -192,6 +181,47 @@ export function bindTableBulk(n){
   /* One menu for what is done with the selected: open them, move them, set their status, responsible or fields. */
   const ba = $('#bkAct'); if (ba) ba.onchange = () => {
     const v = ba.value, at = v.indexOf(':'), what = at < 0 ? v : v.slice(0, at), arg = v.slice(at + 1); ba.value = '';
-    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout') handOutModal([...st.bulk]); else if (what === 'edit') bulkEditModal([...st.bulk]); else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg); else if (what === 'retire') retirePicked(); else if (what === 'delete') deletePicked();
+    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout') handOutModal([...st.bulk]); else if (what === 'edit') bulkEditModal([...st.bulk]); else if (what === 'move') moveModal([...st.bulk], renderTable); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg); else if (what === 'retire') retirePicked(); else if (what === 'delete') deletePicked();
   };
+}
+
+/* Moved by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back.
+   One history line each and one Undo for them all. after: the list's own redraw. */
+export function moveDevices(ids, to, after = () => {}){
+  const list = ids.map(byId).filter(Boolean), snap = snapshot(list);
+  let moved = 0;
+  for (const o of list){
+    if (o.loc === to) continue;
+    moved++;
+    if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc');
+    o.loc = to; markHand(o, 'loc'); o.handAt = new Date().toISOString();
+    hist(o, now(), 'Moved to ' + to + ' (bulk)');
+  }
+  const n = list.length, one = c => `${c} ${c === 1 ? 'device' : 'devices'}`;
+  toastUndo(moved === n ? `${one(n)} moved to ${to}` : `${one(moved)} moved to ${to}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); });
+  after(); render();
+}
+/* Move to room…: the rooms grouped by site, New room… last (admins), as everywhere a location is picked. Move stays
+   off until a room is picked; Enter moves. */
+export function moveModal(ids, after){
+  const n = ids.filter(byId).length; if (!n) return;
+  const here = [...new Set(ids.map(byId).filter(Boolean).map(o => o.loc || ''))];
+  const now_ = here.length === 1 && here[0] ? here[0] : '';
+  /* The list is drawn again after the move: the focus goes back to what opened the dialog, in its new copy. */
+  const back = document.activeElement && document.activeElement.id;
+  modal(html`<div class="mh">Move ${n} ${n === 1 ? 'device' : 'devices'}</div>
+    <div class="mb"><div class="form"><label for="mvLoc">To room</label><select id="mvLoc" class="locpick">${rawHtml(locOptions(now_, { none: 'Pick a room' }))}</select></div>
+    <p class="note">${here.length === 1 ? (here[0] ? `Now all in ${here[0]}.` : 'None of them has a location yet.') : `Now in ${here.length} places.`} The next sync does not move them back.</p></div>
+    <div class="mf"><button id="mvCancel">Cancel</button><button id="mvOk" class="primary" disabled>Move</button></div>`, 'sm');
+  const sel = /** @type {HTMLSelectElement} */ ($('#mvLoc')), ok = /** @type {HTMLButtonElement} */ ($('#mvOk'));
+  const sync = () => { ok.disabled = !sel.value || sel.value === now_; };
+  sel.onchange = sync; sync();
+  $('#mvCancel').onclick = closeModal;
+  ok.onclick = () => {
+    if (ok.disabled) return;
+    const to = sel.value; closeModal(); moveDevices(ids, to, after);
+    const again = back && document.getElementById(back); if (again) again.focus();
+  };
+  sel.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); ok.click(); } };
+  sel.focus();
 }

@@ -67,9 +67,9 @@ try {
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.setTab = 'mail'; (await import('/js/04-settings.js')).openSettings(); });
   await p.waitForSelector('#dgPreview'); await p.click('#dgPreview');
   await p.waitForSelector('#mdl:not(:has(#setPane)) .mh');
-  assert.equal(await p.evaluate(() => { const g = document.querySelector('#mdlGhost'); return !!g && g.inert && !!g.querySelector('.box.settings #setPane'); }), true, 'Settings stays behind, inert');
+  assert.equal(await p.evaluate(() => { const g = document.querySelector('#mdlGhost'); return !!g && g.inert && !!g.shadowRoot.querySelector('.box.settings #setPane') && !document.getElementById('setPane'); }), true, 'Settings stays behind, inert');
   /* and looks as Settings does: its menu on the left, the pane beside it (styled by its ids) */
-  assert.equal(await p.evaluate(() => { const g = document.querySelector('#mdlGhost'), t = g.querySelector('#setTabs').getBoundingClientRect(), pn = g.querySelector('#setPane').getBoundingClientRect(); return t.right <= pn.left + 1 && t.height > 300; }), true, 'the copy keeps the Settings layout');
+  assert.equal(await p.evaluate(() => { const g = document.querySelector('#mdlGhost'), t = g.shadowRoot.querySelector('#setTabs').getBoundingClientRect(), pn = g.shadowRoot.querySelector('#setPane').getBoundingClientRect(); return t.right <= pn.left + 1 && t.height > 300; }), true, 'the copy keeps the Settings layout');
   if (process.env.GHOST) await p.screenshot({ path: process.env.GHOST });
   await p.keyboard.press('Escape');
   await p.waitForSelector('#mdl #setPane');

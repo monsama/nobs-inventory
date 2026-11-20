@@ -258,6 +258,8 @@ export function pushStatus(){
    and schedule, and the CSV import. Wires making, copying and revoking the token, Sync now and the upload; the one
    source not in use is hidden. */
 export function renderSetFeed(){
+  /* Settings closed, or a dialog opened from it in its place: nothing to draw (it is drawn afresh when it comes back). */
+  if (!$('#mdl #setFeed')) return;
   if (!LS_ON()){ $('#setFeed').innerHTML = ''; return; }
   if (!st.lansweeper) st.lansweeper = {};
   const L = st.lansweeper, edit = isAdmin(), ro = edit ? '' : 'disabled';

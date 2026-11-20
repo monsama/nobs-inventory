@@ -68,6 +68,8 @@ let ldapAdvOpen = false;
 /* LDAP: the directory settings, saved in the inventory (the service password encrypted on the server), the CA, a
    test and a sync. */
 export function renderSetLdap(){
+  /* Settings closed, or a dialog opened from it in its place: nothing to draw (it is drawn afresh when it comes back). */
+  if (!$('#mdl #setLdap')) return;
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = isAdmin();
   const ro = edit ? '' : 'disabled';

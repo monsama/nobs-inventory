@@ -161,6 +161,8 @@ function wireGroupRoles(){
    Wires every edit in it (name, department, role, active, what a viewer sees, remove), each saved at once, and
    keeps at least one active admin. */
 export function renderSetUsers(){
+  /* Settings closed, or a dialog opened from it in its place: nothing to draw (it is drawn afresh when it comes back). */
+  if (!$('#mdl #setUsers')) return;
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
   const devCount = new Map();
   for (const o of objs){ const n = o.user; if (n) devCount.set(n, (devCount.get(n) || 0) + 1); }

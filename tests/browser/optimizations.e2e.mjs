@@ -51,7 +51,7 @@ try {
   await p.click('#qfixSel');
   await until(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'bkAct'));
   assert.match(await p.textContent('.pick-n'), /2 selected/);
-  await p.selectOption('#bkAct', 'loc:Bern / OG');
+  await p.selectOption('#bkAct', 'move'); await p.waitForSelector('#mvLoc'); await p.selectOption('#mvLoc', 'Bern / OG'); await p.click('#mvOk');
   await until(() => p.evaluate(async () => (await import('/js/01-core.js')).objs.filter(o => o.loc === 'Bern / OG').length === 2));
 
   // the check taken off: the Table's own layout is back, Location not next to Name any more
