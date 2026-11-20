@@ -62,7 +62,7 @@ try {
 
   // the Report… button of a filtered Table: only the listed devices
   await go({ tab: 'table', q: 'NB-ANNA' });
-  await p.click('#rpBtn'); await p.waitForSelector('#rpOnly');
+  await p.click('#csvMenu .menu-btn'); await p.click('#rpBtn'); await p.waitForSelector('#rpOnly');
   assert.match(await p.textContent('label:has(#rpOnly)'), /Only the 1 device/);
   // the hand-back list: by person, and the files only once a person is picked
   await p.check('[name=rpKind][value=handback]');

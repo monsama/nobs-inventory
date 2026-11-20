@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { listCount, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
+import { listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
 import { SERVER, viewSig } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -16,7 +16,7 @@ import { exportCsv, importCsvModal } from './views-csv.js';
 import { patchImportModal } from './24-patch.js';
 import { bindSaveView, saveViewBtn } from './views-saved.js';
 import { remapTable } from './saved-views.js';
-import { bindPrintMenu, printItems, EXPORT_ICON } from './print-view.js';
+import { bindPrintMenu, printItems } from './print-view.js';
 import { html, rawHtml } from './html.js';
 import { waitReason } from './15-review.js';
 /* ---------- table ---------- */
@@ -153,8 +153,8 @@ export function renderTable(){
   const colOpen = !!$('#colMenu .menubox:popover-open');
   st.bulk = pickedInPool();
   const n = st.bulk.size;
-  $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${listCount(list.length, scopePool().length)}</span><span class="tbsep"></span>
-    ${rawHtml(columnsMenu())}${rawHtml(menuHtml(EXPORT_ICON + 'Export', String(html`${SERVER.on ? html`<button type="button" id="xlsxShown">Excel<span class="muted">, the columns shown</span></button>` : ''}<button type="button" id="csvShown">CSV<span class="muted">, the columns shown</span></button><button type="button" id="csvBtn">CSV, all fields<span class="muted">, to import again</span></button><hr class="msep">${rawHtml(printItems())}`), { id: 'csvMenu' }))}${isAdmin() && !st.scope ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
+  $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${listCountShown(list.length, scopePool().length)}</span><span class="tbsep"></span>
+    ${rawHtml(columnsMenu())}${rawHtml(menuHtml(MORE_DOTS, String(html`${SERVER.on ? html`<button type="button" id="xlsxShown">Excel<span class="muted">, the columns shown</span></button>` : ''}<button type="button" id="csvShown">CSV<span class="muted">, the columns shown</span></button><button type="button" id="csvBtn">CSV, all fields<span class="muted">, to import again</span></button><hr class="msep">${rawHtml(printItems())}${isAdmin() && !st.scope ? html`<hr class="msep"><button type="button" id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button type="button" id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${saveViewBtn() || (!st.scope && SERVER.on) ? html`<hr class="msep">` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button type="button" id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}`), { id: 'csvMenu', cls: 'tb-more', btn: 'aria-label="More: export, print, import, save view, report" title="Export, print, import, save view, report"' }))}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -192,7 +192,7 @@ export function renderTable(){
   };
   const imp = $('#csvImp'); if (imp) imp.onclick = importCsvModal;
   const pimp = $('#patchImp'); if (pimp) pimp.onclick = () => patchImportModal();
-  bindSaveView(); bindPrintMenu();
+  bindSaveView(); bindPrintMenu(); closeMoreOnPick();
   const rb = $('#rpBtn'); if (rb) rb.onclick = () => reportsModal({ ids: leftFilters() || st.q.trim() || Object.values(tv.filters || {}).some(v => String(v || '').trim()) ? list.map(o => o.id) : null });
   bindTableBulk(n);
   const idx = relIndex();   /* one index of the relations for all rows */
@@ -238,7 +238,7 @@ export function renderTable(){
   /* What Print → As a table prints: these rows, in this order, with these columns. */
   LAST = { list, shown, idx };
   /* Thousands of rows take seconds to lay out: the first ones are drawn, the rest on request. */
-  $('#tblCount').textContent = listCount(list.length, scopePool().length);
+  $('#tblCount').textContent = listCountShown(list.length, scopePool().length);
   const cut = st.tableAll !== viewSig() && list.length > SHOW_FIRST + 100;
   const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
   $('#view').innerHTML = html`<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>

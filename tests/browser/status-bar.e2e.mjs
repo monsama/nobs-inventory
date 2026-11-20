@@ -34,7 +34,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   const text = sel => p.$eval(sel, e => e.textContent.trim());
   assert.equal(await p.$$eval('.statusbar', b => b[0].textContent.includes('API ok')), false);
-  assert.equal(await text('#stSave'), 'All changes saved');
+  assert.equal(await text('#stSave'), '', 'all saved: nothing said');
 
   // the newest sync is five days old: shown with a warning dot
   assert.equal(await text('#stSync'), 'Lansweeper ' + old);
@@ -57,7 +57,7 @@ try {
   assert.equal(await p.$eval('#stSave .bad', e => e.classList.contains('chip')), true, 'a red chip, not just a dot');
   await p.unroute('**/api/changes');
   await p.evaluate(async () => { document.activeElement && document.activeElement.blur(); await (await import('/js/07-render.js')).checkForChanges(); });
-  await until(p, async () => document.querySelector('#stSave').textContent.trim() === 'All changes saved');
+  await until(p, async () => document.querySelector('#stSave').textContent.trim() === '');
   assert.equal(loadState(db).objs.find(o => o.id === 'b').name, 'PC-2b');
 
   // a sign-in that has ended does not leave "Saving…" behind

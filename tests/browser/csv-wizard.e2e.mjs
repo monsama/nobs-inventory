@@ -36,7 +36,7 @@ try {
   const before = await count();
 
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); });
-  await p.click('#csvImp');
+  await p.click('#csvMenu .menu-btn'); await p.click('#csvImp');
   // (a) the file, and the delimiter found in it
   await p.setInputFiles('#csvFile', file);
   await p.waitForSelector('#csvDelim');
@@ -75,7 +75,7 @@ try {
 
   // The mapping is kept: the same headings are mapped the same way next time.
   assert.equal(await p.evaluate(() => JSON.parse(localStorage.getItem('ni-csv-map')).kit), 'model');
-  await p.click('#csvImp'); await p.setInputFiles('#csvFile', file); await p.waitForSelector('#csvDelim'); await p.click('#csvNext');
+  await p.click('#csvMenu .menu-btn'); await p.click('#csvImp'); await p.setInputFiles('#csvFile', file); await p.waitForSelector('#csvDelim'); await p.click('#csvNext');
   assert.equal(await field('Kit'), 'model', 'the mapping was not remembered');
   await p.click('#csvCancel');
 

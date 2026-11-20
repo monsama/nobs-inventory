@@ -44,7 +44,7 @@ try {
   assert.match(about, /GNU General Public License version 3/, 'About shows the licence');
   assert.match(about, /Copyright © 2026 Viktor Ljuca/);
   await p.click('#setClose');
-  assert.equal(await p.textContent('#verFoot'), `NOBS Inventory ${VERSION}`, 'the footer shows the version');
+  assert.equal(await p.locator('#verFoot').count(), 0, 'the version is in About, not in the status bar');
   await ctx.close(); await full.close();
 
   // 2. A server the page cannot reach: the page says so and offers to try again.

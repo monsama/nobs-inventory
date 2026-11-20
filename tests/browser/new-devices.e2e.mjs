@@ -35,16 +35,13 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForSelector('#fbar .fb-wait');
+  await p.waitForSelector('#cards .lrow');
 
-  // the inventory says what is new in Pending devices, and of which types; nothing beside the types on the left
-  const bar = await p.textContent('#fbar .fb-wait');
-  assert.match(bar, /7 new devices wait in Pending devices/); assert.match(bar, /3 PC · 3 Notebook · 1 Other/);
+  // the Pending tab says how many wait; no line over the inventory about it, nothing beside the types on the left
+  assert.match(await p.textContent('#tabsbar .tab-review'), /7/);
+  assert.equal(await p.locator('#fbar .fb-wait').count(), 0, 'no banner over the inventory');
   assert.equal(await p.locator('#typeList .cnt-wait').count(), 0, 'no +N beside the types');
   assert.equal((await p.textContent('#typeList [data-type="pc"] .cnt')).trim(), '1', 'the count is the inventory\'s');
-  // × hides the bar until more arrive
-  await p.click('#fbar [data-waitok]');
-  await until(p, () => !document.querySelector('#fbar .fb-wait'));
 
   // Pending devices: each card says why it waits; the clear ones are offered by type
   await p.click('#tabsbar [data-tab=review]');
@@ -60,20 +57,23 @@ try {
   await until(p, () => document.querySelectorAll('#cards .card').length === 1);
   await p.click('#fbar [data-ckwhy=""]');
   await until(p, () => document.querySelectorAll('#cards .card').length === 7);
-  const add = await p.textContent('#fbar .fb-wait');
-  assert.match(add, /5 shown with nothing unclear/);
-  assert.equal(await p.locator('[data-addtype="pc"]').textContent(), 'PC (3)');
-  assert.equal(await p.locator('[data-addtype="notebook"]').textContent(), 'Notebook (2)');
+  assert.equal(await p.locator('[data-addtype]').count(), 0, 'no Add at once: the filter and Accept all do it');
 
-  // the three PCs in at once, with the date they came; Undo puts them back; again, and they stay
-  await p.click('[data-addtype="pc"]');
-  await until(p, async () => (await import('/js/01-core.js')).objs.filter(o => /^PC-[ABC]$/.test(o.name)).length === 3);
+  // the three clear PCs in at once (Nothing unclear, only PCs, Accept all), with the date they came; Undo puts them back; again, and they stay
+  const acceptClearPcs = async () => {
+    await p.click('#fbar [data-ckwhy="clear"]');
+    await p.evaluate(async () => { (await import('/js/01-core.js')).st.type = 'pc'; (await import('/js/07-render.js')).view(); });
+    await until(p, () => document.querySelectorAll('#cards .card').length === 3);
+    await p.click('#rvAcceptAll'); await p.click('#cfOk');
+    await until(p, async () => (await import('/js/01-core.js')).objs.filter(o => /^PC-[ABC]$/.test(o.name)).length === 3);
+  };
+  await acceptClearPcs();
   assert.ok(await p.evaluate(async () => (await import('/js/01-core.js')).objs.filter(o => /^PC-[ABC]$/.test(o.name)).every(o => Date.parse(o.added))), 'each has the date it was added');
   await p.click('#toast button');
   await until(p, async () => (await import('/js/01-core.js')).objs.every(o => !/^PC-[ABC]$/.test(o.name)));
-  await p.click('[data-addtype="pc"]');
-  await until(p, async () => (await import('/js/01-core.js')).objs.filter(o => /^PC-[ABC]$/.test(o.name)).length === 3);
-  assert.equal(await p.locator('[data-addtype="pc"]').count(), 0, 'no PCs left to add');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.type = null; c.st.rvWhy = ''; (await import('/js/07-render.js')).view(); });
+  await acceptClearPcs();
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.type = null; c.st.rvWhy = ''; (await import('/js/07-render.js')).view(); });
 
   // back in the inventory: New on the cards added now, not on the old ones; Added this week lists only them
   await p.click('#tabsbar .tab-review');

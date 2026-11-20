@@ -49,8 +49,8 @@ try {
   await p.click('#sideRail');
   await until(p, () => !document.body.classList.contains('side-shut'));
   assert.ok(Math.abs(await sideW() - 310) <= 4, 'as wide as before');
-  // Hide folds them away; dragging the strip out opens them, as wide as dragged
-  await p.click('#sidePin'); await until(p, () => document.body.classList.contains('side-shut'));
+  // the tab on the edge folds them away; dragging the strip out opens them, as wide as dragged
+  await p.hover('#side'); await p.click('#sideGrip .side-fold'); await until(p, () => document.body.classList.contains('side-shut'));
   const r = await p.locator('#sideRail').boundingBox();
   await p.mouse.move(r.x + 5, r.y + 100); await p.mouse.down(); await p.mouse.move(r.x + 220, r.y + 100, { steps: 8 }); await p.mouse.up();
   await until(p, () => !document.body.classList.contains('side-shut'));

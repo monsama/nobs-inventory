@@ -872,6 +872,17 @@ export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.rev
    search for something that is there never ends in "nothing matches". */
 export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? scopePool().filter(o => matchesQ(o, q)) : []; };
 /* The count over a device list, said the same in Cards and Table: "7 of 48 devices" (or waiting, ignored in Pending devices). */
+/* The label of a toolbar's one menu (export, print, save view, import, report): three dots, named for screen readers. */
+export const MORE_DOTS = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>';
+/* A list's count is said while something narrows it (a filter, a search) and in Pending devices; the whole inventory
+   unfiltered says nothing (the status bar has the number). */
+/* A pick in a toolbar's ⋯ menu closes it, so the dialog or page it opens is not under a menu still open. */
+export function closeMoreOnPick(){
+  document.querySelectorAll('#toolbar .tb-more .menubox').forEach(box => box.addEventListener('click', e => {
+    if (e.target instanceof Element && e.target.closest('button')) try { /** @type {HTMLElement} */ (box).hidePopover(); } catch { /* not open */ }
+  }));
+}
+export const listCountShown = (n, total) => (n !== total || !!st.scope) ? listCount(n, total) : '';
 export const listCount = (n, total) => `${n} of ${total} ${st.scope === 'review' ? 'pending' : st.scope ? 'ignored' : total === 1 ? 'device' : 'devices'}`;
 /* Pending devices lists the devices a source saw last first: those are the ones to act on; never seen and Old ones last. */
 const seenDays = o => { const s = lastSeenOf(o); return s ? s.days : Infinity; };

@@ -142,7 +142,9 @@ export function renderStatus(){
   /* The device page open has edits not saved yet: said here too, not "All changes saved" beside "Not saved yet". */
   if (SERVER.save === 'saved' && $('#objSaved.dirty')) S = ['warn', 'Device not saved yet', 'The device page has changes that are not saved: use Save on the page.'];
   /* A change not saved is a red chip, so it is not read past like the usual "All changes saved". */
-  save.innerHTML = S[0] === 'bad' ? html`<span class="chip bad">${S[1]}</span>` : S[0] === 'warn' ? html`<span class="chip warn">${S[1]}</span>` : html`<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
+  /* All saved: nothing said (a quiet bar); saving, not saved, no connection or a device page not saved are said. */
+  if (SERVER.save === 'saved' && S[0] === '') S = ['', '', ''];
+  save.innerHTML = !S[1] ? '' : S[0] === 'bad' ? html`<span class="chip bad">${S[1]}</span>` : S[0] === 'warn' ? html`<span class="chip warn">${S[1]}</span>` : html`<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
   /* On a phone the status bar is short: a save that failed is shown there anyway. */
   save.classList.toggle('hide-n', !S[0]);
   /* Someone who only reads saves nothing: the line would only be noise to them. */

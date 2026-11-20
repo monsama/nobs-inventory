@@ -70,7 +70,7 @@ try {
   assert.equal(await d.evaluate(() => localStorage.getItem('ni-side-pin')), '1');
   await d.click('#typeList [data-type="pc"]');
   assert.equal(await d.isVisible('#side'), true, 'a filter picked leaves them open beside the list');
-  await d.click('#sidePin');
+  await d.hover('#side'); await d.click('#sideGrip .side-fold');
   assert.equal(await d.isVisible('#side'), false, 'folded away');
   assert.equal(await d.textContent('#sideRailN'), '1', 'the strip shows the filter in force');
 
