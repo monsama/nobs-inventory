@@ -121,6 +121,25 @@ Check 'relations: the monitor scan link stays' $recs[5]['links'][0].ref '501'
 Check 'relations: none without the table' (& { $script:Cols = @{}; Add-MonitorRelations (New-Conn $rel) $recs }) 0
 $script:Cols = $saveCols
 
+# A virtual machine a host scan lists is linked to its host, by its name before the first dot and without case; a name
+# two assets share, an unknown host and a guest that is its own host are passed over.
+$saveCols = $script:Cols
+$script:Cols = @{ tblHyperVGuest = @{ assetid = 'AssetID'; name = 'Name' } }
+$vrecs = @(
+  [ordered]@{ ref = '10'; name = 'HV-01'; links = @() }, [ordered]@{ ref = '11'; name = 'app-01.example.local'; links = @() },
+  [ordered]@{ ref = '12'; name = 'DUP'; links = @() }, [ordered]@{ ref = '13'; name = 'dup'; links = @() }, [ordered]@{ ref = '14'; name = 'FILE-01'; links = @() })
+$vrecs += [ordered]@{ ref = '15'; name = 'MOVING'; links = @() }
+$guests = New-Table @('AssetID','Name') @(@('10', 'APP-01'), @('10', 'dup'), @('99', 'FILE-01'), @('10', 'hv-01'), @('10', 'moving'), @('11', 'MOVING'))
+Check 'vm hosts: one linked' (Add-VmHostRelations (New-Conn $guests) $vrecs) 1
+Check 'vm hosts: to its host' $vrecs[1]['links'][0].ref '10'
+Check 'vm hosts: kind' $vrecs[1]['links'][0].kind 'hosted'
+Check 'vm hosts: a shared name is passed over' $vrecs[2]['links'].Count 0
+Check 'vm hosts: an unknown host is passed over' $vrecs[4]['links'].Count 0
+Check 'vm hosts: the host is not its own guest' $vrecs[0]['links'].Count 0
+Check 'vm hosts: a guest two hosts list is passed over' $vrecs[5]['links'].Count 0
+Check 'vm hosts: none without the tables' (& { $script:Cols = @{}; Add-VmHostRelations (New-Conn $guests) $vrecs }) 0
+$script:Cols = $saveCols
+
 # What the push leaves out is counted in Lansweeper and said in the log.
 $Config = @{ MaxAgeDays = 0 }
 $script:Cols['tblAssetCustom'] = @{ state = 'State'; assetid = 'AssetID' }; $script:Cols['tblAssets'] = @{ lastseen = 'Lastseen' }

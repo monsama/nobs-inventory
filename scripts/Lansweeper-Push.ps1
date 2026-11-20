@@ -14,8 +14,8 @@
 
     Monitors are linked to the PC they are attached to (from the monitor scan, and from Lansweeper's Relations for
     monitors that are assets of their own). The installed software of each device is
-    sent as well, and its firmware, last power event, disks and antivirus state. Switch ports and hosts are not read: the
-    inventory keeps those connections by hand.
+    sent as well, and its firmware, last power event, disks and antivirus state. A virtual machine that a Hyper-V or
+    VMware host scan lists is linked to its host. Switch ports are not read: the inventory keeps those connections by hand.
 
     The first run asks for the NOBS address and the feed token (Settings -> Feed -> Create token), checks both
     against the server, and keeps them: the address in Lansweeper-Push.config.ps1 next to this script, the token
@@ -100,6 +100,10 @@ $script:Wanted = [ordered]@{
     # Lansweeper's Relations ("Connected To"): a monitor asset of its own is linked to its computer here, also when
     # the computer's last scan did not see it (undocked, or seen through a dock).
     tblAssetRelations = @('ParentAssetID', 'ChildAssetID', 'StartDate', 'EndDate')
+    # The virtual machines a Hyper-V or VMware host scan lists (AssetID is the host, Name the guest): each guest that is
+    # an asset of its own is linked to its host ("Runs on" in NOBS). Not there in every Lansweeper: then no link.
+    tblHyperVGuest = @('AssetID', 'Name')
+    tblVMwareGuest = @('AssetID', 'Name')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
     tblSoftwareUni = @('SoftID', 'softwareName')
     # The printers set up on a Windows machine (also PDF, XPS, Fax: NOBS keeps only the real ones, by their port).
@@ -536,6 +540,49 @@ function Add-MonitorRelations($conn, $records) {
     return $best.Count
 }
 
+# Virtual machines linked to their host: the guests a Hyper-V or VMware host scan lists, matched to the assets by name
+# (the part before the first dot, without case; a name two assets share is passed over, as is a guest that is its own
+# host, and one two hosts list). The guest gets the link "hosted" to the host. Changes the records in place and returns
+# how many got a link. A guest new in this push whose host is new too gets its link on the next push (the server links
+# to the devices it already has).
+function Add-VmHostRelations($conn, $records) {
+    $byName = @{}; $twice = @{}; $byRef = @{}
+    $short = { param($n) ("$n" -split '\.')[0].Trim().ToLowerInvariant() }
+    foreach ($rec in $records) {
+        if (-not $rec['ref'] -or "$($rec['ref'])" -like 'mon-*') { continue }
+        $byRef[[string]$rec['ref']] = $rec
+        $k = & $short $rec['name']; if (-not $k) { continue }
+        if ($byName.ContainsKey($k)) { $twice[$k] = $true } else { $byName[$k] = $rec }
+    }
+    # First the host each guest name has; a name two hosts list (a live migration until the old host is scanned again, or
+    # a guest under both Hyper-V and VMware) is passed over, so the link does not swap back and forth between pushes.
+    $hostOf = @{}; $twoHosts = @{}
+    foreach ($table in @('tblHyperVGuest', 'tblVMwareGuest')) {
+        if (-not ((Test-Col $table 'AssetID') -and (Test-Col $table 'Name'))) { continue }
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = "SELECT [AssetID], [Name] FROM [$table] WHERE [AssetID] IS NOT NULL AND [Name] IS NOT NULL"
+        $cmd.CommandTimeout = 300
+        $reader = $cmd.ExecuteReader()
+        try {
+            while ($reader.Read()) {
+                $host_ = ConvertTo-Text $reader['AssetID']; $k = & $short $reader['Name']
+                if (-not $k -or -not $host_) { continue }
+                if ($hostOf.ContainsKey($k) -and $hostOf[$k] -ne $host_) { $twoHosts[$k] = $true } else { $hostOf[$k] = $host_ }
+            }
+        } finally { $reader.Close() }
+    }
+    $n = 0
+    foreach ($k in @($hostOf.Keys)) {
+        $host_ = $hostOf[$k]
+        if ($twoHosts.ContainsKey($k) -or $twice.ContainsKey($k) -or -not $byName.ContainsKey($k) -or -not $byRef.ContainsKey($host_)) { continue }
+        $guest = $byName[$k]
+        if ([string]$guest['ref'] -eq $host_) { continue }
+        $guest['links'] = @(@($guest['links']) | Where-Object { $_ -and $_.kind -ne 'hosted' }) + @([ordered]@{ ref = $host_; kind = 'hosted'; port = '' })
+        $n++
+    }
+    return $n
+}
+
 # Virtual machines are their own type (no rack slot); a computer whose manufacturer or model says virtual is one.
 $script:VmPattern = 'vmware|virtual|qemu|kvm|xen|hyper-v|virtualbox|parallels|bochs|nutanix|proxmox'
 function Get-AssetTypeText($reader) {
@@ -868,6 +915,7 @@ function Get-LsRecords {
         $script:MonitorCount = 0
         foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m); $script:MonitorCount++ }
         try { $n = Add-MonitorRelations $conn $list; if ($n) { Write-PushLog "$n monitor(s) linked to their computer from Lansweeper's relations" } } catch { Write-PushLog "Could not read the asset relations: $($_.Exception.Message)" 'WARN' }
+        try { $n = Add-VmHostRelations $conn $list; if ($n) { Write-PushLog "$n virtual machine(s) linked to their host" } } catch { Write-PushLog "Could not read the virtual machines of the hosts: $($_.Exception.Message)" 'WARN' }
         $script:IpLocations = Get-IpLocations $conn
         return , $list.ToArray()
     } finally { $conn.Dispose() }

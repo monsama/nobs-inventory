@@ -66,3 +66,39 @@ test('a page that still saves type vm (an older page, a cached one) stores a vir
     assert.deepEqual([o.type, o.kind], ['server', 'vm']);
   } finally { await srv.close(); }
 });
+
+test('a push links a virtual machine to the host its scan lists ("Runs on"), and moves it with the guest', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const now = new Date(2026, 9, 25, 10, 0);
+  const srv = (id, name, ref, more = {}) => ({ id, code: 'INV-' + id, type: 'server', name, status: 'active', loc: '', ovr: {}, feed: { sys: 'Lansweeper', ref }, ...more });
+  const s = base([srv('h1', 'HV-01', '10', { kind: 'physical' }), srv('h2', 'HV-02', '11', { kind: 'physical' }), srv('v', 'APP-01', '12', { model: 'Microsoft Corporation Virtual Machine' })],
+    { policy: { links: true }, feedOn: true });
+  const push = host => mergeRecords(s, recordsFromJson([
+    { name: 'HV-01', ref: '10', assetType: 'Windows', role: 'server' }, { name: 'HV-02', ref: '11', assetType: 'Windows', role: 'server' },
+    { name: 'APP-01', ref: '12', assetType: 'Windows', role: 'server', model: 'Microsoft Corporation Virtual Machine', links: [{ kind: 'hosted', ref: host }] },
+  ]), now, []);
+  push('10');
+  assert.equal(s.objs.find(o => o.id === 'v').kind, 'vm');
+  assert.deepEqual(s.rels.filter(r => r.kind === 'hosted').map(r => [r.from, r.to, r.src]), [['v', 'h1', 'Lansweeper']]);
+  push('11');
+  assert.deepEqual(s.rels.filter(r => r.kind === 'hosted').map(r => [r.from, r.to]), [['v', 'h2']], 'moved to the other host');
+});
+
+test('host links from Lansweeper: a host that does not fit keeps the old link, a guest no longer listed loses it, and a guest of unknown Kind becomes virtual', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const now = new Date(2026, 9, 25, 10, 0);
+  const srv = (id, name, ref, more = {}) => ({ id, code: 'INV-' + id, type: 'server', name, status: 'active', loc: '', ovr: {}, feed: { sys: 'Lansweeper', ref }, ...more });
+  const s = base([srv('h1', 'HV-01', '10', { kind: 'physical' }), srv('pc', 'WS-01', '11', { type: 'pc' }), srv('v', 'APP-01', '12')], { policy: { links: true }, feedOn: true });
+  const push = links => mergeRecords(s, recordsFromJson([
+    { name: 'HV-01', ref: '10', assetType: 'Windows', role: 'server' }, { name: 'WS-01', ref: '11', assetType: 'Windows', role: 'workstation' },
+    { name: 'APP-01', ref: '12', assetType: 'Linux', links },
+  ]), now, []);
+  push([{ kind: 'hosted', ref: '10' }]);
+  assert.equal(s.objs.find(o => o.id === 'v').kind, 'vm', 'listed by a host scan: virtual');
+  assert.match(s.history.v[0].msg, /Kind set to Virtual machine \(it runs on HV-01\)/);
+  assert.deepEqual(s.rels.filter(r => r.kind === 'hosted').map(r => r.to), ['h1']);
+  push([{ kind: 'hosted', ref: '11' }]);
+  assert.deepEqual(s.rels.filter(r => r.kind === 'hosted').map(r => r.to), ['h1'], 'a PC is no host here: the old link stays');
+  push([]);
+  assert.deepEqual(s.rels.filter(r => r.kind === 'hosted'), [], 'no longer listed by a host: the link goes');
+});
