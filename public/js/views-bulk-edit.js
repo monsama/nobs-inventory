@@ -94,7 +94,7 @@ export function bulkEditModal(ids){
     if (!rowsEl.children.length) addRow((fields[0] || {}).k);
     preview();
   });
-  $('#beAdd').onclick = () => { const f = free(); addRow(f && f.k); preview(); const s = rowsEl.querySelector('.be-row:last-child .be-v input, .be-row:last-child .be-v textarea'); if (s) s.focus(); };
+  $('#beAdd').onclick = () => { const f = free(); addRow(f && f.k); preview(); const s = rowsEl.querySelector('.be-row:last-child .be-v input, .be-row:last-child .be-v textarea, .be-row:last-child .be-v select'); if (s) s.focus(); };
   $('#beNo').onclick = closeModal;
   $('#beOk').onclick = () => {
     preview(); if (!plan || plan.errors.length) return;

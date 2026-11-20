@@ -3,7 +3,7 @@
 import { editText, fieldNote, fieldValue } from './restore.js';
 
 /* The built-in fields offered, in this order, with their usual names; the custom fields of the types follow. */
-export const BULK_BUILTIN = { kind: 'Kind (servers)', model: 'Model', supplier: 'Supplier', purchased: 'Purchased', warranty: 'Warranty ends', price: 'Price', invoice: 'Invoice no.', os: 'Operating system', notes: 'Notes' };
+export const BULK_BUILTIN = { model: 'Model', supplier: 'Supplier', purchased: 'Purchased', warranty: 'Warranty ends', price: 'Price', invoice: 'Invoice no.', os: 'Operating system', kind: 'Kind (servers)', notes: 'Notes' };
 /* Fields every device has a value of its own in: one value for all of them would be wrong. */
 export const BULK_UNIQUE = ['name', 'serial', 'ip', 'mac'];
 export const UNIQUE_WHY = 'Name, serial number, IP address and MAC address are not offered: each device has its own.';

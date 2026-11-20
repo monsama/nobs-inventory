@@ -50,11 +50,18 @@ try {
   await until(p, () => document.querySelectorAll('#cards .lrow').length === 5);
   assert.doesNotMatch(await p.textContent('#fbar'), /Kind:/);
 
+  // Back after a Kind: the list before it, with no Kind left in force
+  await kind('vm').click(); await until(p, () => document.querySelectorAll('#cards .lrow').length === 2);
+  await p.goBack(); await until(p, async () => (await import('/js/01-core.js')).st.srvKind == null);
+  await until(p, () => document.querySelectorAll('#cards .lrow').length === 5);
+
   // bulk: Kind (servers) for the two not known
   await kind('none').click(); await until(p, () => document.querySelectorAll('#cards .lrow').length === 2);
   await p.evaluate(async () => (await import('/js/views-bulk-edit.js')).bulkEditModal(['n1', 'n2', 'h1']));
   await p.waitForSelector('#beRows .be-row');
-  assert.equal(await p.inputValue('#beRows .be-f'), 'kind', 'Kind is offered first');
+  assert.equal(await p.locator('#beOk').isDisabled(), true);
+  assert.doesNotMatch(await p.textContent('#bePrev'), /Kind/, 'Kind is not the first row: no Kind error before anything is picked');
+  await p.selectOption('#beRows .be-f', 'kind');
   await p.selectOption('#beRows .be-v select', 'physical');
   await until(p, () => /Apply to 2 devices/.test(document.querySelector('#beOk').textContent));
   await p.click('#beOk'); await p.waitForSelector('#mdl', { state: 'detached' });

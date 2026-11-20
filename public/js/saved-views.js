@@ -35,6 +35,8 @@ export function serializeView(st, { cols = [], tv = null } = {}) {
   const own = LIST_VIEW_TABS.includes(st.tab) ? (st.tab === 'contracts' ? ['ctDue'] : ['cnKind']) : Object.keys(VIEW_FILTERS).filter(k => !LIST_FILTERS.includes(k));
   const filters = {};
   for (const [k, t] of Object.entries(VIEW_FILTERS)) { const v = st[k]; if (own.includes(k) && (t === 'b' ? v === true : typeof v === 'string' && v)) filters[k] = v; }
+  /* The Kind only goes with Server. */
+  if (filters.srvKind && filters.type !== 'server') delete filters.srvKind;
   const keys = tv && Array.isArray(tv.keys) ? tv.keys : [];
   /* The columns in the order the table shows them (column 0, the tick box, aside). */
   const ord = tv && Array.isArray(tv.order) ? tv.order.filter(ci => ci > 0).map(ci => keys[ci - 1]).filter(k => cols.includes(k)) : [];
@@ -149,6 +151,7 @@ export function savedViewsProblem(list) {
     const f = v.filters ?? {};
     if (!f || typeof f !== 'object' || Array.isArray(f) || Object.entries(f).some(([k, x]) => !VIEW_FILTERS[k] || (VIEW_FILTERS[k] === 'b' ? typeof x !== 'boolean' : !str(x, TEXT_MAX))))
       return `${v.name}: the filters are the sidebar's.`;
+    if (f.srvKind !== undefined && (f.type !== 'server' || !['vm', 'physical', 'none'].includes(f.srvKind))) return `${v.name}: the Kind filter is Virtual, Physical or Not known, with the type Server.`;
     if (v.cols !== undefined && (!Array.isArray(v.cols) || v.cols.length > COLS_MAX || v.cols.some(c => !str(c, KEY_MAX)))) return `${v.name}: the columns are a list of column names.`;
     if (v.sort !== undefined && v.sort !== null && (typeof v.sort !== 'object' || Array.isArray(v.sort) || !str(v.sort.col, KEY_MAX) || ![1, -1].includes(v.sort.dir) || Object.keys(v.sort).length !== 2))
       return `${v.name}: the sort is a column and a direction.`;

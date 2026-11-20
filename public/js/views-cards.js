@@ -260,7 +260,7 @@ export function renderCardsBody(){
       : st.scope === 'review' && REVIEW.some(o => !o.review.ignored) ? html`<div class="empty">None of the devices waiting match these filters. <button type="button" class="primary" data-ck-all>Show all waiting</button></div>`
       : st.scope ? html`<div class="empty empty-inbox"><b>${st.scope === 'ignored' ? 'No ignored devices' : 'No pending devices'}</b><span class="muted">${st.scope === 'ignored' ? 'Devices you ignore stay here, out of the inventory and every sync.' : 'New devices go straight into the inventory. Only those that need a decision wait here.'}</span></div>`
       : (SERVER.on && !st.meId ? html`<div class="empty">Sign in to see the inventory.</div>` : emptyHtml());
-    const ca = $('[data-ck-all]'); if (ca) ca.onclick = () => { st.rvWhy = st.rvSrc = ''; st.type = null; view(); };
+    const ca = $('[data-ck-all]'); if (ca) ca.onclick = () => { st.rvWhy = st.rvSrc = ''; st.type = st.srvKind = null; view(); };
     const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); view(); };
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     bindHiddenHits();

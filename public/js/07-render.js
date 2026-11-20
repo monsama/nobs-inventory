@@ -85,7 +85,7 @@ function renderNow({ save = true } = {}){
 /* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
    and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
-const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'seen', 'gone', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids', 'handField', 'where', 'ctDue', 'cnKind'];
+const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'srvKind', 'loc', 'status', 'warranty', 'seen', 'gone', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids', 'handField', 'where', 'ctDue', 'cnKind'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
 /* What the list shows (the view, its filters and search), as text: Show all holds for that list only, so a list of
    thousands is not drawn whole again on every later change. */
