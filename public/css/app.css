@@ -2712,7 +2712,8 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
   #sideGrip:hover::after,#sideGrip:focus-visible::after,body.side-dragging #sideGrip::after{background:var(--accent)}
   /* The tab in the middle of the edge, just right of it (clear of the filters' scrollbar): click to hide the filters.
      Quiet until the edge or the filters are hovered. */
-  #sideGrip .side-fold{position:absolute;z-index:2;top:50%;left:100%;transform:translate(0,-50%);display:flex;align-items:center;justify-content:center;width:10px;height:36px;border-radius:8px;background:var(--panel);border:1px solid var(--bd);color:var(--muted);cursor:pointer;opacity:.55;transition:opacity .12s,color .12s,border-color .12s;box-shadow:var(--shadow)}
+  /* A tab hanging off the sidebar's edge (the grip's border line is 4px in), as the folded rail sits on the left edge. */
+  #sideGrip .side-fold{position:absolute;z-index:2;top:50%;left:4px;transform:translate(0,-50%);display:flex;align-items:center;justify-content:center;width:12px;height:36px;border-radius:0 8px 8px 0;background:var(--panel);border:1px solid var(--bd);border-left:0;color:var(--muted);cursor:pointer;opacity:.55;transition:opacity .12s,color .12s,border-color .12s;box-shadow:var(--shadow)}
   #sideGrip .side-fold .i{width:10px;height:10px}
   #side:hover~#sideGrip .side-fold,#sideGrip:hover .side-fold{opacity:1}
   #sideGrip .side-fold:hover{color:var(--fg);border-color:var(--accent)}
