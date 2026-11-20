@@ -103,3 +103,16 @@ test('each change gets a history line the device page can restore', () => {
   assert.equal(shownValue(notes, 'a\nb  c'), 'a b c');
   assert.equal(shownValue(notes, 'x'.repeat(100)).length, 60);
 });
+
+test('the Kind of servers: Virtual machine or Physical, or cleared to Not known; only servers have it', () => {
+  const fo = t => t === 'server' ? [['kind', 'Kind', 'kind'], ['model', 'Model']] : fieldsOf(t);
+  const list = [{ id: 's1', name: 'SRV-1', type: 'server' }, { id: 's2', name: 'SRV-2', type: 'server', kind: 'physical' }, { id: 'p', name: 'PC-1', type: 'pc' }];
+  const f = bulkFields(list, fo);
+  const fk = f.find(x => x.k === 'kind'); assert.deepEqual(fk.types, ['server']);
+  assert.notEqual(f[0].k, 'kind', 'not the first row: it would open with an error');
+  assert.equal(parseBulkValue(fk, '', ctx).ok, false, 'Not known is Clear, not Set');
+  const plan = planBulk(list, [{ k: 'kind', op: 'set', raw: 'vm' }], f, ctx);
+  assert.deepEqual(plan.fields[0].changes.map(c => [c.o.id, c.to]), [['s1', 'vm'], ['s2', 'vm']]);
+  assert.equal(plan.fields[0].without, 1);
+  assert.equal(shownValue(fk, 'vm'), 'Virtual machine');
+});

@@ -118,6 +118,9 @@ export const listTypes = () => Object.entries(TYPES).filter(([k]) => !LIST_HIDDE
 /* A device's type as text: Server, or Server (virtual) for one whose Kind says virtual. */
 export const typeText = o => { const l = (TYPES[o && o.type] || {}).label || (o && o.type) || ''; return o && o.kind === 'vm' && (o.type === 'server' || o.type === 'pc') ? `${l} (virtual)` : l; };
 /* The type filter: the type, or vm for every virtual machine (a saved view or a view mail from before 0.9.160). */
+/* A server's Kind for the filter under Server: vm, physical, or none (not known). */
+export const SRV_KINDS = { vm: 'Virtual', physical: 'Physical', none: 'Not known' };
+export const kindOf = o => o.type !== 'server' ? '' : o.kind === 'vm' || o.kind === 'physical' ? o.kind : 'none';
 export const ofTypeSel = (o, t) => !t || (t === 'vm' ? o.type === 'vm' || o.kind === 'vm' : o.type === t);
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Three states: in use (handed out or running), in stock (in the IT store, with nobody) and retired (disposed of, kept
@@ -872,7 +875,7 @@ const outletWords = o => {
 };
 export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
-export const leftFilters = () => !!(st.newWeek || st.type || st.loc || st.status || st.warranty || st.seen || st.gone || st.where || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
+export const leftFilters = () => !!(st.newWeek || st.type || (st.type === 'server' && st.srvKind) || st.loc || st.status || st.warranty || st.seen || st.gone || st.where || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
 /* Why a device waits (15-review.js waitReason), set there: Pending devices is filtered by it. */
 let whyOf = null;
 export const setWhyOf = f => { whyOf = f; };
@@ -910,7 +913,7 @@ export function filtered(){
 }
 function filteredAsIs(q){
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => ((ofTypeSel(o, st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.gone || !GONE_FILTERS[st.gone] || GONE_FILTERS[st.gone][1](o)) && (!st.where || !!whereSignOf(o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => ((ofTypeSel(o, st.type) && (!st.srvKind || st.type !== 'server' || kindOf(o) === st.srvKind) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.newWeek || addedRecently(o)) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.gone || !GONE_FILTERS[st.gone] || GONE_FILTERS[st.gone][1](o)) && (!st.where || !!whereSignOf(o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 

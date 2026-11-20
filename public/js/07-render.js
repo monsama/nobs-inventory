@@ -25,7 +25,10 @@ export * from './signin.js';
 /* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
-const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw'];
+/* The tabs without the left bar: it is there only where its filters act on what is shown (the device lists, the floor
+   plans, the IP addresses), so a bar that changes nothing is never shown; Racks, Ports and Printers have their own
+   pickers. Shown or not, its open or folded state is one for the whole app. */
+const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw', 'net', 'prn', 'rack'];
 let lastSbw = -1;
 /* save: false only redraws, without looking for unsaved changes. The tab picks the view; any other tab is a device. */
 /* A redraw asked for while one runs (a field left as the page is drawn again fires its own save and redraw) waits for it
@@ -82,7 +85,7 @@ function renderNow({ save = true } = {}){
 /* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
    and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
-const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'seen', 'gone', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids', 'handField', 'where', 'ctDue', 'cnKind'];
+const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'srvKind', 'loc', 'status', 'warranty', 'seen', 'gone', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids', 'handField', 'where', 'ctDue', 'cnKind'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
 /* What the list shows (the view, its filters and search), as text: Show all holds for that list only, so a list of
    thousands is not drawn whole again on every later change. */

@@ -89,6 +89,9 @@ try {
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').portGroups.length), 1, 'the overlapping group is not added');
   // With a type selected, the locations count only objects of that type.
   const rtSite = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').loc.split(' / ')[0]);
+  // (the left bar is the device lists': Ports has none)
+  assert.equal(await p.isVisible('#side'), false, 'no left bar on Ports');
+  await p.click('#tabsbar [data-tab="cards"]'); await p.waitForSelector('#typeList [data-type=router]');
   await p.click('#typeList [data-type=router]');
   assert.equal(await p.textContent(`#locList [data-loc="${rtSite}"] .cnt`), '1', 'the site of the router counts the one router');
   await p.click('#clearF');

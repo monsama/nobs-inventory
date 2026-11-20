@@ -36,7 +36,7 @@ export function bulkEditModal(ids){
   /* The value's control, as on the device page (a date field, a number, the model's list); notes a text box. */
   const valueCtl = (i, f) => f.kind === 'notes'
     ? html`<textarea id="be_v${i}" class="notes-box" rows="3" maxlength="20000" aria-label="New notes"></textarea>`
-    : html`${rawHtml(fieldCtl({ id: 'v' + i, custom: {} }, [f.k, f.label, f.kind], 'be_').replace('<input ', `<input aria-label="New ${f.label.replace(/["<>&]/g, '')}" `))}<span hidden></span><p class="fieldnote" id="${`be_v${i}_${f.k}_note`}" hidden></p>`;
+    : html`${rawHtml(fieldCtl({ id: 'v' + i, custom: {} }, [f.k, f.label, f.kind], 'be_').replace(/<(input|select) /, `<$1 aria-label="New ${f.label.replace(/["<>&]/g, '')}" `))}<span hidden></span><p class="fieldnote" id="${`be_v${i}_${f.k}_note`}" hidden></p>`;
   const rowHtml = (i, k) => {
     const f = fields.find(x => x.k === k);
     return html`<div class="be-row" data-row="${i}">
@@ -62,7 +62,7 @@ export function bulkEditModal(ids){
   addRow((fields[0] || {}).k);
   /* What the rows ask for, as typed. */
   const read = () => [...rowsEl.querySelectorAll('.be-row')].map(r => {
-    const v = r.querySelector('.be-v input:not(.df-native), .be-v textarea');
+    const v = r.querySelector('.be-v input:not(.df-native), .be-v textarea, .be-v select');
     return { k: r.querySelector('.be-f').value, op: r.querySelector('.be-op').value, raw: v ? v.value : '', onlyEmpty: r.querySelector('.be-empty').checked };
   });
   let plan = null;
@@ -94,7 +94,7 @@ export function bulkEditModal(ids){
     if (!rowsEl.children.length) addRow((fields[0] || {}).k);
     preview();
   });
-  $('#beAdd').onclick = () => { const f = free(); addRow(f && f.k); preview(); const s = rowsEl.querySelector('.be-row:last-child .be-v input, .be-row:last-child .be-v textarea'); if (s) s.focus(); };
+  $('#beAdd').onclick = () => { const f = free(); addRow(f && f.k); preview(); const s = rowsEl.querySelector('.be-row:last-child .be-v input, .be-row:last-child .be-v textarea, .be-row:last-child .be-v select'); if (s) s.focus(); };
   $('#beNo').onclick = closeModal;
   $('#beOk').onclick = () => {
     preview(); if (!plan || plan.errors.length) return;
