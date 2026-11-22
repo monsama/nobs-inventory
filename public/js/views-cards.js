@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { dirLocOf, GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
+import { dirLocOf, vmsOn, GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
 import { SERVER, view, viewSig } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -175,7 +175,9 @@ export function cardHtml(o, idx, join = showJoin()){
   const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
   const [dl, dv0] = cardLine(o, detailOf(o.type), idx);
   /* A virtual server says so first: Server is one type, its Kind tells virtual from physical (0.9.160). */
-  const virt = o.kind === 'vm' && (o.type === 'server' || o.type === 'pc') && detailOf(o.type) !== 'kind', dv = virt ? (dv0 ? 'Virtual · ' + dv0 : 'Virtual machine') : dv0;
+  const virt = o.kind === 'vm' && (o.type === 'server' || o.type === 'pc') && detailOf(o.type) !== 'kind', dv1 = virt ? (dv0 ? 'Virtual · ' + dv0 : 'Virtual machine') : dv0;
+  /* A host says how many virtual machines run on it. */
+  const nvm = !virt && o.type === 'server' ? vmsOn(o).length : 0, dv = nvm ? (dv1 ? dv1 + ' · ' : '') + `${nvm} VM${nvm === 1 ? '' : 's'}` : dv1;
   const tip = [o.purpose, o.serial && 'Serial number ' + o.serial, o.model && o.model].filter(Boolean).join(' · ');
   /* Every row has two lines: the name, and under it, quieter, the description; a device without one shows its serial
    number there instead (in the code font). The rows are all as tall; a name with nothing under it sits in the middle. */
@@ -192,7 +194,7 @@ export function cardHtml(o, idx, join = showJoin()){
       : html`<button type="button" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</button>`;
     return String(html`<article class="card lrow${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-label="${`${o.name}: pending`}">${head}<span class="c-src rv-from" title="${alsoIn(o).length ? 'Also in ' + alsoIn(o).join(', ') : ''}">${REVIEW_SRC[o.review.src] || o.review.src}${alsoIn(o).length ? html`<span class="rv-also"> +${alsoIn(o).length}</span>` : ''}</span><span class="c-chips rv-chips">${why ? html`<span class="rv-why" title="${why}">${why}</span>` : ''}${chipsCell(chips)}</span>${seenCell(o)}<span class="rv-acts">${acts}${o.review.ignored || !isAdmin() ? '' : html`<button type="button" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</button>`}</span></article>`);
   }
-  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? (virt ? (dv0 ? 'Virtual machine · ' + dl : 'Kind') : dl) : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${stateIcons(o)}${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}${rawHtml(quickEditBtn(o))}</article>`);
+  return String(html`<article class="card lrow${picked ? ' picked' : ''}" data-open="${o.id}" aria-label="${o.name}">${head}<span class="c-det" title="${dv ? (virt ? (dv0 ? 'Virtual machine · ' + dl : 'Kind') : nvm ? `${dv0 ? dl + ' · ' : ''}${nvm} virtual machine${nvm === 1 ? ' runs' : 's run'} on it` : dl) : ''}">${dv ? rawHtml(dv) : ''}</span>${join ? html`<span class="c-dir">${GRAPH_TYPES.includes(o.type) ? rawHtml(joinBadges(o)) : ''}</span>` : ''}<span class="c-chips">${stateIcons(o)}${chipsCell(rowChips(o, idx))}</span>${seenCell(o)}${rawHtml(quickEditBtn(o))}</article>`);
 }
 /* On a device waiting in Pending devices: the other sources that know it. */
 export const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);

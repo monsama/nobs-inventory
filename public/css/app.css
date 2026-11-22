@@ -1158,6 +1158,9 @@ dialog.modal:has(.box.maxed){padding:0}
 /* The corner a dialog is sized by: three short lines, faint until hovered. */
 .dlg-grip{position:absolute;right:1px;bottom:1px;width:14px;height:14px;cursor:nwse-resize;touch-action:none;z-index:2;border-bottom-right-radius:var(--r-l);
   background:linear-gradient(135deg,transparent 0 45%,var(--bd) 45% 52%,transparent 52% 64%,var(--bd) 64% 71%,transparent 71% 83%,var(--bd) 83% 90%,transparent 90%)}
+.dlg-grip:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ac-places{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.ac-places .note{margin:0}
 .dlg-grip:hover{background:linear-gradient(135deg,transparent 0 45%,var(--muted) 45% 52%,transparent 52% 64%,var(--muted) 64% 71%,transparent 71% 83%,var(--muted) 83% 90%,transparent 90%)}
 .modal .box.maxed>.dlg-grip{display:none}
 /* A minimized dialog waits here: its title restores it, the × closes it. */
@@ -2733,7 +2736,6 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
   #sideRail:focus:not(:focus-visible){outline:0}
   #sideRail:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   #sideRail .i{width:12px;height:12px}
-  #sideRail .rail-n:not([hidden]){display:inline-flex;align-items:center;justify-content:center;min-width:14px;height:14px;border-radius:7px;background:var(--accent);color:#fff;font-size:10px;font-weight:600}
   body.side-dragging,body.side-dragging *{cursor:col-resize!important;user-select:none}
   body.side-snap #side{opacity:.45}
 }

@@ -41,9 +41,9 @@ try {
   await until(p, () => document.body.classList.contains('side-shut'));
   assert.equal(await sideW(), 0);
   assert.equal(await p.isVisible('#sideRail'), true);
-  // the strip shows how many filters are in force
+  // the strip shows no number (the chips above the list name the filters); its label still says how many
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.type = 'pc'; (await import('/js/07-render.js')).view(); });
-  assert.equal(await p.textContent('#sideRailN'), '1');
+  assert.equal(await p.locator('#sideRailN').count(), 0);
   assert.match(await p.getAttribute('#sideRail', 'aria-label'), /1 in force/);
   // a click on the strip opens them as wide as before
   await p.click('#sideRail');
