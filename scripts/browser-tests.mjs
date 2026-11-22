@@ -3,8 +3,11 @@
      node scripts/browser-tests.mjs              every file
      node scripts/browser-tests.mjs --shard 2/3  the second of three parts (CI runs the parts on separate machines)
      node scripts/browser-tests.mjs flows phone  only these files
-   NI_TEST_JOBS sets how many run at once (default: half the CPU cores, 2 to 4). */
+   NI_TEST_JOBS sets how many run at once (default: half the CPU cores, 2 to 4). PLAYWRIGHT_CHROMIUM names the browser
+   to use; without it, Playwright's own browser, or else a Chromium found in /opt/pw-browsers (a machine where another
+   Playwright version installed it). */
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -25,6 +28,23 @@ if (si >= 0) {
 if (args.length) files = files.filter(f => args.some(a => f === a || f === `${a}.e2e.mjs`));
 if (!files.length) { console.error('No browser test matches.'); process.exit(2); }
 
+/* The browser: Playwright's own when it is there, else the newest Chromium in /opt/pw-browsers. */
+function findChromium() {
+  if (process.env.PLAYWRIGHT_CHROMIUM) return process.env.PLAYWRIGHT_CHROMIUM;
+  try {
+    const own = createRequire(path.join(root, 'package.json'))('playwright').chromium.executablePath();
+    if (own && fs.existsSync(own)) return '';
+  } catch { /* look below */ }
+  const base = '/opt/pw-browsers';
+  try {
+    const found = fs.readdirSync(base).filter(d => /^chromium-\d+$/.test(d)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]))
+      .map(d => path.join(base, d, 'chrome-linux64', 'chrome')).find(f => fs.existsSync(f));
+    if (found) { console.log(`Using the browser at ${found}`); return found; }
+  } catch { /* none here */ }
+  return '';
+}
+const chromium = findChromium();
+
 const jobs = Math.max(1, Number(process.env.NI_TEST_JOBS) || Math.min(4, Math.max(2, Math.floor(os.cpus().length / 2))));
 const started = Date.now();
 const failed = [];
@@ -32,7 +52,7 @@ let next = 0, done = 0;
 
 const run = file => new Promise(resolve => {
   const t0 = Date.now(), out = [];
-  const p = spawn(process.execPath, [path.join(dir, file)], { cwd: root, env: { ...process.env, NODE_NO_WARNINGS: '1' } });
+  const p = spawn(process.execPath, [path.join(dir, file)], { cwd: root, env: { ...process.env, NODE_NO_WARNINGS: '1', ...(chromium ? { PLAYWRIGHT_CHROMIUM: chromium } : {}) } });
   p.stdout.on('data', b => out.push(b)); p.stderr.on('data', b => out.push(b));
   p.on('close', code => {
     done++;

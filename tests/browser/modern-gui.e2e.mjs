@@ -72,7 +72,7 @@ try {
   assert.equal(await d.isVisible('#side'), true, 'a filter picked leaves them open beside the list');
   await d.hover('#side'); await d.click('#sideGrip .side-fold');
   assert.equal(await d.isVisible('#side'), false, 'folded away');
-  assert.equal(await d.textContent('#sideRailN'), '1', 'the strip shows the filter in force');
+  assert.match(await d.getAttribute('#sideRail', 'aria-label'), /1 in force/, 'the strip says the filter in force, without a number on it');
 
   // the bar for the selected floats at the bottom
   await p.click('#tabsbar [data-tab=cards]').catch(() => {});

@@ -6,7 +6,7 @@ import { DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, APP_VERSION, HISTORY, LOCS, VLAN
 import { html } from './html.js';
 import { me, ownOnly, pushDate, isAdmin, openSettings, SET_TABS } from './04-settings.js';
 import { openObjs } from './02-views.js';
-import { closeModal, modal } from './19-modal.js';
+import { closeModal, forgetDialogPlaces, keptDialogPlaces, modal } from './19-modal.js';
 import { render } from './07-render.js';
 import { SERVER, pendingChanges, dropOffline } from './server-save.js';
 import { reloadFromServer, checkForChanges, restoreOffline } from './server-load.js';
@@ -138,6 +138,8 @@ async function loadMySessions(){
   box.querySelectorAll('[data-endsess]').forEach(b => b.onclick = async () => { await fetch('api/me/sessions/' + encodeURIComponent(b.dataset.endsess), {method: 'DELETE', credentials: 'same-origin'}); loadMySessions(); });
   if ($('#acEndOthers')) $('#acEndOthers').onclick = async () => { for (const x of list.filter(y => !y.current)) await fetch('api/me/sessions/' + encodeURIComponent(x.id), {method: 'DELETE', credentials: 'same-origin'}); toast('Other browsers are signed out'); loadMySessions(); };
 }
+/* What the browser keeps of dialogs: the place and size each was left at. */
+const placesNote = () => { const n = keptDialogPlaces(); return n ? `${n} ${n === 1 ? 'dialog opens' : 'dialogs open'} where and as large as you left ${n === 1 ? 'it' : 'them'}.` : 'Every dialog opens in the middle at its own size.'; };
 /* Your own account: name and department, and the password. Directory users keep their name, department and password in
    the directory, so for them it only shows them (and the signed-in browsers). */
 export function accountModal(){
@@ -158,11 +160,14 @@ export function accountModal(){
     </div>`}
     <div class="hdr" style="margin:14px -14px 8px">Signed-in browsers</div>
     <div id="acSessions"><p class="note">Loading…</p></div>
+    <div class="hdr" style="margin:14px -14px 8px">This browser</div>
+    <div class="ac-places"><span class="note" id="acPlacesNote">${placesNote()}</span><button id="acPlaces" ${keptDialogPlaces() ? '' : 'disabled'}>Reset dialog sizes and places</button></div>
     <p class="note" id="acErr"></p></div>
     <div class="mf"><button id="acClose">Close</button><button id="acPw" ${ldap ? 'hidden' : ''}>Change password</button><button id="acSave" class="primary" ${ldap ? 'hidden' : ''}>Save</button></div>`, 'sm');
   loadMySessions();
   const fail = msg => { $('#acErr').textContent = msg; };
   $('#acClose').onclick = closeModal;
+  $('#acPlaces').onclick = () => { forgetDialogPlaces(); $('#acPlacesNote').textContent = placesNote(); $('#acPlaces').disabled = true; toast('Dialogs open in the middle at their own size again'); };
   $('#acSave').onclick = async () => {
     if (ldap){ closeModal(); return; }
     const first = $('#acFirst').value.trim(), last = $('#acLast').value.trim();

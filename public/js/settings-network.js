@@ -383,6 +383,14 @@ function useAdLocs(pairs, msg){
    use with Undo; devices keep the location they got. */
 /* The texts ticked to make rooms of at once, by their lower-case text (kept while the panel is drawn again). */
 const adPicked = new Set();
+/* Ticks these texts (the list's "Location from AD not a room yet"), so Settings opens with them ready to be made rooms
+   in one go. Returns how many of them are still to be given a room. */
+export function pickLocTexts(texts){
+  adPicked.clear();
+  const open = new Set(newTexts().map(e => lc(e.text)));
+  for (const t of texts) if (open.has(lc(t))) adPicked.add(lc(t));
+  return adPicked.size;
+}
 /* The site the ticked texts become rooms in: the one picked last, else the first. */
 let adSite = '';
 const bulkSite = () => SITES.includes(adSite) ? adSite : SITES[0] || '';

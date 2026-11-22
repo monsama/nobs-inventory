@@ -557,6 +557,15 @@ const perDraw = fn => { let gen = -1, map = new WeakMap(); return o => { if (!ca
 /* One value worked out once per draw (or each time when asked outside one). */
 /** @template T @param {() => T} fn @returns {() => T} */
 export const oncePerDraw = fn => { let gen = -1, v; return () => { if (!cacheOn) return fn(); if (gen !== drawGen){ gen = drawGen; v = fn(); } return v; }; };
+/* Hosts and their virtual machines, from the "runs on" links (hosted), worked out once per draw. */
+const hostedMaps = oncePerDraw(() => {
+  const host = new Map(), vms = new Map();
+  for (const r of rels) if (r.kind === 'hosted'){ host.set(r.from, r.to); const l = vms.get(r.to); if (l) l.push(r.from); else vms.set(r.to, [r.from]); }
+  return { host, vms };
+});
+/* The host a virtual machine runs on, and the virtual machines on a host (not retired ones). */
+export const hostOfVm = o => byId(hostedMaps().host.get(o.id));
+export const vmsOn = o => (hostedMaps().vms.get(o.id) || []).map(byId).filter(v => v && v.status !== 'retired');
 /* Per object, once per draw: exported for other modules' lookups. */
 export const perDrawOf = perDraw;
 export const lastSeenOf = perDraw(o => lastSeenNow(o));
@@ -619,6 +628,8 @@ export const QUALITY = {
   }],
   /* Virtual or physical: a server no source could tell about (from AD only, entered by hand). */
   nokind: ['Server, virtual or physical not known', 'Set its Kind on its page, or for many at once with Edit fields (Kind)', o => o.type === 'server' && o.status !== 'retired' && o.kind !== 'vm' && o.kind !== 'physical'],
+  /* A virtual machine whose host is retired or no source knows any more: it has moved, or is gone too. */
+  hostgone: ['Runs on a retired or gone host', 'Its host is retired or gone from every source: set where it runs now on its page (Runs on), or retire it too', o => { if (o.status === 'retired') return false; const h = hostOfVm(o); return !!h && (h.status === 'retired' || goneAllWith(h, st.lsPresence)); }],
   /* What AD (or the user's office) gives as location, and the rooms here. */
   locnew: ['Location from AD not a room yet', 'AD or the user\'s office names a place that is no room here: add it, or map it to a room, in Settings → Locations', o => { if (o.status === 'retired') return false; const d = dirLocOf(o); return !!d && d.state === 'new' && !d.auto; }],
   locdiff: ['Room differs from AD', 'AD or the user\'s office names another room than the one recorded here', o => o.status !== 'retired' && (dirLocOf(o) || {}).state === 'diff'],

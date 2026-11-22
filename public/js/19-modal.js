@@ -142,6 +142,9 @@ function addWindowControls(m){
 const PLACES_KEY = 'ni-dlg-pos';
 const places = () => { try { return JSON.parse(localStorage.getItem(PLACES_KEY)) || {}; } catch { return {}; } };
 const keepPlace = (key, v) => { try { const all = places(); if (v) all[key] = v; else delete all[key]; localStorage.setItem(PLACES_KEY, JSON.stringify(all)); } catch { /* not kept: the dialog opens in the middle */ } };
+/* How many dialogs this browser keeps a place or size for, and forgetting them all (Your account). */
+export const keptDialogPlaces = () => Object.keys(places()).length;
+export const forgetDialogPlaces = () => { try { localStorage.removeItem(PLACES_KEY); } catch { /* nothing kept */ } };
 /* The smallest a dialog can be made, Settings (a menu beside its page) a little wider. */
 const MIN_W = 360, MIN_H = 200, MIN_W_SETTINGS = 640;
 /* Lets dialog m be dragged by its title bar and sized by its corner, puts it back where and as large as it was last
@@ -178,27 +181,41 @@ function makeMovable(m){
     head.addEventListener('pointermove', move); head.addEventListener('pointerup', up); head.addEventListener('pointercancel', up);
   });
   head.addEventListener('dblclick', e => { if (!skip(e)) { const b = head.querySelector('.wc-max'); if (b) b.click(); } });
-  /* The corner: the dialog is centred, so its top left stays put by moving it half of what it grows. A double-click
-     on the corner gives it back its own size. */
+  /* The corner: dragged, or the arrow keys when it has the focus. A double-click on it gives the dialog its own size. */
   const grip = document.createElement('span');
-  grip.className = 'dlg-grip'; grip.title = 'Drag to size the dialog, double-click for its own size'; grip.setAttribute('aria-hidden', 'true');
+  grip.className = 'dlg-grip'; grip.title = 'Drag to size the dialog (or the arrow keys), double-click for its own size (or Home)';
+  grip.tabIndex = 0; grip.setAttribute('role', 'button'); grip.setAttribute('aria-label', 'Size of the dialog: arrow keys make it larger or smaller, Home gives it its own size');
   box.appendChild(grip);
   grip.addEventListener('pointerdown', e => {
     if (e.button !== 0 || fixed()) return;
     e.preventDefault(); e.stopPropagation();
-    const r = box.getBoundingClientRect(), sx = e.clientX, sy = e.clientY, x0 = x, y0 = y;
-    const minW = Math.min(settings ? MIN_W_SETTINGS : MIN_W, r.width), minH = Math.min(MIN_H, r.height);
-    /* Not past the window's right and bottom edge, less the dialog's 16px margin. */
-    const maxW = window.innerWidth - 16 - r.left, maxH = window.innerHeight - 16 - r.top;
+    const sx = e.clientX, sy = e.clientY, by = sizer();
     grip.setPointerCapture(e.pointerId); box.classList.add('moving');
-    const move = ev => {
-      const nw = Math.round(Math.max(minW, Math.min(maxW, r.width + ev.clientX - sx))), nh = Math.round(Math.max(minH, Math.min(maxH, r.height + ev.clientY - sy)));
-      size(nw, nh); place(Math.round(x0 + (nw - r.width) / 2), Math.round(y0 + (nh - r.height) / 2));
-    };
+    const move = ev => by(ev.clientX - sx, ev.clientY - sy);
     const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); box.classList.remove('moving'); keep(); };
     grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
   });
   grip.addEventListener('dblclick', e => { e.stopPropagation(); if (fixed()) return; size(0, 0); place(0, 0); keep(); });
+  /* The keyboard: 20px a press (Shift: 100px), Home gives the dialog its own size. */
+  grip.addEventListener('keydown', e => {
+    if (fixed()) return;
+    const step = e.shiftKey ? 100 : 20;
+    const d = { ArrowRight: [step, 0], ArrowLeft: [-step, 0], ArrowDown: [0, step], ArrowUp: [0, -step] }[e.key];
+    if (d) { e.preventDefault(); e.stopPropagation(); sizer()(d[0], d[1]); keep(); }
+    else if (e.key === 'Home') { e.preventDefault(); size(0, 0); place(0, 0); keep(); }
+  });
+  /* Sizing from where the dialog is now: grows by dx, dy from its corner, within the smallest size and the window. The
+     dialog is centred, so its top left stays put by moving it half of what it grows. */
+  function sizer(){
+    const r = box.getBoundingClientRect(), x0 = x, y0 = y;
+    const minW = Math.min(settings ? MIN_W_SETTINGS : MIN_W, r.width), minH = Math.min(MIN_H, r.height);
+    /* Not past the window's right and bottom edge, less the dialog's 16px margin. */
+    const maxW = Math.max(r.width, window.innerWidth - 16 - r.left), maxH = Math.max(r.height, window.innerHeight - 16 - r.top);
+    return (dx, dy) => {
+      const nw = Math.round(Math.max(minW, Math.min(maxW, r.width + dx))), nh = Math.round(Math.max(minH, Math.min(maxH, r.height + dy)));
+      size(nw, nh); place(Math.round(x0 + (nw - r.width) / 2), Math.round(y0 + (nh - r.height) / 2));
+    };
+  }
 }
 /* A minimized dialog is closed (not modal), so the page works while it waits; restoring makes it modal again. */
 export function minimizeModal(){
