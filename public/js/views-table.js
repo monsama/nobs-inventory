@@ -29,7 +29,7 @@ export const TABLE_COLS = [
   /* A server's Kind (virtual, physical, not known); empty for the other types. */
   {k:'kind', w:140, label:'Kind', cell: o => String(html`<td>${o.type === 'server' ? SRV_KIND_TEXT[kindOf(o)] : ''}</td>`)},
   /* The host a virtual machine runs on. */
-  {k:'host', w:160, label:'Runs on', cell: (o, idx) => { const r = (idx ? idx.get(o.id) || [] : rels).find(x => x.from === o.id && x.kind === 'hosted'); const h = r && byId(r.to); return String(html`<td class="n">${h ? h.name : ''}</td>`); }},
+  {k:'host', w:160, label:'Runs on', cell: (o, idx) => { const r = (idx ? idx.get(o.id) || [] : rels).find(x => x.from === o.id && x.kind === 'hosted'); const h = r && byId(r.to); return String(html`<td class="n">${h ? h.name : ''}${h && h.status === 'retired' ? html` <span class="mk wty soon">retired</span>` : ''}</td>`); }},
   /* How many virtual machines run on a host (not retired ones). */
   {k:'vms', w:80, label:'VMs', cell: o => { const n = o.type === 'server' && kindOf(o) !== 'vm' ? vmsOn(o).length : 0; return String(html`<td class="num">${n || ''}</td>`); }},
   {k:'model', w:210, label:'Model', cell: o => String(html`<td>${o.model}</td>`)},
@@ -156,7 +156,9 @@ export const QUALITY_FIX = {
   addisabled: ['status', 'bkAct', 'select the ones no longer used and set their status'],
   ownerdiff: ['user', null, 'open each and give it to the right person'],
   reported: [null, null, 'open each, look at the problem and mark it as done'],
-  hostgone: ['host', null, 'open each and set where it runs now, or retire it'],
+  /* The bar for it is "Make them rooms…" (02-views.js); the column shows what AD says. */
+  locnew: ['dloc', null, ''],
+  hostgone: ['host', null, 'open each: under Relations, take away the old host and link the one it runs on now, or retire it'],
 };
 /* The export's file name says what was listed: inventory-notebook-zurich-hq-not-seen-for-90-days-2026-11-08.csv. */
 function fileName(){

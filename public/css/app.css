@@ -1332,7 +1332,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .fbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px var(--edge) 6px 12px;border-bottom:1px solid var(--bd2);background:var(--bg)}
 .fbar[hidden]{display:none}
 .fbar .fb-l{font-size:12px;color:var(--muted);margin-right:2px}
-.fchip{display:inline-flex;align-items:center;gap:6px;height:24px;min-height:0;padding:0 4px 0 9px;border-radius:12px;font-size:12px;border:1px solid var(--bd);background:var(--sub);color:var(--fg);cursor:pointer;white-space:nowrap;max-width:280px}
+.fchip{display:inline-flex;align-items:center;gap:6px;height:24px;min-height:0;padding:0 4px 0 9px;border-radius:12px;font-size:12px;border:1px solid var(--bd);background:var(--sub);color:var(--fg);cursor:pointer;white-space:nowrap;max-width:min(460px,100%)}
 .fchip>span{overflow:hidden;text-overflow:ellipsis}
 .fchip b{font-weight:600}
 .fchip .x{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;color:var(--muted)}
@@ -2836,3 +2836,17 @@ body.dense .lrow .c-name.has-desc{padding:0;grid-template-rows:auto}
 .cmp-v{min-width:0;overflow-wrap:anywhere;font-weight:600}
 .cmp-tick{color:var(--ok);font-weight:700}
 @media (max-width:760px){.cmp-row{grid-template-columns:minmax(0,1fr)}}
+
+/* Sweep after 0.9.170. */
+.sp-val{white-space:normal}
+.c-ll.sub.warn{color:var(--warn)}
+/* A location that follows the device it is attached to: shown, not a field to pick. */
+.obj .form select.locpick:disabled{background:transparent;border-color:transparent;box-shadow:none;appearance:none;-webkit-appearance:none;padding-left:0;opacity:1;color:var(--fg);cursor:default}
+/* The comparison stays where it opened while rows go away. */
+dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)}
+.cmp-val{white-space:normal;min-width:0;height:auto;padding-top:5px;padding-bottom:5px}.cmp-v{flex:1 1 auto}
+@media (max-width:760px){.cmp-head .mini{flex:1 1 100%}.cmp-val{width:100%}}
+/* A message over an open dialog sits at its top, off its buttons. */
+#mdl #toast{bottom:auto;top:12px}
+/* Sign in: the error line keeps its place, so the dialog does not move when it shows. */
+#lgErr{min-height:1.5em}

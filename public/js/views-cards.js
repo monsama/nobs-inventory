@@ -119,7 +119,7 @@ const locCell = (o, idx) => {
   const dl = dirLine(o);
   /* The room line: its own room, else its host's, else the host a virtual machine runs on. */
   const h = !o.loc && hostOf(o, idx), r = !o.loc && !(h && h.loc) && runsOn(o, idx);
-  const first = o.loc ? html`<span class="c-ll" title="${o.loc}">${shortLoc(o.loc)}</span>` : h && h.loc ? html`<span class="c-ll" title="${h.loc}, from ${h.name}">${shortLoc(h.loc)}</span>` : r ? html`<span class="c-ll sub">on ${r.name}</span>` : '';
+  const first = o.loc ? html`<span class="c-ll" title="${o.loc}">${shortLoc(o.loc)}</span>` : h && h.loc ? html`<span class="c-ll" title="${h.loc}, from ${h.name}">${shortLoc(h.loc)}</span>` : r ? html`<span class="c-ll sub${r.status === 'retired' ? ' warn' : ''}" title="${r.status === 'retired' ? `${r.name}, the host it runs on, is retired` : `Runs on ${r.name}`}">on ${r.name}${r.status === 'retired' ? ' (retired)' : ''}</span>` : '';
   if (dl) return first ? html`<span class="c-loc has-src">${first}${dl}</span>` : html`<span class="c-loc">${dl}</span>`;
   if (o.loc) return html`<span class="c-loc" title="${o.loc}">${shortLoc(o.loc)}</span>`;
   if (h && h.loc) return html`<span class="c-loc" title="${h.loc}, from ${h.name}">${shortLoc(h.loc)}</span>`;

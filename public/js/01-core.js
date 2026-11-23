@@ -633,7 +633,7 @@ export const QUALITY = {
   /* Virtual or physical: a server no source could tell about (from AD only, entered by hand). */
   nokind: ['Server, virtual or physical not known', 'Set its Kind on its page, or for many at once with Edit fields (Kind)', o => o.type === 'server' && o.status !== 'retired' && o.kind !== 'vm' && o.kind !== 'physical'],
   /* A virtual machine whose host is retired or no source knows any more: it has moved, or is gone too. */
-  hostgone: ['Runs on a retired or gone host', 'Its host is retired or gone from every source: set where it runs now on its page (Runs on), or retire it too', o => { if (o.status === 'retired') return false; const h = hostOfVm(o); return !!h && (h.status === 'retired' || goneAllWith(h, st.lsPresence)); }],
+  hostgone: ['Runs on a retired or gone host', 'Its host is retired or gone from every source: under Relations on its page, link the host it runs on now, or retire it too', o => { if (o.status === 'retired') return false; const h = hostOfVm(o); return !!h && (h.status === 'retired' || goneAllWith(h, st.lsPresence)); }],
   /* What AD (or the user's office) gives as location, and the rooms here. */
   locnew: ['Location from AD not a room yet', 'AD or the user\'s office names a place that is no room here: add it, or map it to a room, in Settings → Locations', o => { if (o.status === 'retired') return false; const d = dirLocOf(o); return !!d && d.state === 'new' && !d.auto; }],
   locdiff: ['Room differs from AD', 'AD or the user\'s office names another room than the one recorded here', o => o.status !== 'retired' && (dirLocOf(o) || {}).state === 'diff'],

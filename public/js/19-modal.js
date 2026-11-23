@@ -158,7 +158,7 @@ const keepPlace = (key, v) => { try { const all = places(); if (v) all[key] = v;
 export const keptDialogPlaces = () => Object.keys(places()).length;
 export const forgetDialogPlaces = () => { try { localStorage.removeItem(PLACES_KEY); } catch { /* nothing kept */ } };
 /* The smallest a dialog can be made, Settings (a menu beside its page) a little wider. */
-const MIN_W = 360, MIN_H = 200, MIN_W_SETTINGS = 640;
+const MIN_W = 360, MIN_H = 200, MIN_W_SETTINGS = 900;
 /* Lets dialog m be dragged by its title bar and sized by its corner, puts it back where and as large as it was last
    left and keeps that when let go. A double-click on the bar maximizes it. Does nothing for a dialog without a title bar. */
 function makeMovable(m){
