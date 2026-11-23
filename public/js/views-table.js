@@ -226,7 +226,9 @@ export function renderTable(){
   /* A data-quality check's column, or the columns a list from the Overview asks for (the replacement plan: purchase,
      due year, price), go right after Name while it is listed. */
   const fix = !st.scope && st.quality && QUALITY_FIX[st.quality];
-  const after = fix && fix[0] ? [fix[0]] : !st.scope && st.ids && Array.isArray(st.ids.cols) ? st.ids.cols : !st.scope && st.seen ? ['seen'] : !st.scope && st.gone ? ['gone'] : [];
+  /* Sources disagree: the columns whose sources differ on the devices listed, the most first, right after Name. */
+  const differ = !st.scope && st.quality === 'conflict' ? (() => { const n = new Map(); for (const o of list) for (const k of Object.keys(o.vals || {})) if (sourcesDisagree(o, k)) n.set(k, (n.get(k) || 0) + 1); return [...n.keys()].sort((a, b) => n.get(b) - n.get(a)); })() : [];
+  const after = fix && fix[0] ? [fix[0]] : differ.length ? differ : !st.scope && st.ids && Array.isArray(st.ids.cols) ? st.ids.cols : !st.scope && st.seen ? ['seen'] : !st.scope && st.gone ? ['gone'] : [];
   const laid = !!fix || after.length > 0;
   if (after.length){
     const cs = after.map(k => tableCols().find(x => x.k === k)).filter(Boolean), at = shown.findIndex(x => x.k === 'name') + 1;

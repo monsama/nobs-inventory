@@ -157,13 +157,14 @@ export function accountModal(){
       <label for="acCur">Current</label><input id="acCur" type="password" autocomplete="current-password">
       <label for="acNew">New</label><input id="acNew" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters">
       <label for="acNew2">Repeat</label><input id="acNew2" type="password" autocomplete="new-password">
+      <span></span><div class="ac-pwrow"><button id="acPw" type="button">Change password</button></div>
     </div>`}
     <div class="hdr" style="margin:14px -14px 8px">Signed-in browsers</div>
     <div id="acSessions"><p class="note">Loading…</p></div>
     <div class="hdr" style="margin:14px -14px 8px">This browser</div>
     <div class="ac-places"><span class="note" id="acPlacesNote">${placesNote()}</span><button id="acPlaces" ${keptDialogPlaces() ? '' : 'disabled'}>Reset dialog sizes and places</button></div>
     <p class="note" id="acErr"></p></div>
-    <div class="mf"><button id="acClose">Close</button><button id="acPw" ${ldap ? 'hidden' : ''}>Change password</button><button id="acSave" class="primary" ${ldap ? 'hidden' : ''}>Save</button></div>`, 'sm');
+    <div class="mf"><button id="acClose">Close</button><button id="acSave" class="primary" ${ldap ? 'hidden' : ''} title="Saves the name and department">Save</button></div>`, 'sm');
   loadMySessions();
   const fail = msg => { $('#acErr').textContent = msg; };
   $('#acClose').onclick = closeModal;
@@ -176,7 +177,7 @@ export function accountModal(){
     if (!r.ok) return fail((await r.json().catch(() => ({}))).error || 'The details could not be saved.');
     closeModal(); await reloadFromServer(); toast('Saved');
   };
-  $('#acPw').onclick = async () => {
+  const pwb = $('#acPw'); if (pwb) pwb.onclick = async () => {
     const cur = $('#acCur').value, pw = $('#acNew').value;
     if (!cur) return fail('Type your current password.');
     if (pw.length < PW_MIN) return fail(`The new password needs at least ${PW_MIN} characters.`);
