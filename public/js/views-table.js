@@ -130,7 +130,11 @@ const withSource = (o, c, cell) => {
      picker (as beside the field on the device's page). */
   if (SOURCE_COLS.has(c.k) && sourcesDisagree(o, c.k)) {
     const says = choicesOfCell(o, c.k);
-    return cell.replace(/^<td([^>]*?)( title="[^"]*")?([^>]*)>/, (_m, a, _t, b) => String(html`<td${rawHtml(a)}${rawHtml(b)} class="disagree" title="${says}">`)).replace(/<\/td>$/, () => sourceMark(o, c.k) + '</td>');
+    /* The cell's own class is kept (IP, MAC and serial are in the code font) and its title replaced. */
+    return cell.replace(/^<td([^>]*)>/, (_m, attrs) => {
+      const cls = (attrs.match(/\bclass="([^"]*)"/) || [])[1] || '', rest = attrs.replace(/\s*\b(class|title)="[^"]*"/g, '');
+      return String(html`<td${rawHtml(rest)} class="${(cls + ' disagree').trim()}" title="${says}">`);
+    }).replace(/<\/td>$/, () => sourceMark(o, c.k) + '</td>');
   }
   if (!SOURCE_COLS.has(c.k) || /^<td[^>]*title=/.test(cell)) return cell;
   const t = sourceText(o, c.k);

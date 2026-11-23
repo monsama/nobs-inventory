@@ -69,6 +69,8 @@ export function recordsFromJson(list) {
       ref: String(l && l.ref != null ? l.ref : '').trim().slice(0, 200),
       name: String(l && l.name != null ? l.name : '').trim().slice(0, 200),
       kind: l.kind,
+      /* keep: the push could not tell this link this time; the one there is stays (applyLinks). */
+      ...(l.keep === true ? { keep: true } : {}),
       port: String(l && l.port != null ? l.port : '').trim().slice(0, 100)
     })) : [];
     /* Installed software: null when the push did not send it, so the software already on the object stays. */
@@ -195,7 +197,7 @@ function applySoftware(s, pairs) {
 /* Makes the links of the records that were merged match what Lansweeper reports: new links are added, changed ports
    are updated, and links Lansweeper no longer reports are removed. Links made by hand are never touched. */
 /* What a dock's record says hangs on it, kept short: the monitors by their Lansweeper ref or name. */
-const linksOf = list => list.slice(0, 50).map(l => ({ ...(l.ref != null ? { ref: String(l.ref).slice(0, 60) } : {}), ...(l.name ? { name: String(l.name).slice(0, 200) } : {}), kind: String(l.kind || '').slice(0, 30), ...(l.port ? { port: String(l.port).slice(0, 30) } : {}) }));
+const linksOf = list => list.slice(0, 50).map(l => ({ ...(l.ref != null ? { ref: String(l.ref).slice(0, 60) } : {}), ...(l.name ? { name: String(l.name).slice(0, 200) } : {}), kind: String(l.kind || '').slice(0, 30), ...(l.port ? { port: String(l.port).slice(0, 30) } : {}), ...(l.keep === true ? { keep: true } : {}) }));
 const DOCK_LINKS_DAYS = 30;
 /* Records waiting in Pending devices at most: more are not added until some are accepted or ignored. */
 export const REVIEW_MAX = 5000;
@@ -239,6 +241,9 @@ function applyLinks(s, pairs, counts, seen) {
     const wanted = wantedOf.get(obj.id) || new Set();
     wantedOf.set(obj.id, wanted);
     for (const l of linksOnly ? r.links : [...r.links, ...(mergedLinks.get(obj.id) || [])]) {
+      /* keep: the push could not tell this time (a guest two hosts list, the host step failed): the links of that kind
+         Lansweeper made stay as they are, and none is made. */
+      if (l && l.keep) { for (const x of s.rels) if (x.from === obj.id && x.kind === l.kind && x.src === 'Lansweeper') wanted.add(x.to + '|' + x.kind); continue; }
       const to = (l.ref && byRef.get(String(l.ref))) || (l.name && byName.get(l.name.toLowerCase())) || null;
       if (!to || to === obj || to.status === 'retired' || obj.status === 'retired') continue;
       const port = l.port || null;
@@ -256,13 +261,13 @@ function applyLinks(s, pairs, counts, seen) {
       /* The same rule as for a link made by hand (relations.js): a monitor on one computer, types that fit. Lansweeper
          moving a monitor it made to another computer moves it; one attached by hand stays and the new link is counted. */
       /* A server a host scan lists as its guest is a virtual machine, when nothing said what it is yet. */
-      if (l.kind === 'hosted' && obj.type === 'server' && !obj.kind && to.type === 'server' && to.kind !== 'vm') {
-        obj.kind = 'vm'; ((s.history ??= {})[obj.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Kind set to Virtual machine (it runs on ${to.name})` });
-      }
+      /* Set only once the link is made (checked as the virtual machine it would then be). */
+      const asGuest = l.kind === 'hosted' && obj.type === 'server' && !obj.kind && to.type === 'server' && to.kind !== 'vm';
       /* The check first, against the links without the ones Lansweeper made from it before: a host that does not fit
          leaves the old link as it is. */
       const mine = HOST_KINDS.includes(l.kind) ? s.rels.filter(x => x.from === obj.id && HOST_KINDS.includes(x.kind) && x.src === 'Lansweeper') : [];
-      if (relationProblem(l.kind, obj, to, s.rels.filter(x => !mine.includes(x)))) { counts.linkRefused = (counts.linkRefused || 0) + 1; for (const x of mine) wanted.add(x.to + '|' + x.kind); continue; }
+      if (relationProblem(l.kind, asGuest ? { ...obj, kind: 'vm' } : obj, to, s.rels.filter(x => !mine.includes(x)))) { counts.linkRefused = (counts.linkRefused || 0) + 1; for (const x of mine) wanted.add(x.to + '|' + x.kind); continue; }
+      if (asGuest) { obj.kind = 'vm'; ((s.history ??= {})[obj.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Kind set to Virtual machine (it runs on ${to.name})` }); }
       for (const x of mine) { s.rels.splice(s.rels.indexOf(x), 1); n++; }
       s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null, src: 'Lansweeper' });
       n++;
@@ -555,8 +560,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     const lsRoom = mappedRoom(s, r.location);
     noteValue(found, 'loc', 'ls', lsRoom, r.scanned || seen);
     /* Location: the room Lansweeper's location names or is mapped to, when the policy lets the feed set it. */
-    /* A device attached to another is where that one is (follow-host.js): Lansweeper does not move it. */
-    const locPick = pickOf(found, 'loc'), locOwned = lsWrites(s, found, 'loc') && !attached.has(found.id);
+    /* A device attached to another is where that one is (follow-host.js): Lansweeper does not move it. Attached already,
+       or by a link this push brings. */
+    const attachedNow = attached.has(found.id) || (Array.isArray(r.links) && r.links.some(l => l && l.kind === 'attached'));
+    const locPick = pickOf(found, 'loc'), locOwned = lsWrites(s, found, 'loc') && !attachedNow;
     if (locOwned && lsRoom && found.loc !== lsRoom) {
       if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${lsRoom}` });
       found.loc = lsRoom; markSource(found, 'loc', 'ls'); changed = true;
@@ -569,7 +576,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LS_FILL[k]} filled in: ${v}` });
     }
     /* A device with no location gets the room its address is in (Room from IP location); one held by the device stays. */
-    if (!found.loc && !attached.has(found.id) && s.feedOn !== false && policy.ipRoom !== false && (!locPick || locPick === 'ls')) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
+    if (!found.loc && !attachedNow && s.feedOn !== false && policy.ipRoom !== false && (!locPick || locPick === 'ls')) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }

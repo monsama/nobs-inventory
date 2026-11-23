@@ -50,3 +50,12 @@ test('a save of the whole inventory (what the sync jobs do) brings attached devi
     assert.match(s.history.m[0].msg, /Location set to Main \/ Office: it is attached to D-pc/);
   } finally { db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('sweep: a retired host keeps nothing with it; a source picked for the location goes, so AD does not move it back', () => {
+  const objs = [dev('pc', { loc: 'Store / Disposal', status: 'retired' }), dev('m', { type: 'monitor', loc: 'Main / Office' }),
+    dev('pc2', { loc: 'Main / Lab' }), dev('d', { type: 'other', loc: 'Main / Office', pick: { loc: 'ad' }, src: { loc: 'ad' } }), null];
+  followHosts(objs, [att('m', 'pc'), att('d', 'pc2')]);
+  assert.equal(objs[1].loc, 'Main / Office', 'not to the disposal room');
+  assert.equal(objs[3].loc, 'Main / Lab');
+  assert.equal(objs[3].pick, undefined);
+});

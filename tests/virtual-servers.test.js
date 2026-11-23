@@ -102,3 +102,19 @@ test('host links from Lansweeper: a host that does not fit keeps the old link, a
   push([]);
   assert.deepEqual(s.rels.filter(r => r.kind === 'hosted'), [], 'no longer listed by a host: the link goes');
 });
+
+test('sweep: a guest whose host the push cannot tell (keep) keeps its link; a refused host does not make it virtual', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const now = new Date(2026, 10, 23, 10, 0);
+  const srv = (id, name, ref, more = {}) => ({ id, code: 'INV-' + id, type: 'server', name, status: 'active', loc: '', ovr: {}, feed: { sys: 'Lansweeper', ref }, ...more });
+  const s = base([srv('h1', 'HV-01', '10', { kind: 'physical' }), srv('v', 'APP-01', '12', { kind: 'vm' }), srv('x', 'FILE-01', '13'), srv('g', 'GUEST-02', '14', { kind: 'vm' })], { policy: { links: true }, feedOn: true });
+  const push = links => mergeRecords(s, recordsFromJson([
+    { name: 'HV-01', ref: '10', assetType: 'Windows', role: 'server' }, { name: 'APP-01', ref: '12', assetType: 'Windows', role: 'server', links },
+    { name: 'FILE-01', ref: '13', assetType: 'Windows', role: 'server', links: [{ kind: 'hosted', ref: '14' }] }, { name: 'GUEST-02', ref: '14', assetType: 'Windows', role: 'server' },
+  ]), now, []);
+  push([{ kind: 'hosted', ref: '10' }]);
+  assert.deepEqual(s.rels.filter(r => r.kind === 'hosted' && r.from === 'v').map(r => r.to), ['h1']);
+  push([{ kind: 'hosted', keep: true }]);
+  assert.deepEqual(s.rels.filter(r => r.kind === 'hosted' && r.from === 'v').map(r => r.to), ['h1'], 'kept while the push cannot tell');
+  assert.equal(s.objs.find(o => o.id === 'x').kind, undefined, 'a host that is itself virtual is refused, and the server is not made virtual');
+});

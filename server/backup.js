@@ -154,7 +154,7 @@ export function restoreBackup(db, data, sheetKey = null, { photosFrom = null } =
   s.rseq = Math.max(cur.rseq || 0, st.rseq || 0);
   delete s.revs; delete s.empty;
   migrateState(s);
-  saveState(db, s);
+  saveState(db, s, { restore: true });
   /* The backup's device photos replace those here; one without photos (from before 0.9.75) leaves them as they are. Either
      way photos of devices the restored inventory does not have go. */
   const stored = photosFrom ? photosFrom() : null, first = stored ? stored.next() : null;

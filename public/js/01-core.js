@@ -122,13 +122,17 @@ export const typeText = o => { const l = (TYPES[o && o.type] || {}).label || (o 
 export const SRV_KINDS = { vm: 'Virtual', physical: 'Physical', none: 'Not known' };
 /* The room a location text names or is mapped to (Settings → Locations), as the server's mappedRoom finds it: one Map,
    made again only when the rooms or the mappings change. */
-let roomMapKey = '', roomMap = new Map();
+/* While a draw lasts the rooms do not change: the key is made once per draw, not for each device. */
+let roomMapKey = '', roomMap = new Map(), roomMapGen = -1;
 const roomOfText = text => {
-  const key = LOCS.length + '|' + LOCS.join('\n') + '|' + JSON.stringify(st.adLocMap || {}) + JSON.stringify(st.locMap || {});
-  if (key !== roomMapKey){
-    roomMapKey = key; roomMap = new Map();
-    for (const [k, r] of Object.entries({ ...(st.adLocMap || {}), ...(st.locMap || {}) })) if (LOCS.includes(r)) roomMap.set(String(k).trim().toLowerCase(), r);
-    for (const l of LOCS) roomMap.set(l.trim().toLowerCase(), l);
+  if (!cacheOn || roomMapGen !== drawGen){
+    roomMapGen = cacheOn ? drawGen : -1;
+    const key = LOCS.length + '|' + LOCS.join('\n') + '|' + JSON.stringify(st.adLocMap || {}) + JSON.stringify(st.locMap || {});
+    if (key !== roomMapKey){
+      roomMapKey = key; roomMap = new Map();
+      for (const [k, r] of Object.entries({ ...(st.adLocMap || {}), ...(st.locMap || {}) })) if (LOCS.includes(r)) roomMap.set(String(k).trim().toLowerCase(), r);
+      for (const l of LOCS) roomMap.set(l.trim().toLowerCase(), l);
+    }
   }
   return roomMap.get(String(text).trim().toLowerCase()) || '';
 };
