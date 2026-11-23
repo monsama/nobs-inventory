@@ -1,5 +1,6 @@
 /* Saving to the server: what changed since the last load, sent in batches, conflicts, changes kept offline. */
-import { markHand, REVIEW, CONTACTS } from './01-core.js';
+import { markHand, REVIEW, CONTACTS, hist, now } from './01-core.js';
+import { followHosts } from './follow-host.js';
 import { COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast } from './01-core.js';
 import { html } from './html.js';
 import { USERS, isAdmin } from './04-settings.js';
@@ -99,6 +100,8 @@ export function sendChanges(){
    connection the changes are kept on this device and the save shows offline. */
 async function sendNow(){
   if (!isAdmin()) return;
+  /* What is attached to a device goes where it went (follow-host.js), in the same save. */
+  if (followHosts(objs, rels, (o, msg) => hist(o, now(), msg))) render();
   const pending = pendingChanges();
   if (!pending.puts.length && !pending.dels.length) return;
   SERVER.busy = true; SERVER.saves = (SERVER.saves || 0) + 1; setSave('saving');

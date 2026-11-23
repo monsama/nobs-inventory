@@ -17,7 +17,7 @@ import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
-import { RACKABLE, ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, rackLocFollow, rackTopUsed, who } from './04-settings.js';
+import { openSettings, pickLocTexts, RACKABLE, ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, rackLocFollow, rackTopUsed, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -846,6 +846,11 @@ export function renderObj(o){
   /* A gateway that is not its subnet's: Use clears it, so the device takes the subnet's gateway. Kept by hand from then on. */
   const gw = /** @type {HTMLInputElement|null} */ ($('#view').querySelector('input[data-k="gateway"]')), gwFix = $('#view').querySelector('.gwfix');
   if (gwFix) { if (!gw || gw.disabled || gw.readOnly) gwFix.remove(); else /** @type {HTMLElement} */ (gwFix).onclick = () => { gw.value = ''; saveObj(true); }; }
+  /* Under the location: AD's place as a room (Settings opens with it ticked), or the room AD names (picked in the field). */
+  const lr = /** @type {HTMLElement|null} */ ($('#view').querySelector('[data-locroom]'));
+  if (lr) lr.onclick = () => { pickLocTexts([lr.dataset.locroom]); st.setTab = 'locations'; openSettings(); };
+  const lu = /** @type {HTMLElement|null} */ ($('#view').querySelector('[data-locuse]')), lsel = /** @type {HTMLSelectElement|null} */ ($('#view').querySelector('select[data-k="loc"]'));
+  if (lu && lsel && !lsel.disabled) lu.onclick = () => { lsel.value = lu.dataset.locuse; lsel.dispatchEvent(new Event('change', { bubbles: true })); };
   const del = $('#delBtn'); if (del) del.onclick = () => retireModal(o);
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
   /* Excluded objects are not changed by a Lansweeper sync. The relations option also excludes the objects o is related to. */
