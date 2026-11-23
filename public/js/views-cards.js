@@ -114,7 +114,7 @@ const dirLine = o => { const d = dirLocOf(o); if (!d || d.state === 'same') retu
   const who = `${d.src === 'AD' ? 'AD location' : 'Office of the user'} “${d.text}”`;
   const tip = d.state === 'new' ? (d.auto ? `${who} is no room here yet: the next AD sync makes it a room (Settings → Locations)` : `${who} is no room here yet: add it, or map it to a room, in Settings → Locations`)
     : d.state === 'fill' ? `${who} is the room ${d.room}; this device has no room yet` : `${who} is the room ${d.room}, not ${o.loc}`;
-  return html`<span class="c-lsrc ls-${d.state}" title="${tip}">${d.src}: ${d.text}${d.state === 'new' ? html` <b>new</b>` : ''}</span>`; };
+  return html`<span class="c-lsrc ls-${d.state}" title="${tip}">${d.src}: ${d.text}</span>`; };
 const locCell = (o, idx) => {
   const dl = dirLine(o);
   /* The room line: its own room, else its host's, else the host a virtual machine runs on. */
