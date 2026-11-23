@@ -32,9 +32,9 @@ try {
 
   const line = id => p.evaluate(id => { const e = document.querySelector(`#cards .lrow[data-open="${id}"] .c-lsrc`); return e ? [e.className.replace('c-lsrc ', ''), e.textContent.trim()] : null; }, id);
   assert.equal(await line('1'), null, 'AD and the room agree: nothing more');
-  assert.deepEqual(await line('2'), ['ls-new', 'AD: Bern 2. OG new']);
+  assert.deepEqual(await line('2'), ['ls-new', 'AD: Bern 2. OG']);
   assert.deepEqual(await line('3'), ['ls-diff', 'AD: lab'], 'mapped to another room');
-  assert.deepEqual(await line('4'), ['ls-new', 'AD: Annex Hall new']);
+  assert.deepEqual(await line('4'), ['ls-new', 'AD: Annex Hall']);
   assert.equal(await p.locator('#cards .lrow[data-open="4"] .c-ll').count(), 0, 'no room: the AD line alone');
   assert.equal(await line('5'), null);
   assert.deepEqual(await line('6'), ['ls-fill', 'AD: Lab'], 'a room the device does not have yet: not counted as differing');
