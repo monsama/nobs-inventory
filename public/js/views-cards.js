@@ -257,7 +257,7 @@ export function renderCardsBody(){
     <span class="tb-grp ph-only"><label class="muted" for="cardSortM">Sort by</label><select id="cardSortM">${[['', 'Default'], ...(st.scope ? PEND_HEADS : HEADS).filter(h => h[0]).flatMap(([k, l]) => [[k + ':1', l + (k === 'seen' ? ', oldest first' : ', A to Z')], [k + ':-1', l + (k === 'seen' ? ', newest first' : ', Z to A')]])].map(([v, l]) => html`<option value="${v}" ${(cardSort.k ? cardSort.k + ':' + cardSort.dir : '') === v ? 'selected' : ''}>${l}</option>`)}</select></span>
     ${list.length ? html`<button type="button" class="ph-only" data-pickall="1">${st.bulk && st.bulk.size ? 'Clear selection' : 'Select all'}</button>` : ''}
     ${st.cardsGroup !== 'none' ? html`<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>` : ''}
-    ${joinCardsAvailable() && !st.scope ? html`<span class="tbsep"></span><label class="pchk" title="A column that shows whether computers and phones are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Directory status</label>` : ''}
+    ${joinCardsAvailable() && !st.scope ? html`<span class="tbsep"></span><label class="pchk" title="A column that shows whether computers and phones are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Directory<span class="ph-hide"> status</span></label>` : ''}
     ${list.length || saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(printMenuHtml(saveViewBtn()))}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;
   bindScopeActs(list); bindSaveView(); bindPrintMenu(); closeMoreOnPick();
   const cj = $('#cardJoin');

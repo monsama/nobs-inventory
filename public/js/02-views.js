@@ -492,10 +492,13 @@ export function renderTabs(){
     + (views.includes('review') ? viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '') : '');
   /* The open objects have a row of their own under the views, shown while at least one is open. */
   $('#objbar').hidden = !objs.length;
-  $('#objbar').innerHTML = (objs.length ? '<span class="tabs-cap">Open devices</span>' : '') + objs.map(id => {
+  /* The tabs scroll in a strip of their own; the caption and Close all stay where they are. */
+  $('#objbar').innerHTML = (objs.length ? '<span class="tabs-cap">Open devices</span>' : '') + '<span class="objtabs">' + objs.map(id => {
     const o = byId(id);
     return html`<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono" title="${o.name}">${o.name}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
-  }).join('') + (objs.length > 1 ? '<span class="grow"></span><button class="objbar-close" id="closeAllTabs" title="Close all open devices">Close all</button>' : '');
+  }).join('') + '</span>' + (objs.length > 1 ? '<button class="objbar-close" id="closeAllTabs" title="Close all open devices">Close all</button>' : '');
+  { const strip = /** @type {HTMLElement|null} */ ($('#objbar .objtabs')), on = strip && /** @type {HTMLElement|null} */ (strip.querySelector('.tab.active'));
+    if (on && strip.scrollWidth > strip.clientWidth) on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
   /* On a narrow screen the bar scrolls: a fade on the side where more tabs are says so, and the tab shown is scrolled
      into view. */
   const tb = $('#tabsbar'), edges = () => { tb.classList.toggle('more-r', tb.scrollLeft + tb.clientWidth < tb.scrollWidth - 2); tb.classList.toggle('more-l', tb.scrollLeft > 2); };
