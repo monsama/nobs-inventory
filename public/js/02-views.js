@@ -269,6 +269,8 @@ export function renderFilterBar(){
   const hf = list && st.handField && isAdmin() ? html`<div class="fb-person fb-qfix"><b>Set by hand: ${SYNC_FIELD_LABEL[st.handField] || st.handField}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
   const qf = st.tab === 'table' && qfix() && QUALITY_FIX[st.quality] && QUALITY[st.quality];
   const qbar = !qf ? '' : html`<div class="fb-person fb-qfix"><b>${QUALITY[st.quality][0]}</b><span class="muted">${QUALITY_FIX[st.quality][2]}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && isAdmin() ? html`<button type="button" data-qfix="1" id="qfixSel">Select all ${qfix().n}</button>` : ''}</div>`;
+  /* Sources disagree: the values side by side, to pick from (compare-sources.js). */
+  const cmpBar = list && st.quality === 'conflict' ? html`<div class="fb-person fb-qfix"><b>Sources disagree</b><span class="muted">${st.tab === 'table' ? 'the differing values are marked: click the mark in a cell to pick one, or compare them all' : 'compare what each source says and pick the value to keep'}</span><span class="grow"></span><button type="button" data-cmpsrc="1">Compare and pick…</button></div>` : '';
   /* Location from AD not a room yet: the texts the listed devices name, made rooms in Settings in one go. */
   const newLocs = list && st.quality === 'locnew' && isAdmin() ? newLocTexts() : [];
   const locBar = !newLocs.length ? '' : html`<div class="fb-person fb-qfix"><b>${newLocs.length} ${newLocs.length === 1 ? 'place' : 'places'} from AD not a room yet</b><span class="muted">${newLocs.slice(0, 3).join(', ')}${newLocs.length > 3 ? ` and ${newLocs.length - 3} more` : ''}</span><span class="grow"></span><button type="button" data-locrooms="1" title="Opens Settings → Locations with these ticked: pick the site and create them">Make them rooms…</button></div>`;
@@ -277,8 +279,8 @@ export function renderFilterBar(){
   /* Gone from a source: the devices listed can be retired in one go (admins, in the inventory's lists). */
   const goneN = list && !st.scope && (st.gone || st.where) && isAdmin() ? goneShown().length : 0;
   const goneBar = !goneN ? '' : html`<div class="fb-person fb-wait"><b>${goneN} ${goneN === 1 ? 'device' : 'devices'} ${st.gone ? 'gone' : 'may no longer be there'}</b><span class="muted">check where they are, then retire the ones no longer there</span><span class="grow"></span><button type="button" data-goneretire="1">Retire these ${goneN}…</button></div>`;
-  bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !goneBar && !locBar;
-  bar.innerHTML = html`${who}${qbar}${locBar}${hf}${scope}${goneBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
+  bar.hidden = !chips.length && !scope && !who && !qbar && !hf && !goneBar && !locBar && !cmpBar;
+  bar.innerHTML = html`${who}${qbar}${cmpBar}${locBar}${hf}${scope}${goneBar}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
 /* The devices a Gone from list shows, not retired: in the Table only the rows its column filters leave. */
 const goneShown = () => ((st.tab === 'table' && tableShownList()) || filtered()).filter(o => o.status !== 'retired');
@@ -297,6 +299,7 @@ $('#fbar').addEventListener('click', e => {
     return;
   }
   if (e.target.closest('[data-qfix]')){ if (qfix()) qfix().select(); return; }
+  if (e.target.closest('[data-cmpsrc]')){ import('./compare-sources.js').then(m => m.compareSourcesModal()); return; }
   if (e.target.closest('[data-locrooms]')){
     pickLocTexts(newLocTexts()); st.setTab = 'locations'; openSettings();
     requestAnimationFrame(() => { const b = document.querySelector('#adLocs .adloc-bulk') || document.querySelector('#adLocs'); if (b) b.scrollIntoView({ block: 'center' }); const go = /** @type {HTMLElement|null} */ (document.querySelector('#adBulkGo')); if (go) go.focus(); });

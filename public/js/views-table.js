@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { vmsOn, dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
+import { sourceMark, sourcesDisagree, vmsOn, dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
 import { SERVER, viewSig } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -126,10 +126,19 @@ export function columnsMenu(){
 /* A field's cell says where its value came from in its hover text (the device page shows it as a mark). */
 const SOURCE_COLS = new Set([...Object.keys(FIELD_LABEL), 'serial']);
 const withSource = (o, c, cell) => {
+  /* Where the sources differ: the cell is marked, its tooltip says what each says, and the source mark in it opens the
+     picker (as beside the field on the device's page). */
+  if (SOURCE_COLS.has(c.k) && sourcesDisagree(o, c.k)) {
+    const says = choicesOfCell(o, c.k);
+    return cell.replace(/^<td([^>]*?)( title="[^"]*")?([^>]*)>/, (_m, a, _t, b) => String(html`<td${rawHtml(a)}${rawHtml(b)} class="disagree" title="${says}">`)).replace(/<\/td>$/, () => sourceMark(o, c.k) + '</td>');
+  }
   if (!SOURCE_COLS.has(c.k) || /^<td[^>]*title=/.test(cell)) return cell;
   const t = sourceText(o, c.k);
   return t ? cell.replace(/^<td/, () => String(html`<td title="${t}"`)) : cell;
 };
+/* What each source says of field k, for a cell's tooltip: "Lansweeper: X · Entra & Intune: Y". */
+const SRC_NAMES = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'Active Directory', hand: 'By hand' };
+const choicesOfCell = (o, k) => 'The sources differ: ' + Object.entries((o.vals || {})[k] || {}).map(([s, [v]]) => `${SRC_NAMES[s] || s}: ${v || '(empty)'}`).join(' · ') + ' · Click the mark to pick one';
 /* Listed by a data-quality check, the Table helps fix it: the column the check is about comes next to Name (shown even
    when hidden), and a bar offers to select them all for the bulk action that fixes it. [column, bulk control, what to do] */
 export const QUALITY_FIX = {
@@ -142,7 +151,6 @@ export const QUALITY_FIX = {
   leaver: ['user', 'bkAct', 'select them and take them back into stock, or give them to someone else'],
   addisabled: ['status', 'bkAct', 'select the ones no longer used and set their status'],
   ownerdiff: ['user', null, 'open each and give it to the right person'],
-  conflict: [null, null, 'open each and pick the value to keep'],
   reported: [null, null, 'open each, look at the problem and mark it as done'],
   hostgone: ['host', null, 'open each and set where it runs now, or retire it'],
 };

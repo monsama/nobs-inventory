@@ -90,7 +90,7 @@ $('#bellPop').addEventListener('click', e => {
 });
 
 /* A link inside a row or card (a device's web interface) opens itself, not the device. */
-document.addEventListener('click', e => { const t = evEl(e).closest('[data-open]'); if (t && !evEl(e).closest('[data-close]') && !evEl(e).closest('a[href]')) openObj(t.dataset.open); });
+document.addEventListener('click', e => { const t = evEl(e).closest('[data-open]'); if (t && !evEl(e).closest('[data-close]') && !evEl(e).closest('a[href]') && !evEl(e).closest('.fsrc')) openObj(t.dataset.open); });
 
 /* ---------- tables: columns can be resized and moved ----------
    The order and widths of each table are kept by its place (tab and position), in the browser. */
