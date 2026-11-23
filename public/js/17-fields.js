@@ -1,7 +1,7 @@
 /* The fields of a device page: which a type has, the control of each (lists, the model and address combos, dates),
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
 import { verifiedNote } from './22-stocktake.js';
-import { listTypes, evEl, $$, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
+import { dirLocOf, listTypes, evEl, $$, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
 import { USERS, freeStarts, isAdmin } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
@@ -49,7 +49,9 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
   let ctl;
   /* No location is a choice of its own, and a location no longer in the list is kept: saving any other field must not move the device. */
-  if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}" class="locpick">${locOptions(o.loc || '')}</select>`;
+  /* A device attached to another is where that one is (follow-host.js): its location is shown, not picked. */
+  if (kind === 'loc' && attachedHost(o)) ctl = `<select id="${id}" data-k="${k}" class="locpick" disabled title="${esc(`Follows ${attachedHost(o).name}, the device it is attached to`)}">${locOptions(o.loc || attachedHost(o).loc || '')}</select>`;
+  else if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}" class="locpick">${locOptions(o.loc || '')}</select>`;
   /* Kind: physical or virtual; not known until a source tells (a model that is a hypervisor's) or a person picks. */
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}">${o.kind ? '' : '<option value="" selected>Not known</option>'}<option value="physical" ${o.kind==='physical'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
   else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.filter(u => u.id === o.uid || (u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin'))).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}${u.active === false ? ' (left)' : ''}</option>`).join('')}${isAdmin() ? '<option value="__new">New person…</option>' : ''}</select>`;
@@ -428,9 +430,23 @@ export function fieldNote(o, k){
     /* Use: the field is cleared, so the device takes its subnet's gateway (and follows it when the subnet's changes). */
     if (sn && sn.gateway && sn.gateway !== o.gateway) return `<span></span><p class="fieldnote warn">${esc(`Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`)} <button type="button" class="link gwfix">Use ${esc(sn.gateway)}</button></p>`;
   }
-  if (k === 'loc' && o.status !== 'retired' && !o.review) return verifiedNote(o);
+  if (k === 'loc' && o.status !== 'retired' && !o.review) return locNote(o) + verifiedNote(o);
   if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') t = 'The warranty has ended.'; else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
   return t ? `<span></span><p class="fieldnote ${cls}">${esc(t)}</p>` : '';
+}
+/* The device o is attached to (a monitor's computer), whose location it takes. */
+const attachedHost = o => { const r = rels.find(x => x.from === o.id && x.kind === 'attached'); return r ? byId(r.to) : null; };
+/* Under the location: where it comes from for an attached device, and what AD (or the user's office) says when it is
+   not this room: a place that is no room yet (made one in Settings), or another room (moved there with one click). */
+function locNote(o){
+  const h = attachedHost(o);
+  if (h) return `<span></span><p class="fieldnote loc-host">${esc(`Follows ${h.name}, the device it is attached to.`)} <button type="button" class="link" data-open="${esc(h.id)}">Open ${esc(h.name)}</button></p>`;
+  const d = dirLocOf(o);
+  if (!d || d.state === 'same') return '';
+  const who = d.src === 'AD' ? 'AD' : 'The user\'s office';
+  const ed = isAdmin() && !o.review;
+  if (d.state === 'new') return `<span></span><p class="fieldnote loc-ad">${esc(`${who}: ${d.text}`)} <span class="muted">${esc(d.auto ? 'becomes a room at the next AD sync' : 'is no room here yet')}</span>${ed && !d.auto ? ` <button type="button" class="link" data-locroom="${esc(d.text)}">Make it a room…</button>` : ''}</p>`;
+  return `<span></span><p class="fieldnote loc-ad">${esc(`${who}: ${d.text}`)} <span class="muted">${esc(d.state === 'diff' ? `is the room ${d.room}` : `is the room ${d.room}, not set here yet`)}</span>${ed ? ` <button type="button" class="link" data-locuse="${esc(d.room)}">Move to ${esc(d.room)}</button>` : ''}</p>`;
 }
 /* The subnet a device is in: the one picked on it, or else the one its address falls in. */
 export function subnetFor(o){

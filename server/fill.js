@@ -3,6 +3,7 @@
    Data sources; sync-map.js fieldOrder and maySet, which the page reads too). Where each value came from is noted in o.src
    (field → 'hand', 'ls', 'graph' or 'ad'), so a source before another can replace its value and the page can show the
    source beside the field. */
+import { attachedIds } from '../public/js/follow-host.js';
 import { ORDER_FIELDS, maySet } from '../public/js/sync-map.js';
 export const FILL_SOURCES = { graph: 'Intune', ad: 'Active Directory' };
 
@@ -83,8 +84,9 @@ export function officeLocations(s, at) {
   if (!s.locFromOffice) return 0;
   const people = new Map((s.users || []).map(u => [u.id, u]));
   let n = 0;
+  const attached = attachedIds(s.rels);
   for (const o of s.objs || []) {
-    if (o.loc || o.status === 'retired' || o.excluded || o.detached || !o.uid) continue;
+    if (o.loc || o.status === 'retired' || o.excluded || o.detached || !o.uid || attached.has(o.id)) continue;
     const u = people.get(o.uid), office = u && u.profile && u.profile.office;
     /* The office is a directory value: it takes AD's place in the location's order (Entra people too, as the location
        has no Intune source), and only while AD is in that order and no other source is picked for the device. */

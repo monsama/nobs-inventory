@@ -1,3 +1,4 @@
+import { attachedIds } from '../public/js/follow-host.js';
 import { historyLens, noteChanges } from './sync-changes.js';
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
@@ -318,6 +319,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   if (ipLocations) s.lsIpLocations = ipLocations; else ipLocations = s.lsIpLocations || [];
   for (const r of records) if (r.model) r.model = modelFor(s, r.model);
   const policy = s.policy || {};
+  /* Devices attached to another: their location is the host's (follow-host.js). */
+  const attached = attachedIds(s.rels);
   const seen = stamp(now);
   const counts = { created: 0, updated: 0, linked: 0, unchanged: 0 };
   const pairs = [];
@@ -552,7 +555,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     const lsRoom = mappedRoom(s, r.location);
     noteValue(found, 'loc', 'ls', lsRoom, r.scanned || seen);
     /* Location: the room Lansweeper's location names or is mapped to, when the policy lets the feed set it. */
-    const locPick = pickOf(found, 'loc'), locOwned = lsWrites(s, found, 'loc');
+    /* A device attached to another is where that one is (follow-host.js): Lansweeper does not move it. */
+    const locPick = pickOf(found, 'loc'), locOwned = lsWrites(s, found, 'loc') && !attached.has(found.id);
     if (locOwned && lsRoom && found.loc !== lsRoom) {
       if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${lsRoom}` });
       found.loc = lsRoom; markSource(found, 'loc', 'ls'); changed = true;
@@ -565,7 +569,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LS_FILL[k]} filled in: ${v}` });
     }
     /* A device with no location gets the room its address is in (Room from IP location); one held by the device stays. */
-    if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && (!locPick || locPick === 'ls')) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
+    if (!found.loc && !attached.has(found.id) && s.feedOn !== false && policy.ipRoom !== false && (!locPick || locPick === 'ls')) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }

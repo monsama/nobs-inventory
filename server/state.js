@@ -1,3 +1,4 @@
+import { followHosts } from '../public/js/follow-host.js';
 import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
@@ -660,6 +661,8 @@ export const virtualByRules = (s, o) => typeMapSaysVm(s, o) || typeByRules(s.typ
 const typeMapSaysVm = (s, o) => { const t = String((o.feed && o.feed.assetType) || '').toLowerCase(), m = s.typeMap || {}; const k = t && Object.keys(m).find(x => x.toLowerCase() === t); return !!k && m[k] === 'vm'; };
 export function saveState(db, s) {
   normalizeVirtual(s);
+  /* What is attached to a device is where it is (follow-host.js). */
+  if (s && Array.isArray(s.objs)) { const at = new Date().toISOString(); followHosts(s.objs, s.rels, (o, msg) => { if (s.history && typeof s.history === 'object') (s.history[o.id] ??= []).unshift({ t: at, msg }); }); }
   /* A page or backup from before the source picker may still send o.ovr: it becomes picks (fill.js). */
   if (s && Array.isArray(s.objs)) for (const o of s.objs) liftOvr(o, s.policy || {});
   checkState(s);
