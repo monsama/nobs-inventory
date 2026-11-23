@@ -24,7 +24,12 @@ export function disagreements(list){
 
 /* The dialog, for the devices shown (the list's filters apply). */
 export function compareSourcesModal(ids = filtered().map(o => o.id)){
+  /* This dialog's own mark: an Undo from an earlier one does not draw over another opened since. */
+  const token = String(Date.now()) + Math.random();
+  const mine = () => !!$(`#mdl [data-cmpdlg="${token}"]`);
   const draw = () => {
+    /* Drawn again after a pick: where the list was scrolled to and the next value stay. */
+    const mb0 = /** @type {HTMLElement|null} */ ($('#mdl [data-cmpdlg]')), top = mb0 ? mb0.scrollTop : 0;
     const list = ids.map(byId).filter(Boolean), groups = disagreements(list), ed = isAdmin();
     const n = groups.reduce((t, [, l]) => t + l.length, 0);
     const body = !groups.length ? html`<p class="muted">The sources agree on every device listed now.</p>` : groups.map(([k, devs]) => {
@@ -41,9 +46,11 @@ export function compareSourcesModal(ids = filtered().map(o => o.id)){
         })}</div></section>`;
     });
     modal(html`<div class="mh">Sources disagree</div>
-      <div class="mb" data-cmpdlg="1"><p class="note">${groups.length ? `${n} ${n === 1 ? 'value differs' : 'values differ'} between the sources. The one in use is ticked; pick another to fix the field to that source (the syncs then keep it). Undo in the message after each pick.` : ''}</p>${body}</div>
+      <div class="mb" data-cmpdlg="${token}"><p class="note">${groups.length ? `${n} ${n === 1 ? 'value differs' : 'values differ'} between the sources. The one in use is ticked; pick another to fix the field to that source (the syncs then keep it). Undo in the message after each pick.` : ''}</p>${body}</div>
       <div class="mf"><button type="button" id="cmpClose">Close</button></div>`, 'wide');
     $('#cmpClose').onclick = closeModal;
+    const mb = /** @type {HTMLElement|null} */ ($('#mdl [data-cmpdlg]'));
+    if (mb && top) { mb.scrollTop = top; const next = /** @type {HTMLElement|null} */ ([...mb.querySelectorAll('.cmp-val.diff')].find(b => b.getBoundingClientRect().top >= mb.getBoundingClientRect().top)); if (next) next.focus({ preventScroll: true }); }
     /** @type {NodeListOf<HTMLElement>} */ (box0().querySelectorAll('[data-cmpopen]')).forEach(b => b.onclick = () => { closeModal(); openObj(b.dataset.cmpopen); });
     const box = box0();
     /** @type {NodeListOf<HTMLElement>} */ (box.querySelectorAll('[data-cmp]')).forEach(b => b.onclick = () => {
@@ -51,7 +58,7 @@ export function compareSourcesModal(ids = filtered().map(o => o.id)){
       const snap = snapshot([o]);
       applyPick(o, k, src);
       render(); draw();
-      toastUndo(`${o.name}: ${LABELS[k] || k} from ${NAMES[src]}`, () => { restoreSnapshot(snap, 'Pick undone'); render(); if ($('#mdl [data-cmpdlg]')) draw(); });
+      toastUndo(`${o.name}: ${LABELS[k] || k} from ${NAMES[src]}`, () => { restoreSnapshot(snap, 'Pick undone'); render(); if (mine()) draw(); });
     });
     /** @type {NodeListOf<HTMLElement>} */ (box.querySelectorAll('[data-cmpall]')).forEach(b => b.onclick = () => {
       const [k, src] = b.dataset.cmpall.split('|');
@@ -59,7 +66,7 @@ export function compareSourcesModal(ids = filtered().map(o => o.id)){
       const snap = snapshot(devs);
       for (const o of devs) applyPick(o, k, src);
       render(); draw();
-      toastUndo(`${LABELS[k] || k} from ${NAMES[src]} on ${devs.length} ${devs.length === 1 ? 'device' : 'devices'}`, () => { restoreSnapshot(snap, 'Picks undone'); render(); if ($('#mdl [data-cmpdlg]')) draw(); });
+      toastUndo(`${LABELS[k] || k} from ${NAMES[src]} on ${devs.length} ${devs.length === 1 ? 'device' : 'devices'}`, () => { restoreSnapshot(snap, 'Picks undone'); render(); if (mine()) draw(); });
     });
   };
   draw();

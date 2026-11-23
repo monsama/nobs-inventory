@@ -659,10 +659,10 @@ export function virtualType(o) {
 /* What the type rules make of a device's model, Lansweeper type, name and chassis: virtual (their target vm). */
 export const virtualByRules = (s, o) => typeMapSaysVm(s, o) || typeByRules(s.typeRules, { type: (o.feed && o.feed.assetType) || '', model: o.model || '', name: o.name || '', chassis: (o.feed && o.feed.chassis) || '' }).type === 'vm';
 const typeMapSaysVm = (s, o) => { const t = String((o.feed && o.feed.assetType) || '').toLowerCase(), m = s.typeMap || {}; const k = t && Object.keys(m).find(x => x.toLowerCase() === t); return !!k && m[k] === 'vm'; };
-export function saveState(db, s) {
+export function saveState(db, s, { restore = false } = {}) {
   normalizeVirtual(s);
-  /* What is attached to a device is where it is (follow-host.js). */
-  if (s && Array.isArray(s.objs)) { const at = new Date().toISOString(); followHosts(s.objs, s.rels, (o, msg) => { if (s.history && typeof s.history === 'object') (s.history[o.id] ??= []).unshift({ t: at, msg }); }); }
+  /* What is attached to a device is where it is (follow-host.js); a restored backup is taken as it was. */
+  if (!restore && s && Array.isArray(s.objs)) { const at = new Date().toISOString(); followHosts(s.objs, s.rels, (o, msg) => { if (s.history && typeof s.history === 'object') (s.history[o.id] ??= []).unshift({ t: at, msg }); }); }
   /* A page or backup from before the source picker may still send o.ovr: it becomes picks (fill.js). */
   if (s && Array.isArray(s.objs)) for (const o of s.objs) liftOvr(o, s.policy || {});
   checkState(s);

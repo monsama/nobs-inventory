@@ -445,8 +445,8 @@ function locNote(o){
   if (!d || d.state === 'same') return '';
   const who = d.src === 'AD' ? 'AD' : 'The user\'s office';
   const ed = isAdmin() && !o.review;
-  if (d.state === 'new') return `<span></span><p class="fieldnote loc-ad">${esc(`${who}: ${d.text}`)} <span class="muted">${esc(d.auto ? 'becomes a room at the next AD sync' : 'is no room here yet')}</span>${ed && !d.auto ? ` <button type="button" class="link" data-locroom="${esc(d.text)}">Make it a room…</button>` : ''}</p>`;
-  return `<span></span><p class="fieldnote loc-ad">${esc(`${who}: ${d.text}`)} <span class="muted">${esc(d.state === 'diff' ? `is the room ${d.room}` : `is the room ${d.room}, not set here yet`)}</span>${ed ? ` <button type="button" class="link" data-locuse="${esc(d.room)}">Move to ${esc(d.room)}</button>` : ''}</p>`;
+  if (d.state === 'new') return `<span></span><p class="fieldnote loc-ad">${esc(`${who}: ${d.text}`)} <span class="muted">${esc(d.auto ? 'becomes a room at the next AD sync' : 'is no room here yet')}</span>${ed && !d.auto ? ` · <button type="button" class="link" data-locroom="${esc(d.text)}">Make it a room…</button>` : ''}</p>`;
+  return `<span></span><p class="fieldnote loc-ad">${esc(`${who}: ${d.text}`)} <span class="muted">${esc(d.state === 'diff' ? `is the room ${d.room}` : `is the room ${d.room}, not set here yet`)}</span>${ed ? ` · <button type="button" class="link" data-locuse="${esc(d.room)}">Move to ${esc(d.room)}</button>` : ''}</p>`;
 }
 /* The subnet a device is in: the one picked on it, or else the one its address falls in. */
 export function subnetFor(o){

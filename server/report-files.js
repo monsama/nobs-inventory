@@ -56,6 +56,8 @@ export function reportPdf(r, company = {}) {
       doc.font('Helvetica').fontSize(8).fillColor('#0f172a');
       g.rows.forEach((row, n) => {
         room(13);
+        /* The row's own font and colour each time: a new page draws the heading in bold grey first. */
+        doc.font('Helvetica').fontSize(8).fillColor('#0f172a');
         if (n % 2) doc.rect(M, y - 2, W, 13).fill('#f1f5f9').fillColor('#0f172a');
         r.columns.forEach((c, i) => doc.text(fit(doc, cellText(c, row[i]), cw(i)), xs[i] + 2, y, { width: cw(i), align: right(c) ? 'right' : 'left', lineBreak: false }));
         y += 13;

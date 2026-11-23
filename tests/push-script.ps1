@@ -122,7 +122,7 @@ Check 'relations: none without the table' (& { $script:Cols = @{}; Add-MonitorRe
 $script:Cols = $saveCols
 
 # A virtual machine a host scan lists is linked to its host, by its name before the first dot and without case; a name
-# two assets share, an unknown host and a guest that is its own host are passed over.
+# two assets share, an unknown host and a guest that is its own host are passed over; a guest two hosts list keeps its link.
 $saveCols = $script:Cols
 $script:Cols = @{ tblHyperVGuest = @{ assetid = 'AssetID'; name = 'Name' } }
 $vrecs = @(
@@ -136,7 +136,10 @@ Check 'vm hosts: kind' $vrecs[1]['links'][0].kind 'hosted'
 Check 'vm hosts: a shared name is passed over' $vrecs[2]['links'].Count 0
 Check 'vm hosts: an unknown host is passed over' $vrecs[4]['links'].Count 0
 Check 'vm hosts: the host is not its own guest' $vrecs[0]['links'].Count 0
-Check 'vm hosts: a guest two hosts list is passed over' $vrecs[5]['links'].Count 0
+# A guest two hosts list gets no new host, but keeps the one it has: the server is told to keep it.
+Check 'vm hosts: a guest two hosts list keeps its link' $vrecs[5]['links'].Count 1
+Check 'vm hosts: keep marker' $vrecs[5]['links'][0].keep $true
+Check 'vm hosts: keep marker has no host' ([string]$vrecs[5]['links'][0].ref) ''
 Check 'vm hosts: none without the tables' (& { $script:Cols = @{}; Add-VmHostRelations (New-Conn $guests) $vrecs }) 0
 $script:Cols = $saveCols
 

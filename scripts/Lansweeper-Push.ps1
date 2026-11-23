@@ -574,6 +574,10 @@ function Add-VmHostRelations($conn, $records) {
     $n = 0
     foreach ($k in @($hostOf.Keys)) {
         $host_ = $hostOf[$k]
+        # A guest whose host is not clear this time (two hosts list it): the link it has stays (keep), none is made.
+        if ($twoHosts.ContainsKey($k) -and $byName.ContainsKey($k) -and -not $twice.ContainsKey($k)) {
+            $g = $byName[$k]; $g['links'] = @(@($g['links']) | Where-Object { $_ -and $_.kind -ne 'hosted' }) + @([ordered]@{ kind = 'hosted'; keep = $true }); continue
+        }
         if ($twoHosts.ContainsKey($k) -or $twice.ContainsKey($k) -or -not $byName.ContainsKey($k) -or -not $byRef.ContainsKey($host_)) { continue }
         $guest = $byName[$k]
         if ([string]$guest['ref'] -eq $host_) { continue }
@@ -915,7 +919,11 @@ function Get-LsRecords {
         $script:MonitorCount = 0
         foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m); $script:MonitorCount++ }
         try { $n = Add-MonitorRelations $conn $list; if ($n) { Write-PushLog "$n monitor(s) linked to their computer from Lansweeper's relations" } } catch { Write-PushLog "Could not read the asset relations: $($_.Exception.Message)" 'WARN' }
-        try { $n = Add-VmHostRelations $conn $list; if ($n) { Write-PushLog "$n virtual machine(s) linked to their host" } } catch { Write-PushLog "Could not read the virtual machines of the hosts: $($_.Exception.Message)" 'WARN' }
+        try { $n = Add-VmHostRelations $conn $list; if ($n) { Write-PushLog "$n virtual machine(s) linked to their host" } } catch {
+            Write-PushLog "Could not read the virtual machines of the hosts: $($_.Exception.Message)" 'WARN'
+            # Not known this time: every computer keeps the host link it has (keep), so none is taken away.
+            foreach ($rec in $list) { if ($rec['ref'] -and "$($rec['ref'])" -notlike 'mon-*') { $rec['links'] = @(@($rec['links']) | Where-Object { $_ -and $_.kind -ne 'hosted' }) + @([ordered]@{ kind = 'hosted'; keep = $true }) } }
+        }
         $script:IpLocations = Get-IpLocations $conn
         return , $list.ToArray()
     } finally { $conn.Dispose() }

@@ -122,13 +122,17 @@ export const typeText = o => { const l = (TYPES[o && o.type] || {}).label || (o 
 export const SRV_KINDS = { vm: 'Virtual', physical: 'Physical', none: 'Not known' };
 /* The room a location text names or is mapped to (Settings → Locations), as the server's mappedRoom finds it: one Map,
    made again only when the rooms or the mappings change. */
-let roomMapKey = '', roomMap = new Map();
+/* While a draw lasts the rooms do not change: the key is made once per draw, not for each device. */
+let roomMapKey = '', roomMap = new Map(), roomMapGen = -1;
 const roomOfText = text => {
-  const key = LOCS.length + '|' + LOCS.join('\n') + '|' + JSON.stringify(st.adLocMap || {}) + JSON.stringify(st.locMap || {});
-  if (key !== roomMapKey){
-    roomMapKey = key; roomMap = new Map();
-    for (const [k, r] of Object.entries({ ...(st.adLocMap || {}), ...(st.locMap || {}) })) if (LOCS.includes(r)) roomMap.set(String(k).trim().toLowerCase(), r);
-    for (const l of LOCS) roomMap.set(l.trim().toLowerCase(), l);
+  if (!cacheOn || roomMapGen !== drawGen){
+    roomMapGen = cacheOn ? drawGen : -1;
+    const key = LOCS.length + '|' + LOCS.join('\n') + '|' + JSON.stringify(st.adLocMap || {}) + JSON.stringify(st.locMap || {});
+    if (key !== roomMapKey){
+      roomMapKey = key; roomMap = new Map();
+      for (const [k, r] of Object.entries({ ...(st.adLocMap || {}), ...(st.locMap || {}) })) if (LOCS.includes(r)) roomMap.set(String(k).trim().toLowerCase(), r);
+      for (const l of LOCS) roomMap.set(l.trim().toLowerCase(), l);
+    }
   }
   return roomMap.get(String(text).trim().toLowerCase()) || '';
 };
@@ -629,7 +633,7 @@ export const QUALITY = {
   /* Virtual or physical: a server no source could tell about (from AD only, entered by hand). */
   nokind: ['Server, virtual or physical not known', 'Set its Kind on its page, or for many at once with Edit fields (Kind)', o => o.type === 'server' && o.status !== 'retired' && o.kind !== 'vm' && o.kind !== 'physical'],
   /* A virtual machine whose host is retired or no source knows any more: it has moved, or is gone too. */
-  hostgone: ['Runs on a retired or gone host', 'Its host is retired or gone from every source: set where it runs now on its page (Runs on), or retire it too', o => { if (o.status === 'retired') return false; const h = hostOfVm(o); return !!h && (h.status === 'retired' || goneAllWith(h, st.lsPresence)); }],
+  hostgone: ['Runs on a retired or gone host', 'Its host is retired or gone from every source: under Relations on its page, link the host it runs on now, or retire it too', o => { if (o.status === 'retired') return false; const h = hostOfVm(o); return !!h && (h.status === 'retired' || goneAllWith(h, st.lsPresence)); }],
   /* What AD (or the user's office) gives as location, and the rooms here. */
   locnew: ['Location from AD not a room yet', 'AD or the user\'s office names a place that is no room here: add it, or map it to a room, in Settings → Locations', o => { if (o.status === 'retired') return false; const d = dirLocOf(o); return !!d && d.state === 'new' && !d.auto; }],
   locdiff: ['Room differs from AD', 'AD or the user\'s office names another room than the one recorded here', o => o.status !== 'retired' && (dirLocOf(o) || {}).state === 'diff'],
