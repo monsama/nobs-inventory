@@ -9,7 +9,7 @@ import { render } from './07-render.js';
 import { html, rawHtml } from './html.js';
 import { ORDER_FIELDS, fieldOrder } from './sync-map.js';
 
-const NAMES = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'Active Directory', hand: 'By hand', unknown: 'Source not noted' };
+export const NAMES = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'Active Directory', hand: 'By hand', unknown: 'Source not noted' };
 const WHEN = { ls: 'last scan', graph: 'last check-in', ad: 'last logon', hand: 'edited', unknown: '' };
 const ORDER = ['ls', 'graph', 'ad', 'hand', 'unknown'];
 /* The time a source last said something of the device, for a value in use that it has not noted on its own. */
@@ -22,7 +22,7 @@ const icon = src => `<svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]
 
 /* The choices for field k of o: each source with a value, and the value in the field when no source noted it (a value
    set by hand, or one a source wrote before the sources' values were kept beside the field). */
-function choicesOf(o, k){
+export function choicesOf(o, k){
   const src = sourceOf(o, k), has = o[k] != null && o[k] !== '';
   const list = Object.entries((o.vals || {})[k] || {}).filter(([s]) => !(s === 'hand' && src === 'hand' && has)).map(([s, [value, at]]) => ({ src: s, value, at }));
   if (has && src && !list.some(c => c.src === src && c.value === String(o[k]))) {
@@ -67,31 +67,38 @@ function pickerOf(mark, close){
       : fixed ? html`<span class="muted">${fixedText}</span><button type="button" class="link" data-pick="">Back to automatic</button>`
       : html`<span class="muted">Automatic: ${autoText(o, k)}. Pick a value to fix the field to it.</span>`}</div>`);
   box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
-    const src = b.dataset.pick === 'unknown' ? 'hand' : b.dataset.pick, c = list.find(x => x.src === b.dataset.pick);
-    /* The value in the field stays on offer when another one takes its place, so it can be picked back: a value set by hand
-       as By hand, a source's value under that source when the source has not noted it beside the field (a value written
-       before the sources' values were kept), one of no known source as By hand. */
-    const was = o[k], keepCurrent = () => {
-      if (was == null || was === '') return;
-      const from = sourceOf(o, k), as = from === 'unknown' ? 'hand' : from, noted = ((o.vals || {})[k] || {})[as];
-      if (!as || (as !== 'hand' && noted)) return;
-      o.vals = { ...(o.vals || {}), [k]: { ...((o.vals || {})[k] || {}), [as]: [String(was).slice(0, 1000), String(timeOf(o, as) || '').slice(0, 40)] } };
-    };
-    if (!src){
-      /* Automatic: no source picked and no value kept as typed; the usual order decides at once, as the next syncs would. */
-      if (o.pick){ const rest = { ...o.pick }; delete rest[k]; if (Object.keys(rest).length) o.pick = rest; else delete o.pick; }
-      const auto = autoOrder(o, k).map(s => list.find(x => x.src === s)).find(Boolean);
-      if (auto){ if (auto.value !== String(was ?? '')) keepCurrent(); o[k] = asKind(was, auto.value); o.src = { ...(o.src || {}), [k]: auto.src }; }
-      hist(o, now(), `${label}: back to the automatic order of the sources${auto && was !== auto.value ? ` (${was || 'empty'} → ${auto.value})` : ''}, by ${who()}`);
-    } else {
-      if (c.value !== String(was ?? '')) keepCurrent();
-      o[k] = asKind(was, c.value);
-      o.src = { ...(o.src || {}), [k]: src };
-      o.pick = { ...(o.pick || {}), [k]: src };
-      hist(o, now(), `${label}: fixed to ${src === 'hand' ? 'the value set by hand' : `${NAMES[src]}'s value`}${was !== c.value ? ` (${was || 'empty'} → ${c.value})` : ''}, by ${who()}`);
-    }
+    applyPick(o, k, b.dataset.pick, list);
     close(); render();
   });
   return box;
+}
+/* Fixes field k of o to the value of source pick ('ls', 'graph', 'ad', 'hand', 'unknown'), or with '' sets it back to the
+   automatic order, as the picker and the comparison of all disagreeing devices (compare-sources.js) do. Noted in the
+   history. list is choicesOf(o, k), when already at hand. */
+export function applyPick(o, k, pick, list = choicesOf(o, k)){
+  const src = pick === 'unknown' ? 'hand' : pick, c = list.find(x => x.src === pick), label = LABELS[k] || k;
+  /* The value in the field stays on offer when another one takes its place, so it can be picked back: a value set by hand
+     as By hand, a source's value under that source when the source has not noted it beside the field (a value written
+     before the sources' values were kept), one of no known source as By hand. */
+  const was = o[k], keepCurrent = () => {
+    if (was == null || was === '') return;
+    const from = sourceOf(o, k), as = from === 'unknown' ? 'hand' : from, noted = ((o.vals || {})[k] || {})[as];
+    if (!as || (as !== 'hand' && noted)) return;
+    o.vals = { ...(o.vals || {}), [k]: { ...((o.vals || {})[k] || {}), [as]: [String(was).slice(0, 1000), String(timeOf(o, as) || '').slice(0, 40)] } };
+  };
+  if (!src){
+    /* Automatic: no source picked and no value kept as typed; the usual order decides at once, as the next syncs would. */
+    if (o.pick){ const rest = { ...o.pick }; delete rest[k]; if (Object.keys(rest).length) o.pick = rest; else delete o.pick; }
+    const auto = autoOrder(o, k).map(s => list.find(x => x.src === s)).find(Boolean);
+    if (auto){ if (auto.value !== String(was ?? '')) keepCurrent(); o[k] = asKind(was, auto.value); o.src = { ...(o.src || {}), [k]: auto.src }; }
+    hist(o, now(), `${label}: back to the automatic order of the sources${auto && was !== auto.value ? ` (${was || 'empty'} → ${auto.value})` : ''}, by ${who()}`);
+  } else {
+    if (!c) return;
+    if (c.value !== String(was ?? '')) keepCurrent();
+    o[k] = asKind(was, c.value);
+    o.src = { ...(o.src || {}), [k]: src };
+    o.pick = { ...(o.pick || {}), [k]: src };
+    hist(o, now(), `${label}: fixed to ${src === 'hand' ? 'the value set by hand' : `${NAMES[src]}'s value`}${was !== c.value ? ` (${was || 'empty'} → ${c.value})` : ''}, by ${who()}`);
+  }
 }
 setSrcPicker(pickerOf);

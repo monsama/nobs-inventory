@@ -2815,3 +2815,24 @@ body.dense .lrow .c-name.has-desc{padding:0;grid-template-rows:auto}
 .locnew .locnew-x{width:28px;min-width:28px;padding:0;font-size:16px;line-height:1}
 .locnew>input{flex:1 1 70px}
 @media (min-width:821px){ #sideGrip:focus-visible{outline:2px solid var(--accent);outline-offset:-2px} }
+/* Sources disagree: in the Table, the cells whose sources differ, with the mark that opens the picker. */
+.grid td.disagree{background:color-mix(in srgb,var(--warn) 12%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warn) 45%,transparent)}
+.grid td.disagree .fsrc{margin-left:6px;vertical-align:middle}
+/* The comparison (compare-sources.js): a group per field, a row per device, a button per source's value. */
+.cmp-group{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel);overflow:hidden}
+.cmp-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--bd);background:var(--panel2)}
+.cmp-rows{display:flex;flex-direction:column}
+.cmp-row{display:grid;grid-template-columns:minmax(120px,180px) minmax(0,1fr);gap:10px;align-items:center;padding:6px 12px;border-top:1px solid var(--bd2)}
+.cmp-row:first-child{border-top:0}
+.cmp-dev{justify-self:start;font-weight:600;text-align:left}
+.cmp-vals{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.cmp-val{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:30px;padding:3px 9px;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--bg);color:var(--fg);font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
+.cmp-val:disabled{cursor:default}
+.cmp-val.cur{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.cmp-val.diff{border-color:color-mix(in srgb,var(--warn) 55%,var(--bd))}
+.cmp-val.diff:not(:disabled):hover{background:color-mix(in srgb,var(--warn) 12%,transparent)}
+.cmp-ico svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+.cmp-src{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.cmp-v{min-width:0;overflow-wrap:anywhere;font-weight:600}
+.cmp-tick{color:var(--ok);font-weight:700}
+@media (max-width:760px){.cmp-row{grid-template-columns:minmax(0,1fr)}}
