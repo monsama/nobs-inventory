@@ -28,6 +28,16 @@ export function changedSince(root = $('#mdl')){
   const was = vals();
   return () => root.isConnected && vals() !== was;
 }
+/* A dialog that must be answered first (Sign in, the server cannot be reached) is not put in the browser's top layer:
+   a password manager draws its own list over the sign-in fields there, and a page that keeps a dialog above it is taken
+   for one fighting it (Bitwarden turns its menu off). It covers the page as a layer of its own instead, the page behind
+   it out of reach (inert) until it closes. */
+function openLocked(d){
+  d.classList.add('on-page');
+  for (const el of /** @type {HTMLElement[]} */ ([...document.body.children])) if (el.id !== 'modalHost' && el.id !== 'toast' && !el.inert){ el.inert = true; el.setAttribute('data-locked-inert', ''); }
+  if (!d.open) d.show();
+}
+function releasePage(){ for (const el of document.querySelectorAll('[data-locked-inert]')){ /** @type {HTMLElement} */ (el).inert = false; el.removeAttribute('data-locked-inert'); } }
 export function modal(body, cls=''){
   const markup = String(body);
   leaveCheck = null;
@@ -44,6 +54,7 @@ export function modal(body, cls=''){
   /* The dialog is named by its heading, so a screen reader says what it is. */
   const title = ((markup.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();
   keepToastOnTop(true);
+  releasePage();
   $('#modalHost').innerHTML = html`<dialog class="modal" id="mdl" aria-label="${title}"><div class="box ${cls}">${rawHtml(markup)}</div></dialog>`;
   const d = $('#mdl'), locked = /locked/.test(cls);
   /* The browser's top layer keeps Tab inside and the page behind inert. Escape asks to close (cancel), which goes
@@ -67,7 +78,7 @@ export function modal(body, cls=''){
     f.dispatchEvent(new Event('input', { bubbles: true }));
   });   /* after the field's own handlers: an Escape that closes an open list (a combo field) is not this */
   /* The browser may close it without asking (repeated Escape): it is closed properly then, or opened again if locked. */
-  d.addEventListener('close', () => { if (d.isConnected && !d.classList.contains('minimized')) { if (locked) d.showModal(); else closeModal(); } });
+  d.addEventListener('close', () => { if (d.isConnected && !d.classList.contains('minimized')) { if (locked) openLocked(d); else closeModal(); } });
   if (!locked) d.addEventListener('mousedown', e => { if (e.target === d) closeModal(); });
   /* A field saved as it is left (Settings) may draw its part of the dialog again during the Tab that leaves it: the
      Tab is then lost (the focus falls to the page, or comes back to the new copy of the field). It is done again on
@@ -100,7 +111,8 @@ export function modal(body, cls=''){
     else if (e.shiftKey && (at === first || !d.contains(at))){ e.preventDefault(); last.focus(); }
   });
   if (!locked) addWindowControls(d);
-  d.showModal(); keepToastOnTop();
+  if (locked) openLocked(d); else d.showModal();
+  keepToastOnTop();
   renderTray();
   bindPolicy($('#mdl'));
   fullTextTooltips($('#mdl'));
@@ -282,7 +294,7 @@ export const closeModal = () => {
   leaveCheck = null;
   const wasSettings = !!$('#modalHost #setPane');
   keepToastOnTop(true);
-  $('#modalHost').innerHTML = ''; if (!backToSettings || !settingsOpener) dropGhost(); const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
+  $('#modalHost').innerHTML = ''; releasePage(); if (!backToSettings || !settingsOpener) dropGhost(); const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
   renderTray();
   /* While Settings was open the page did not look for changes on the server (a push, someone else): it does now. */
   if (wasSettings){ render(); checkForChanges(); }

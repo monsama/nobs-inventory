@@ -1135,6 +1135,8 @@ body.signed-out #mdl::backdrop{background:var(--bg)}
 dialog.modal{position:fixed;inset:0;width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;background:transparent;color:inherit;overflow:visible;display:flex;align-items:center;justify-content:center;padding:16px}
 dialog.modal:not([open]){display:none}
 dialog.modal::backdrop{background:rgba(0,0,0,.45)}
+/* A dialog that must be answered (Sign in): a layer over the page, not the top layer (19-modal.js openLocked). */
+dialog.modal.on-page{z-index:900;background:rgba(0,0,0,.45)}
 .modal .box{position:relative;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-l);box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(860px,100%);max-height:100%;display:flex;flex-direction:column;min-height:0}
 .modal .box.sm{width:min(580px,100%)}
 .modal .box.wide{width:min(1000px,100%)}
@@ -1222,7 +1224,7 @@ table.grid a.rowopen{color:inherit;text-decoration:none}
 table.grid a.rowopen:hover{text-decoration:underline}
 @media (max-width:760px){table.grid a.rowopen{display:inline-flex;align-items:center;min-height:36px}}
 /* Messages at the bottom centre, over the status bar: away from the buttons at the right of dialogs and panels. */
-#toast{transition:opacity .15s;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
+#toast{transition:opacity .15s;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:950;max-width:calc(100% - 32px)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
 
 #sideBtn{display:none}
