@@ -620,6 +620,24 @@ let PEOPLE_LIST = [], PEOPLE = new Map();
 export const setPeople = list => { PEOPLE_LIST = list || []; PEOPLE = new Map(); };
 /* Made again when people were added or removed since. */
 const personOf = id => { if (PEOPLE.size !== PEOPLE_LIST.length) PEOPLE = new Map(PEOPLE_LIST.map(u => [u.id, u])); return PEOPLE.get(id); };
+/* Whether person p is the primary user Graph names (g.owner, a UPN; g.ownerName, a display name): by UPN, mail or login,
+   by name, or (a person from AD) by the login before the @. */
+const isOwner = (p, g) => {
+  const low = v => String(v || '').trim().toLowerCase(), owner = low(g.owner);
+  return [p.entra && p.entra.upn, p.profile && p.profile.mail, p.login].some(v => low(v) === owner) || (!!g.ownerName && low(g.ownerName) === low(p.name))
+    || (p.source === 'ldap' && owner.split('@')[0] === low(p.login));
+};
+/* A device given to someone here whose primary user in Intune is someone else. */
+export const ownerDiffers = o => {
+  const p = o.uid && personOf(o.uid), g = o.graph;
+  return !!p && !!g && !g.gone && !!g.owner && o.status !== 'retired' && !isOwner(p, g);
+};
+/* The person here Intune names as the primary user of o, or null (nobody here, or not in Intune). */
+export const intuneOwnerOf = o => {
+  const g = o.graph;
+  if (!g || g.gone || !g.owner) return null;
+  return PEOPLE_LIST.find(p => p.active !== false && isOwner(p, g)) || null;
+};
 /** @type {Record<string, [string, string, (o: any) => boolean]>} */
 export const QUALITY = {
   noloc: ['No location', 'Where it is is not recorded', o => !o.loc],
@@ -630,13 +648,7 @@ export const QUALITY = {
   unconfirmed: ['Not confirmed on site for 12 months', 'Not found in an inventory check, or confirmed on its page, for over a year', o => { if (!(st.stocktakes || []).some(t => t.finished)) return false; const d = daysSinceVerified(o); return d === null || d > STOCKTAKE_DAYS; }],
   leaver: ['With someone who left', 'Assigned to a person who is deactivated: search their name, open them and use Take all back, or give the devices to someone else', o => !['retired', 'stock'].includes(o.status) && !!o.uid && !!personOf(o.uid) && personOf(o.uid).active === false],
   addisabled: ['Disabled in AD, marked in use', 'Its computer account is disabled in Active Directory, but here it is in use', o => o.status === 'active' && !!(o.ad && o.ad.disabled)],
-  ownerdiff: ['Intune names someone else', 'The primary user in Intune is not the person it is assigned to here', o => {
-    const p = o.uid && personOf(o.uid), g = o.graph;
-    if (!p || !g || g.gone || !g.owner || o.status === 'retired') return false;
-    const low = v => String(v || '').trim().toLowerCase(), owner = low(g.owner);
-    return ![p.entra && p.entra.upn, p.profile && p.profile.mail, p.login].some(v => low(v) === owner) && !(g.ownerName && low(g.ownerName) === low(p.name))
-      && !(p.source === 'ldap' && owner.split('@')[0] === low(p.login));
-  }],
+  ownerdiff: ['Intune names someone else', 'The primary user in Intune is not the person it is assigned to here', o => ownerDiffers(o)],
   /* Virtual or physical: a server no source could tell about (from AD only, entered by hand). */
   nokind: ['Server, virtual or physical not known', 'Set its Kind on its page, or for many at once with Edit fields (Kind)', o => o.type === 'server' && o.status !== 'retired' && o.kind !== 'vm' && o.kind !== 'physical'],
   /* A virtual machine whose host is retired or no source knows any more: it has moved, or is gone too. */
