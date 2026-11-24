@@ -1,6 +1,6 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { whereOf, COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, objs, st, tico, toast } from './01-core.js';
+import { REGISTERED, REGISTERED_LABEL, registeredOnly, whereOf, COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, objs, st, tico, toast } from './01-core.js';
 import { attention as attentionLists } from './notices.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { lifeOf, replacementPlan } from './lifecycle.js';
@@ -139,7 +139,7 @@ export function renderOverview(){
     const inner = html`<span class="ov-tl">${label}</span><span class="ov-tv">${value}</span><span class="ov-ts">${sub}</span>`;
     return attr ? html`<button ${rawHtml(attr)} class="ov-tile">${inner}</button>` : html`<div class="ov-tile">${inner}</div>`;
   };
-  const byType = Object.entries(live.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).map(([t, n]) => ({ key: t, label: (TYPES[t] ? TYPES[t].label : t) + (t === 'server' ? serverSplit(live) : ''), n, icon: rawHtml(tico(t, 'tico sm')) })).sort((a, b) => b.n - a.n);
+  const byType = Object.entries(live.reduce((m, o) => { const t = registeredOnly(o) ? REGISTERED : o.type; m[t] = (m[t] || 0) + 1; return m; }, {})).map(([t, n]) => ({ key: t, hint: t === REGISTERED ? 'Registered in Entra only, not joined: most often personal devices, kept out of the types' : '', label: t === REGISTERED ? REGISTERED_LABEL : (TYPES[t] ? TYPES[t].label : t) + (t === 'server' ? serverSplit(live.filter(o => !registeredOnly(o))) : ''), n, icon: t === REGISTERED ? rawHtml('<span class="dot jdot j-registered"></span>') : rawHtml(tico(t, 'tico sm')) })).sort((a, b) => b.n - a.n);
   const sites = [...new Set(LOCS.map(l => l.split(' / ')[0]))];
   const bySite = sites.map(s => ({ key: s, label: s, n: live.filter(o => String(o.loc || '').split(' / ')[0] === s).length })).filter(r => r.n).sort((a, b) => b.n - a.n);
   const noLoc = live.filter(o => !o.loc).length;
