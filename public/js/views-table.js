@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { sourceMark, sourcesDisagree, vmsOn, dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
+import { typeSelLabel, sourceMark, sourcesDisagree, vmsOn, dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
 import { SERVER, viewSig } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -162,7 +162,7 @@ export const QUALITY_FIX = {
 };
 /* The export's file name says what was listed: inventory-notebook-zurich-hq-not-seen-for-90-days-2026-11-08.csv. */
 function fileName(){
-  const parts = [st.type && TYPES[st.type] && TYPES[st.type].label, st.loc, st.status && STATUS[st.status] && STATUS[st.status].label,
+  const parts = [typeSelLabel(st.type), st.loc, st.status && STATUS[st.status] && STATUS[st.status].label,
     st.warranty && 'warranty ' + st.warranty, st.seen && SEEN_FILTERS[st.seen] && SEEN_FILTERS[st.seen][0], st.quality && QUALITY[st.quality] && QUALITY[st.quality][0], st.q.trim()];
   const slug = ['inventory', ...parts].filter(Boolean).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80).replace(/-$/, '');
   const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

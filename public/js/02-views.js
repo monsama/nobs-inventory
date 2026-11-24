@@ -2,7 +2,7 @@
    the ports are in views-*.js, re-exported at the end. */
 import './side-sections.js';
 import { syncButtonHtml } from './16-sync.js';
-import { dirLocOf, SRV_KINDS, kindOf, ofTypeSel, listTypes, scanSpan, whereSignOf, NEW_DAYS, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
+import { REGISTERED, REGISTERED_LABEL, registeredOnly, typeSelLabel, dirLocOf, SRV_KINDS, kindOf, ofTypeSel, listTypes, scanSpan, whereSignOf, NEW_DAYS, addedRecently, SEEN_FILTERS, GONE_FILTERS, sourcesOf, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast, newSeen, withDrawCache } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -43,9 +43,12 @@ function drawSide(){
   const ofType = f => o => ofTypeSel(o, st.type) && f(o);
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
      picked stays. "All devices" is marked only when nothing at all narrows the list. */
-  const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
+  const byType = pool.reduce((m, o) => (registeredOnly(o) ? 0 : m[o.type] = (m[o.type] || 0) + 1, m), {});
+  /* The devices only registered in Entra: under the types, on their own, while there are any. */
+  const nReg = pool.filter(registeredOnly).length;
+  const regBtn = nReg || st.type === REGISTERED ? html`<button class="item ${st.type === REGISTERED ? 'sel' : ''}" data-type="${REGISTERED}" title="${JOIN_INFO['Entra registered'] || 'Registered in Entra only, not joined'}: kept out of the types above"><span class="dot jdot j-registered"></span><span class="lbl">${REGISTERED_LABEL}</span><span class="cnt">${nReg}</span></button>` : '';
   /* Under Server: its Kind (virtual, physical, not known), the way rooms are under a site. */
-  const kinds = k => k !== 'server' || !byType.server ? '' : html`${Object.entries(SRV_KINDS).map(([kk, l]) => html`<button class="item sub ${st.type === 'server' && st.srvKind === kk ? 'sel' : ''}" data-srvkind="${kk}"><span class="lbl">${l}</span><span class="cnt">${pool.filter(o => kindOf(o) === kk).length}</span></button>`)}`;
+  const kinds = k => k !== 'server' || !byType.server ? '' : html`${Object.entries(SRV_KINDS).map(([kk, l]) => html`<button class="item sub ${st.type === 'server' && st.srvKind === kk ? 'sel' : ''}" data-srvkind="${kk}"><span class="lbl">${l}</span><span class="cnt">${pool.filter(o => !registeredOnly(o) && kindOf(o) === kk).length}</span></button>`)}`;
   const typeBtn = ([k, v]) => html`<button class="item ${st.type===k && !(k === 'server' && st.srvKind)?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span><span class="cnt">${byType[k] || 0}</span></button>${kinds(k)}`;
   const types = listTypes(), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
   /* Clear filters only while something is filtered: an idle button is noise. */
@@ -53,7 +56,7 @@ function drawSide(){
   $('#typeList').innerHTML = html`<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All devices</span><span class="cnt">${pool.length}</span></button>${
     shown.map(typeBtn)}${
     folded ? html`<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
-      : st.sideAllTypes && types.some(([k]) => !byType[k] && st.type !== k) ? html`<button class="side-more" data-alltypes="0">Fewer types</button>` : ''}`;
+      : st.sideAllTypes && types.some(([k]) => !byType[k] && st.type !== k) ? html`<button class="side-more" data-alltypes="0">Fewer types</button>` : ''}${regBtn}`;
   const limit = seenSites(), sites = [...new Set([...SITES, ...LOCS.map(l => l.split(' / ')[0])])].filter(s => !limit || limit.includes(s));
   $('#locList').innerHTML = html`${sites.map(s => html`<button class="item ${st.loc===s?'sel':''}" data-loc="${s}"><span class="lbl">${s}</span><span class="cnt">${cnt(ofType(o=>String(o.loc||'').split(' / ')[0]===s))}</span></button>${
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => html`<button class="item sub ${st.loc===l?'sel':''}" data-loc="${l}"><span class="lbl">${l.split(' / ')[1]}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`)}`)}`;
@@ -123,7 +126,7 @@ function drawSide(){
 /* A folded section says the filter it holds, beside its name ("Types · PC"), so a filter in force is never hidden. */
 function sideSummaries(){
   const rc = st.resp ? contactOf(st.resp) : null;
-  const said = { types: st.type && TYPES[st.type] ? TYPES[st.type].label : '', locs: st.loc || '', status: st.status && STATUS[st.status] ? STATUS[st.status].label : st.live ? 'Not retired' : '',
+  const said = { types: typeSelLabel(st.type), locs: st.loc || '', status: st.status && STATUS[st.status] ? STATUS[st.status].label : st.live ? 'Not retired' : '',
     os: st.osFam || '', resp: rc ? rc.name : '', adg: st.adGroup || '' };
   for (const [sec, txt] of Object.entries(said)){
     const h = document.querySelector(`#side .sidesec[data-sec="${sec}"] > .hdr`); if (!h) continue;
@@ -216,7 +219,7 @@ export function renderFilterBar(){
      narrowed by text typed on another one is not read as everything. */
   const qOnly = !list && ['plans', 'sw', 'contracts', 'contacts'].includes(st.tab) && st.q.trim();
   const chips = qOnly ? [['q', 'Filter', '“' + st.q.trim() + '”']] : !list ? [] : [
-    st.type && TYPES[st.type] && ['type', 'Type', TYPES[st.type].label],
+    typeSelLabel(st.type) && ['type', 'Type', typeSelLabel(st.type)],
     st.type === 'server' && st.srvKind && SRV_KINDS[st.srvKind] && ['srvKind', 'Kind', SRV_KINDS[st.srvKind]],
     st.loc && ['loc', 'Location', st.loc],
     st.status && STATUS[st.status] && ['status', 'Status', STATUS[st.status].label],
@@ -334,7 +337,7 @@ $('#fbar').addEventListener('click', e => {
 export function hiddenHits(){
   const all = searchAll(), q = st.q.trim();
   if (!all.length) return '';
-  const within = [st.type && TYPES[st.type] ? TYPES[st.type].label : '', st.loc || '', st.status && STATUS[st.status] ? STATUS[st.status].label.toLowerCase() : ''].filter(Boolean).join(', ') || 'the filters on the left';
+  const within = [typeSelLabel(st.type), st.loc || '', st.status && STATUS[st.status] ? STATUS[st.status].label.toLowerCase() : ''].filter(Boolean).join(', ') || 'the filters on the left';
   return String(html`<div class="empty">Nothing matches “${q}” within ${within}. ${all.length === 1 ? html`1 device outside ${st.type ? 'this type' : 'these filters'} does: <b>${all[0].name}</b>` : `${all.length} devices outside ${st.type ? 'this type' : 'these filters'} do`}. <button class="primary" id="searchAllBtn">Search all devices</button></div>`);
 }
 export function bindHiddenHits(){

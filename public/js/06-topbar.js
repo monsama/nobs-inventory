@@ -1,4 +1,4 @@
-import { evEl, $$, $, COSTS, REVIEW, UNDO, leftFilters, objs, rels, st } from './01-core.js';
+import { TYPES, evEl, $$, $, COSTS, REVIEW, UNDO, leftFilters, objs, rels, st } from './01-core.js';
 import { newObjModal } from './05-new-object.js';
 import { isAdmin, me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render.js';
@@ -10,7 +10,7 @@ import { html } from './html.js';
    per-column filters, kept per browser. */
 /* ---------- top bar ---------- */
 /* A type or room picked in the sidebar is the one the new object starts with. */
-$('#newBtn').onclick = () => newObjModal({type: st.type || null, loc: st.loc && st.loc.includes(' / ') ? st.loc : null});
+$('#newBtn').onclick = () => newObjModal({type: st.type && TYPES[st.type] ? st.type : null, loc: st.loc && st.loc.includes(' / ') ? st.loc : null});
 $('#whoBtn').onclick = () => (me() ? accountModal() : loginModal());
 $('#signOutBtn').onclick = () => signOut();
 /* A choice in the account menu closes it. */

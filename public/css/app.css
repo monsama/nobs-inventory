@@ -735,8 +735,10 @@ table.grid[data-pinned] tr>:nth-child(3){left:var(--pin2)}
 table.grid[data-pinned] thead tr>:nth-child(-n+3){z-index:3}
 /* Sticky cells keep their own edges, and the selection column shows no ellipsis of its own. */
 table.grid[data-pinned]{border-collapse:separate;border-spacing:0}
-/* The tick column: the box in the middle, with room on both sides. */
-table.grid tr>.selcol,table.grid[data-pinned] tbody tr>td:first-child{text-overflow:clip;padding-left:12px;padding-right:12px;text-align:center}
+table.grid tr>.selcol,table.grid[data-pinned] tbody tr>td:first-child{text-overflow:clip;padding-left:10px;padding-right:4px}
+/* The tick column: the box in the middle, with room on both sides (only there: the first column of other tables, a
+   device's software say, reads from the left). */
+table.grid tr>.selcol{padding-left:12px;padding-right:12px;text-align:center}
 table.grid tr>.selcol>input[type=checkbox]{margin:0;vertical-align:middle}
 table.grid[data-pinned] tbody tr>td:nth-child(-n+3){background:var(--bg)}
 table.grid[data-pinned] tbody tr:hover>td:nth-child(-n+3){background:var(--hover)}

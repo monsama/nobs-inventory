@@ -151,7 +151,14 @@ export function dirLocOf(o){
 }
 export const SRV_KIND_TEXT = { vm: 'Virtual machine', physical: 'Physical', none: 'Not known' };
 export const kindOf = o => o.type !== 'server' ? '' : o.kind === 'vm' || o.kind === 'physical' ? o.kind : 'none';
-export const ofTypeSel = (o, t) => !t || (t === 'vm' ? o.type === 'vm' || o.kind === 'vm' : o.type === t);
+/* Devices only registered in Entra (not joined, not in AD): most often personal (BYOD) ones, not the company's. They are
+   kept out of the device types and listed on their own (the sidebar's "Entra registered" under the types). */
+export const REGISTERED = 'registered';
+export const REGISTERED_LABEL = 'Entra registered';
+export const registeredOnly = o => !o.inAd && joinOf(o) === 'Entra registered';
+export const ofTypeSel = (o, t) => !t || (t === REGISTERED ? registeredOnly(o) : !registeredOnly(o) && (t === 'vm' ? o.type === 'vm' || o.kind === 'vm' : o.type === t));
+/* The label of the type picked on the left: a device type, or the devices only registered in Entra. */
+export const typeSelLabel = t => t === REGISTERED ? REGISTERED_LABEL : t && TYPES[t] ? TYPES[t].label : '';
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Three states: in use (handed out or running), in stock (in the IT store, with nobody) and retired (disposed of, kept
    for the record). */
