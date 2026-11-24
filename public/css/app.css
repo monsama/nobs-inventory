@@ -342,10 +342,11 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .gs-list{position:absolute;left:0;top:calc(100% + 4px);z-index:70;width:min(460px,92vw);max-height:min(70vh,520px);overflow:auto;margin:0;padding:4px 0;list-style:none;background:var(--in);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
 .gs-list li[data-i]{display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;min-width:0}
 .gs-list li[data-i].active,.gs-list li[data-i]:hover{background:var(--hover)}
-.gs-list .gs-head{padding:8px 10px 3px;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gs-list .gs-head{display:block;margin:0;padding:8px 10px 3px;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .gs-list .gs-head .muted{text-transform:none;letter-spacing:0;font-weight:500}
-.gs-list .gs-main{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
-.gs-list .gs-sub{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0}
+.gs-list .gs-main{line-height:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+/* The hit's second part, on the name's line: not the Graph setup step's .gs-sub (its margins and column). */
+.gs-list .gs-sub{margin:0;padding-left:4px;display:block;line-height:20px;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0}
 .gs-list .gs-none{padding:10px;color:var(--muted)}
 .gs-ico .i{width:14px;height:14px}
 /* A list's own filter, in its toolbar. */
