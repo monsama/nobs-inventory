@@ -54,8 +54,11 @@ function newPersonModal(o){
     if (dept && !u.dept) u.dept = dept;
     const was = o.user;
     delete o.hotdesk; o.uid = u.id;
+    /* Given to somebody while in stock: in use from now on, as when a person is picked in the field. */
+    const fromStock = o.status === 'stock';
+    if (fromStock){ o.status = 'active'; delete o.stockAuto; }
     if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'user');
-    hist(o, now(), `Given to ${name}${was ? ' (was ' + was + ')' : ''} by ${who()}`);
+    hist(o, now(), `Given to ${name}${was ? ' (was ' + was + ')' : ''} by ${who()}${fromStock ? ': in use from now on' : ''}`);
     closeModal(); queueServerSave(); toast(`${o.name} is now with ${name}`); render();
   };
   $('#npFirst').focus();
