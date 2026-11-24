@@ -270,9 +270,9 @@ export function renderTable(){
   const cut = st.tableAll !== viewSig() && list.length > SHOW_FIRST + 100;
   const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
   $('#view').innerHTML = html`<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
-    <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
+    <th data-w="52" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => html`<th data-ck="${c.k}" data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? html` data-pin="1"` : ''}>${c.label}</th>`)}</tr></thead><tbody>
-    ${rowsOf.map(o => html`<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${o.name}" style="height:auto"></td>${shown.map(c => rawHtml(withSource(o, c, c.cell(o, idx))))}</tr>`)}
+    ${rowsOf.map(o => html`<tr data-open="${o.id}"><td class="selcol"><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${o.name}" style="height:auto"></td>${shown.map(c => rawHtml(withSource(o, c, c.cell(o, idx))))}</tr>`)}
     </tbody></table>${list.length ? '' : rawHtml(hiddenHits())}${cut ? html`<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
   const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = viewSig(); renderTable(); };
   bindHiddenHits();
