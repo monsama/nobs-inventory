@@ -1,4 +1,5 @@
 import { LOGIN_RE } from './feed.js';
+import { markStockAuto } from './stock-auto.js';
 import { svgProblem, svgWithoutComments } from './state.js';
 import { liftOvr } from './fill.js';
 import { normalizeVirtual } from './state.js';
@@ -137,6 +138,8 @@ export function migrateState(s) {
   }
   /* Before 0.9.88 a device could also be Not in use or In repair: both are In stock now (in use, in stock or retired). */
   for (const o of [...(s.objs || []), ...(s.review || [])]) if (o && ['unused', 'repair'].includes(o.status)) { o.status = 'stock'; changed = true; }
+  /* Before 0.9.177: devices in stock by themselves get their mark (stock-auto.js). */
+  if (markStockAuto(s)) changed = true;
   for (const u of s.users || []) if (u && u.active === false && !u.leftAt) { u.leftAt = new Date().toISOString(); u.leftBy = true; changed = true; }
   return changed;
 }

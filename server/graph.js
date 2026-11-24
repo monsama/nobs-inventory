@@ -9,6 +9,7 @@ import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor, modelFor } from './feed.js';
 import { settleWaiting } from './settle.js';
+import { stockToInUse } from './stock-auto.js';
 import { checkAddress } from './validate.js';
 import { fillField, officeLocations, profileFields, noteValue, pickOf } from './fill.js';
 import { graphOsName, managedBy } from '../public/js/intune.js';
@@ -338,8 +339,9 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
      the device sync filled it in), is bound to them, so it moves with a rename. */
   const byOwner = new Map(s.users.filter(p => p.entra && !p.entra.gone && p.entra.upn).map(p => [low(p.entra.upn), p]));
   for (const o of s.objs) {
-    /* Only a device in use: one taken back into stock, or retired, keeps nobody, whatever Intune still says. */
-    if (o.status !== 'active' || o.uid || o.hotdesk || !o.graph || o.graph.gone || !o.graph.owner || pickOf(o, 'user') === 'hand') continue;
+    /* Only a device in use, or in stock by itself (nobody was known when it came in): one taken back into stock by a
+       person, or retired, keeps nobody, whatever Intune still says. */
+    if (!(o.status === 'active' || (o.status === 'stock' && o.stockAuto)) || o.uid || o.hotdesk || !o.graph || o.graph.gone || !o.graph.owner || pickOf(o, 'user') === 'hand') continue;
     const p = byOwner.get(low(o.graph.owner));
     if (p && (!o.user || low(o.user) === low(p.name) || low(o.user) === low(o.graph.ownerName))) { o.uid = p.id; o.user = p.name; counts.bound++; }
   }
@@ -461,7 +463,7 @@ export function applyGraph(s, records, now = new Date()) {
     if (!o.serial && r.serial && pickOf(o, 'serial') !== 'hand') { o.serial = r.serial; counts.filled++; }
     /* The primary user, on a device that has nobody yet; a person chosen by hand is never replaced. Graph gives the
        display name (Lansweeper gives a login): the page binds either to the person, by login first, then by name. */
-    if (r.ownerName && o.status === 'active' && !o.uid && !o.user && !o.hotdesk && pickOf(o, 'user') !== 'hand') { o.user = r.ownerName; counts.filled++; }
+    if (r.ownerName && (o.status === 'active' || (o.status === 'stock' && o.stockAuto)) && !o.uid && !o.user && !o.hotdesk && pickOf(o, 'user') !== 'hand') { o.user = r.ownerName; counts.filled++; }
   }
   /* Graph had the device and has it no more (deleted in Entra, or renamed): what it said is kept, marked as gone, so the
      device no longer counts as joined. A device that fits a record twice keeps what it had. */
@@ -642,6 +644,7 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch, { 
   if (autopilotError) counts.autopilotError = autopilotError;
   if (cfg.secureBoot === 'on' && !secureBootError) counts.secureBoot = records.filter(r => r.secureBoot).length;
   if (secureBootError) counts.secureBootError = secureBootError;
+  { const used = stockToInUse(s, stamp(now)); if (used) counts.inUse = used; }
   { const settled = settleWaiting(s, stamp(now), now); if (settled) counts.settled = settled; }
   noteChanges(s, 'graph', lens, now);
   if (dryRun) return counts;

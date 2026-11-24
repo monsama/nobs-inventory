@@ -65,7 +65,7 @@ function quickEdit(o, btn){
     if (to === 'retired'){ close(); retireModal(o); return; }
     /* Into stock with somebody: the same take-back as on the device page (where it goes, the person no longer has it). */
     if (to === 'stock' && (o.uid || o.user || o.hotdesk)){ close(); takeBackModal([o]); return; }
-    change('Status set to ' + STATUS[to].label, 'status set to ' + STATUS[to].label, () => { o.status = to; }); });
+    change('Status set to ' + STATUS[to].label, 'status set to ' + STATUS[to].label, () => { o.status = to; delete o.stockAuto; }); });
   /* The description: Enter or leaving the field saves it (also when the box closes), Esc puts it back. */
   const dsc = /** @type {HTMLInputElement} */ ($('#qeDesc')), dWas = dsc.value; let dDone = false;
   const saveDesc = () => {

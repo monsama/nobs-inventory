@@ -22,7 +22,7 @@ function accept(list){
     const src = REVIEW_SRC[o.review.src] || o.review.src;
     delete o.review; delete o.excluded; o.added = new Date().toISOString();
     /* A computer or phone nobody has is in stock, not in use: it does not show up as "in use without a user". */
-    if (PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.hotdesk) o.status = 'stock';
+    if (PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk){ o.status = 'stock'; o.stockAuto = true; }
     objs.push(o);
     hist(o, now(), `Accepted into the inventory by ${who()} (found by ${src})${o.status === 'stock' ? ', in stock: nobody has it yet' : ''}`);
   }

@@ -165,7 +165,7 @@ export function bindTableBulk(n){
        ports are free, nothing looks in use that is not. Undo brings it all back. */
     const list = [...st.bulk].map(byId).filter(Boolean);
     const snap = snapshot([...list, ...objs.filter(x => list.some(o => x.ontop === o.id))]), relsWas = [...rels];
-    list.forEach(o => { if (to === 'retired' && o.status !== 'retired') retireLinks(o); o.status = to; hist(o, now(), 'Status set to ' + STATUS[to].label + ' (bulk)'); });
+    list.forEach(o => { if (to === 'retired' && o.status !== 'retired') retireLinks(o); o.status = to; delete o.stockAuto; hist(o, now(), 'Status set to ' + STATUS[to].label + ' (bulk)'); });
     toastUndo(n + ' set to ' + STATUS[to].label, () => { restoreSnapshot(snap, 'Bulk status undone'); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); render(); }); renderTable(); render(); };
   /* Internal or external responsible for every selected device; each device that changes gets a history line. */
   const bulkResp = v => {

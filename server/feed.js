@@ -26,6 +26,7 @@ const FEED_FIELDS = LS_FIELDS;
 const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
 import { stamp, stampTime } from '../public/js/dates.js';
 import { settleWaiting } from './settle.js';
+import { stockToInUse } from './stock-auto.js';
 export { stamp };
 
 
@@ -627,6 +628,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   counts.software = applySoftware(s, pairs);
   counts.printers = applyPrinters(s, pairs);
   /* Waiting devices whose question went away (seen again, or waiting from before new devices went straight in). */
+  { const used = stockToInUse(s, seen); if (used) counts.inUse = used; }
   { const settled = settleWaiting(s, seen, now); if (settled) counts.settled = settled; }
   noteChanges(s, 'ls', lens, now);
   return counts;
