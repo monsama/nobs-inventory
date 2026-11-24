@@ -54,8 +54,11 @@ function newPersonModal(o){
     if (dept && !u.dept) u.dept = dept;
     const was = o.user;
     delete o.hotdesk; o.uid = u.id;
+    /* Given to somebody while in stock: in use from now on, as when a person is picked in the field. */
+    const fromStock = o.status === 'stock';
+    if (fromStock){ o.status = 'active'; delete o.stockAuto; }
     if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'user');
-    hist(o, now(), `Given to ${name}${was ? ' (was ' + was + ')' : ''} by ${who()}`);
+    hist(o, now(), `Given to ${name}${was ? ' (was ' + was + ')' : ''} by ${who()}${fromStock ? ': in use from now on' : ''}`);
     closeModal(); queueServerSave(); toast(`${o.name} is now with ${name}`); render();
   };
   $('#npFirst').focus();
@@ -374,7 +377,7 @@ export function renderObj(o){
   if (bb) bb.onclick = () => {
     /* Retired and excluded from the syncs: back in them too, as it is in use again. */
     const wasExcluded = !!o.excluded;
-    o.status = 'stock'; delete o.excluded;
+    o.status = 'stock'; delete o.excluded; delete o.stockAuto;
     hist(o, now(), `Brought back to stock by ${who()}${wasExcluded ? ', included in the syncs again' : ''}`); queueServerSave(); render();
     toastUndo(`${o.name} is in stock again${wasExcluded ? ' and in the syncs' : ''}`, () => { o.status = 'retired'; if (wasExcluded) o.excluded = true; hist(o, now(), 'Bring back undone'); queueServerSave(); render(); });
   };
@@ -727,6 +730,8 @@ export function renderObj(o){
       followUp = `In use now, by ${o.user}`;
       rerender = true;
     }
+    /* A status a person set: the device is no longer in stock by itself (stock-auto.js on the server). */
+    if (o.status !== statusWas) delete o.stockAuto;
     /* A new status shows in the header, the sidebar counts and the actions (Take back, Hand out) at once. */
     if (o.status !== statusWas) rerender = true;
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;

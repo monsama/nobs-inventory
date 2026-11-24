@@ -49,7 +49,7 @@ export function settleWaiting(s, stampText, now = new Date()){
     delete o.review; o.added = new Date(found && found < now.getTime() ? found : now.getTime()).toISOString();
     /* A computer or phone nobody has is in stock, not in use (as when a person accepts it). */
     const stock = PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk;
-    if (stock) o.status = 'stock';
+    if (stock) { o.status = 'stock'; o.stockAuto = true; }
     ((s.history ??= {})[o.id] ??= []).unshift({ t: stampText, msg: `Added to the inventory: nothing unclear (found by ${src})${stock ? ', in stock: nobody has it yet' : ''}` });
     n++;
   }

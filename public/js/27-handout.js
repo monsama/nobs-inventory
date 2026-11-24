@@ -22,7 +22,7 @@ function moveTo(o, loc){
 function give(list, u, loc = ''){
   for (const o of list){
     const was = o.user;
-    delete o.hotdesk; o.uid = u.id; o.status = 'active'; keepUser(o);
+    delete o.hotdesk; o.uid = u.id; o.status = 'active'; delete o.stockAuto; keepUser(o);
     const moved = moveTo(o, loc);
     hist(o, now(), `Handed out to ${u.name}${was && was !== u.name ? ` (was ${was})` : ''}${moved ? `, to ${loc}` : ''} by ${who()}`);
   }
@@ -95,7 +95,7 @@ export function takeBack(list, loc = ''){
   const snap = snapshot(live), names = new Set(live.map(o => o.user).filter(Boolean));
   for (const o of live){
     const had = o.user;
-    o.uid = null; delete o.hotdesk; o.status = 'stock'; keepUser(o);
+    o.uid = null; delete o.hotdesk; o.status = 'stock'; delete o.stockAuto; keepUser(o);
     const moved = moveTo(o, loc);
     hist(o, now(), `Taken back into stock${had ? ` from ${had}` : ''}${moved ? `, to ${loc}` : ''} by ${who()}`);
   }
