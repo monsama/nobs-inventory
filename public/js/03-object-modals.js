@@ -852,6 +852,10 @@ export function renderObj(o){
   if (lr) lr.onclick = () => { pickLocTexts([lr.dataset.locroom]); st.setTab = 'locations'; openSettings(); };
   const lu = /** @type {HTMLElement|null} */ ($('#view').querySelector('[data-locuse]')), lsel = /** @type {HTMLSelectElement|null} */ ($('#view').querySelector('select[data-k="loc"]'));
   if (lu && lsel && !lsel.disabled) lu.onclick = () => { lsel.value = lu.dataset.locuse; lsel.dispatchEvent(new Event('change', { bubbles: true })); };
+  /* Under the user: the person Intune names as primary user, picked in the field. */
+  const uu = /** @type {HTMLElement|null} */ ($('#view').querySelector('[data-useruse]')), usel = /** @type {HTMLSelectElement|null} */ ($('#view').querySelector('select[data-k="user"]'));
+  if (uu && usel && !usel.disabled && [...usel.options].some(x => x.value === uu.dataset.useruse)) uu.onclick = () => { usel.value = uu.dataset.useruse; usel.dispatchEvent(new Event('change', { bubbles: true })); };
+  else if (uu) uu.remove();
   const del = $('#delBtn'); if (del) del.onclick = () => retireModal(o);
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
   /* Excluded objects are not changed by a Lansweeper sync. The relations option also excludes the objects o is related to. */
