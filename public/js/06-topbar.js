@@ -130,7 +130,8 @@ export function applyTable(t){
   if (s.order.some((c, i) => c !== i)) [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
   /* A column is as wide as it was dragged to, or as its default (data-w). When every column has a width, the table is
      exactly as wide as its columns, so the box around it scrolls sideways instead of squeezing them. */
-  const ws = [...head.cells].map(th => s.widths[th.dataset.ci] || +th.dataset.w || 0);
+  /* The tick column is never narrower than its own width (one kept from before it got more room is widened). */
+  const ws = [...head.cells].map(th => th.classList.contains('selcol') ? Math.max(s.widths[th.dataset.ci] || 0, +th.dataset.w || 0) : s.widths[th.dataset.ci] || +th.dataset.w || 0);
   const all = ws.every(Boolean);
   t.style.tableLayout = all || Object.keys(s.widths).length ? 'fixed' : '';
   [...head.cells].forEach((th, i) => { th.style.width = ws[i] ? ws[i] + 'px' : ''; });
