@@ -2859,3 +2859,6 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 /* Settings > Locations, the location texts: the device count under its heading, both to the right. */
 .lrow.adloc>.n,.lrow.adloc.head>span.n{text-align:right;justify-self:stretch;padding-right:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
 @media (max-width:760px){.lrow.adloc{grid-template-columns:minmax(0,1fr) 68px}.lrow.adloc.pick{grid-template-columns:24px minmax(0,1fr) 68px}}
+/* The list is drawn anew on each change and keeps its scroll by itself (keepScroll): the browser's own scroll
+   anchoring would move it again, picking another row to hold in place (ticking a device made the list jump). */
+#view{overflow-anchor:none}
