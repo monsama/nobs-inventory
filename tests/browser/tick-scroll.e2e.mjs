@@ -15,7 +15,7 @@ const server = await new Promise(r => { const x = createApp({ db }).listen(0, '1
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 try {
   const ctx = await browser.newContext({ viewport: { width: 2000, height: 1000 } });
-  await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch { /* none */ } });
   const p = await ctx.newPage();
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await p.waitForSelector('#cards .lrow');
