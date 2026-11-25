@@ -78,7 +78,9 @@ export function modal(body, cls=''){
     f.dispatchEvent(new Event('input', { bubbles: true }));
   });   /* after the field's own handlers: an Escape that closes an open list (a combo field) is not this */
   /* The browser may close it without asking (repeated Escape): it is closed properly then, or opened again if locked. */
-  d.addEventListener('close', () => { if (d.isConnected && !d.classList.contains('minimized')) { if (locked) openLocked(d); else closeModal(); } });
+  /* The close event comes a moment after close(): one from minimizing that arrives after a quick restore finds the dialog
+     open again, and is no closing. */
+  d.addEventListener('close', () => { if (d.isConnected && !d.open && !d.classList.contains('minimized')) { if (locked) openLocked(d); else closeModal(); } });
   if (!locked) d.addEventListener('mousedown', e => { if (e.target === d) closeModal(); });
   /* A field saved as it is left (Settings) may draw its part of the dialog again during the Tab that leaves it: the
      Tab is then lost (the focus falls to the page, or comes back to the new copy of the field). It is done again on
