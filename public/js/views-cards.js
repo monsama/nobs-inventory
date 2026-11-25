@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { dirLocOf, vmsOn, GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
+import { registeredOnly, dirLocOf, vmsOn, GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
 import { SERVER, view, viewSig } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -101,6 +101,8 @@ const userCell = (o, idx) => {
   if (o.user) return html`<span class="c-user">${o.user}</span>`;
   const h = hostOf(o, idx);
   if (h && h.user) return html`<span class="c-user" title="From ${h.name}, the device it is attached to">${h.user}</span>`;
+  /* A personal device, only registered in Entra: its owner as Intune names them, in grey. */
+  if (registeredOnly(o) && o.graph && !o.graph.gone && (o.graph.ownerName || o.graph.owner)) return html`<span class="c-user resp" title="Owner as Intune names them: a personal device, only registered in Entra">${o.graph.ownerName || o.graph.owner}</span>`;
   const r = respText(o);
   return html`<span class="c-user resp" title="${r ? 'Responsible' : ''}">${r}</span>`;
 };

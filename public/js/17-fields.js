@@ -430,7 +430,8 @@ export function fieldNote(o, k){
     /* Use: the field is cleared, so the device takes its subnet's gateway (and follows it when the subnet's changes). */
     if (sn && sn.gateway && sn.gateway !== o.gateway) return `<span></span><p class="fieldnote warn">${esc(`Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`)} <button type="button" class="link gwfix">Use ${esc(sn.gateway)}</button></p>`;
   }
-  if (k === 'loc' && o.status !== 'retired' && !o.review) return locNote(o) + verifiedNote(o);
+  /* A personal device is no company asset to confirm on site. */
+  if (k === 'loc' && o.status !== 'retired' && !o.review) return locNote(o) + (registeredOnly(o) ? '' : verifiedNote(o));
   if (k === 'user' && !o.review){ const n = userNote(o); if (n) return n; }
   if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') t = 'The warranty has ended.'; else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
   return t ? `<span></span><p class="fieldnote ${cls}">${esc(t)}</p>` : '';

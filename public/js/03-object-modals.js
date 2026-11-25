@@ -15,7 +15,7 @@ import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './0
 import { typeText, dayText, agoText, lastSeenOf, sourcesOf, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { goneAllWith } from './gone.js';
-import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, used, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
+import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, used, registeredOnly, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { openSettings, pickLocTexts, RACKABLE, ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, rackLocFollow, rackTopUsed, who } from './04-settings.js';
@@ -206,7 +206,8 @@ export function unplace(o){
 /* Hand out or take back, the one thing done most with a device that people use: shown on those (and on any device
    someone has), for someone who may change it. */
 const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios', 'monitor', 'sip', 'camera'];
-const handBtn = o => !isAdmin() || o.review || o.status === 'retired' || !(PERSONAL.includes(o.type) || o.uid || o.hotdesk) ? ''
+/* A personal device, only registered in Entra, is nobody's to hand out: none (Take back stays for one given to someone). */
+const handBtn = o => !isAdmin() || o.review || o.status === 'retired' || !(PERSONAL.includes(o.type) || o.uid || o.hotdesk) || (registeredOnly(o) && !o.uid && !o.hotdesk) ? ''
   : o.uid || o.hotdesk ? html`<button id="takeBackBtn" title="Back into stock, with nobody (with Undo)">Take back</button>` : html`<button id="handOutBtn" title="Give it to a person: in use with them from now on">Hand out…</button>`;
 /* The fields a device page always shows, filled or not; the others show when they hold something, or all of them on request. */
 const KEY_FIELDS = ['name', 'type', 'status', 'model', 'serial', 'loc', 'user', 'ip', 'os', 'purpose'];
@@ -314,7 +315,8 @@ export function renderObj(o){
   /* The page: the key facts on top, then its parts as tabs. */
   const srcHtml = sourcesPanel(o);
   const seen = lastSeenOf(o), hostRel = rs.find(x => x.out && isAttached(x.r.kind));
-  const facts = [['User', o.user || (hostRel && hostRel.other.user) || '', o.user ? '' : hostRel && hostRel.other.user ? 'From ' + hostRel.other.name : ''],
+  const owner = !o.user && registeredOnly(o) && o.graph && !o.graph.gone ? o.graph.ownerName || o.graph.owner || '' : '';
+  const facts = [['User', o.user || (hostRel && hostRel.other.user) || (owner ? owner + ' (Intune)' : ''), o.user ? '' : hostRel && hostRel.other.user ? 'From ' + hostRel.other.name : owner ? 'Owner as Intune names them: a personal device, only registered in Entra' : ''],
     ['Location', o.loc || (hostRel && hostRel.other.loc) || ''], ['IP', o.ip || ''], ['Last seen', seen ? agoText(seen.day) : '', seen ? `${seen.at} by ${seen.src}` : '']];
   /* The sources it has been in, the ones that no longer list it marked gone (with when, in the tooltip). */
   const srcs = o.status === 'retired' ? [] : sourcesOf(o);
@@ -346,7 +348,7 @@ export function renderObj(o){
     </div></section>
     <section class="opane ogrid" data-pane="relations"><div class="col">
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
-        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.other.status === 'retired' ? html`<span class="chip warn" title="${x.other.name} is retired: remove the link, or link the device it is with now">retired</span>` : goneAllWith(x.other, st.lsPresence) ? html`<span class="chip warn" title="No source knows ${x.other.name} any more">gone</span>` : ''}${x.r.kind === 'connected' && outletOf(byId(x.r.to), x.r.port) ? html`<span class="chip" title="${outletLabel({...outletOf(byId(x.r.to), x.r.port), panel: byId(x.r.to), port: x.r.port})}">Outlet ${outletOf(byId(x.r.to), x.r.port).name}</span>` : ''}${x.r.lag == null && PORT_KINDS.includes(x.r.kind) && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`${rawHtml(comboHtml(String(html`<input id="rp_${x.r.id}" class="rport mono" data-rport="${x.r.id}" data-combo="port" data-port-to="${x.r.to}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}: type one, or pick a free port">`), 'rp_' + x.r.id).replace('<div class="combo">', '<div class="combo rportbox">'))}<span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">${isAdmin() ? 'No relations yet.' : 'No relations.'}</p>`}</div>
+        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.other.status === 'retired' ? html`<span class="chip warn" title="${x.other.name} is retired: remove the link, or link the device it is with now">retired</span>` : goneAllWith(x.other, st.lsPresence) ? html`<span class="chip warn" title="No source knows ${x.other.name} any more">gone</span>` : ''}${x.r.src === 'Lansweeper' ? html`<span class="chip src-ls" title="Made by the Lansweeper sync: it follows what Lansweeper sees (a link set by hand never changes)">Lansweeper</span>` : ''}${x.r.kind === 'connected' && outletOf(byId(x.r.to), x.r.port) ? html`<span class="chip" title="${outletLabel({...outletOf(byId(x.r.to), x.r.port), panel: byId(x.r.to), port: x.r.port})}">Outlet ${outletOf(byId(x.r.to), x.r.port).name}</span>` : ''}${x.r.lag == null && PORT_KINDS.includes(x.r.kind) && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`${rawHtml(comboHtml(String(html`<input id="rp_${x.r.id}" class="rport mono" data-rport="${x.r.id}" data-combo="port" data-port-to="${x.r.to}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}: type one, or pick a free port">`), 'rp_' + x.r.id).replace('<div class="combo">', '<div class="combo rportbox">'))}<span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">${isAdmin() ? 'No relations yet.' : 'No relations.'}</p>`}</div>
         ${edit ? html`<div class="rel-open"${st.relAdd ? ' hidden' : ''}><button type="button" class="link" id="arOpen">+ Add a relation</button></div>` : ''}
         <div class="addrel" id="arRow"${st.relAdd ? '' : ' hidden'}><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1 1 120px"></select>
@@ -369,6 +371,29 @@ export function renderObj(o){
         const bs = [...bar.querySelectorAll('[data-otabgo]')], i = bs.indexOf(/** @type {any} */ (document.activeElement)); if (i < 0) return;
         const n = e.key === 'Home' ? 0 : e.key === 'End' ? bs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : bs.length - 1)) % bs.length;
         e.preventDefault(); go(bs[n].dataset.otabgo); bs[n].focus(); }); } }
+  /* Sources → Switch port: take what Lansweeper sees over a connection set by hand (from then on the sync keeps it). */
+  { const pt = /** @type {HTMLElement|null} */ ($('#view [data-plugtake]'));
+    if (pt) pt.onclick = () => {
+      const p = o.feed && o.feed.plug, sw = p && byId(p.to); if (!sw || !isAdmin()) return;
+      if (!/^\d{1,4}$/.test(String(p.port)) || (sw.ports > 0 && +p.port > sw.ports + (+sw.sfp || 0))){ toast(`${sw.name} has no port ${p.port} here: set its ports first.`); return; }
+      const was = rels.filter(r => r.from === o.id && r.kind === 'connected' && r.src !== 'Lansweeper');
+      const other = rels.find(r => r.to === sw.id && String(r.port) === String(p.port) && r.from !== o.id && r.kind !== 'patched');
+      if (other){ toast(`Port ${p.port} on ${sw.name} is taken by ${byId(other.from) ? byId(other.from).name : 'another device'}. Free it first.`); return; }
+      /* The VLAN set on the connection it replaces goes along; Undo puts the connections set by hand back. */
+      const vlan = (was.find(r => r.vlan != null) || {}).vlan ?? null;
+      const wasText = was.map(r => `${byId(r.to) ? byId(r.to).name : '?'}${r.port != null ? ' port ' + r.port : ''}`).join(', ');
+      for (const r of was) rels.splice(rels.indexOf(r), 1);
+      const made = { id: rid(), from: o.id, to: sw.id, kind: 'connected', port: +p.port, vlan, src: 'Lansweeper' };
+      rels.push(made);
+      hist(o, now(), `Plugged into ${sw.name} port ${p.port}, as Lansweeper sees it, by ${who()}${was.length ? ` (was ${wasText})` : ''}`);
+      queueServerSave(); render();
+      toastUndo(`${o.name} is on ${sw.name} port ${p.port} now${was.length ? ` (was ${wasText})` : ''}`, () => {
+        const i = rels.indexOf(made); if (i >= 0) rels.splice(i, 1);
+        for (const r of was) if (!rels.includes(r)) rels.push(r);
+        hist(o, now(), `Undone: back on ${wasText || 'nothing'} (${who()})`);
+        queueServerSave(); render();
+      });
+    }; }
   /* Ports: the port view of this device. */
   { const pb = $('#view [data-portsgo]'); if (pb) pb.onclick = () => { if (st.portsDevice !== o.id) st.portNo = null; st.portsDevice = o.id; st.tab = 'net'; view(); }; }
   /* + Add a relation opens the form, and it stays open on every device until the page is reloaded. */

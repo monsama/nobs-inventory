@@ -1,9 +1,10 @@
 /* The device page's sources: what Lansweeper, Microsoft Entra and Intune (with Defender) and Active Directory say of a
    device, one tab each in the Sources panel. */
-import { rels, scanSpan, GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
+import { reachesPort, rels, scanSpan, GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 import { html, rawHtml } from './html.js';
+import { isAdmin } from './04-settings.js';
 
 /* A row of a source's list: left out when it has no value (a value may be html``, empty or not). */
 const filled = v => v != null && v !== false && String(v) !== '';
@@ -30,9 +31,11 @@ function lsDates(o){
 function plugRow(o, row){
   const p = o.feed && o.feed.plug, sw = p && byId(p.to);
   if (!sw) return '';
-  const same = rels.some(r => r.from === o.id && r.kind === 'connected' && r.to === sw.id && String(r.port) === String(p.port));
+  const same = reachesPort(o, sw.id, p.port);
   const other = !same && rels.some(r => r.from === o.id && r.kind === 'connected');
-  return row('Switch port', html`${sw.name}${p.port ? ` · port ${p.port}` : ''}${other ? html`<p class="fieldnote warn">The inventory has it plugged in elsewhere (set by hand, so kept). Change it under Relations if Lansweeper is right.</p>` : ''}`,
+  /* Taken over only as a port the inventory can hold: a plain number the switch has (a name such as Gi1/0/14 is not). */
+  const takeable = /^\d{1,4}$/.test(String(p.port)) && +p.port >= 1 && !(sw.ports > 0 && +p.port > sw.ports + (+sw.sfp || 0));
+  return row('Switch port', html`${sw.name}${p.port ? ` · port ${p.port}` : ''}${other ? html`<p class="fieldnote warn">The inventory has it plugged in elsewhere (set by hand, so kept).${isAdmin() && takeable ? html` <button type="button" class="link" data-plugtake>Use Lansweeper's: ${sw.name}${p.port ? ` · port ${p.port}` : ''}</button>` : ''}</p>` : ''}`,
     'Where a scan of the switch sees this device: the port it is alone on');
 }
 /* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
