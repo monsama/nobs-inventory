@@ -22,7 +22,14 @@ export async function loadVersion(){
 /* Starts the page: reads the version and who is signed in (api/me) and what the server offers. Without a server it says
    so; signed out it shows the sign-in, with what went wrong on a single sign-on; signed in it loads the inventory. */
 export async function boot(){
-  loadVersion();
+  loadVersion().then(v => {
+    /* The version at the right end of the status bar; a click opens Settings → About. */
+    const b = document.getElementById('verBtn'); if (!b || !v) return;
+    b.textContent = 'v' + v; b.title = `NOBS Inventory ${v}: About`; b.hidden = false;
+    /* On a phone, the version as text: the status bar is too small for a button to tap. */
+    const t = document.getElementById('verTxt'); if (t) t.textContent = 'v' + v;
+    b.onclick = async () => { st.setTab = 'about'; (await import('./04-settings.js')).openSettings(); };
+  });
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
   if (!info){ showUnreachable(); return; }

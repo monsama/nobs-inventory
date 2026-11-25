@@ -434,6 +434,17 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 /* "? Shortcuts" at the right end of the status bar: small, like the rest of the bar. */
 .statusbar .sb-keys{margin-left:auto;height:auto;min-height:0;padding:0 2px;border:0;background:none;color:var(--muted);font-size:12px;cursor:pointer}
 .statusbar .sb-keys:hover{color:var(--fg)}
+/* The version, always at the right end of the status bar (after Shortcuts, or on its own on a phone): a click opens About. */
+.statusbar .sb-ver{height:auto;min-height:0;padding:0 2px;border:0;background:none;color:var(--muted);font-size:12px;cursor:pointer;font-variant-numeric:tabular-nums}
+.statusbar .sb-ver:hover{color:var(--fg)}
+span.sb-ver{cursor:default}
+@media screen and (max-width:760px){.statusbar .ph-only{display:inline-flex;margin-left:auto}}
+/* Buy me a coffee: always in the top bar, a warm outline; on a narrow screen the cup only. */
+#coffeeBtn.coffee{display:inline-flex;align-items:center;gap:6px;height:26px;min-height:0;padding:0 10px;border:1px solid color-mix(in srgb,#e8a400 55%,var(--bd));border-radius:13px;background:color-mix(in srgb,#ffdd00 12%,transparent);color:var(--fg);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap}
+#coffeeBtn.coffee:hover{background:color-mix(in srgb,#ffdd00 24%,transparent)}
+#coffeeBtn.coffee .i{width:15px;height:15px}
+@media (max-width:900px){#coffeeBtn.coffee{padding:0;width:26px;flex:none;justify-content:center}#coffeeBtn .coffee-t{display:none}}
+@media (pointer:coarse) and (any-hover:none){#coffeeBtn.coffee{width:40px;height:40px;border-radius:var(--r-m)}}
 /* The device's name takes the focus when it opens (for Tab to carry on there); it is not a control, so no ring. */
 #objTitle:focus{outline:none}
 
@@ -1265,9 +1276,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 #barMore:popover-open{display:flex}
 #barMore>*{justify-content:flex-start;width:100%;height:32px;padding:0 10px;border-color:transparent;background:transparent;color:var(--fg);font-weight:400}
 #barMore>*:hover{background:var(--hover)}
-#barMore #coffeeBtn{display:inline-flex}
 #barMore #themeBtn::after{content:"Light / dark";margin-left:8px}
-#barMore #coffeeBtn::after{content:"Buy me a coffee";margin-left:8px}
 #barMore #whoBtn{font-weight:600;height:auto;min-height:36px;border-radius:var(--r-m) var(--r-m) 0 0;border-bottom:1px solid var(--bd);margin-bottom:2px}
 #barMore #signOutBtn{gap:8px}
 /* The bell: a count in red (a problem among them) or amber; its list says what and leads there. */
@@ -1298,9 +1307,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
  #barMore:popover-open{display:flex}
  #barMore>*{justify-content:flex-start;width:100%;height:40px;padding:0 10px;border-color:transparent;background:transparent;color:var(--fg);font-weight:400}
  #barMore>*:hover{background:var(--hover)}
- #barMore #coffeeBtn{display:inline-flex}
  #barMore #themeBtn::after{content:"Light / dark";margin-left:8px}
- #barMore #coffeeBtn::after{content:"Buy me a coffee";margin-left:8px}
  #barMore #bellBtn::after{content:"Notifications";margin-left:8px;order:1}
  #barMore #bellBtn .bell-n{position:static;order:2;margin-left:auto;box-shadow:none}
  #barMoreBtn{position:relative}
@@ -1318,7 +1325,6 @@ table.grid a.rowopen:hover{text-decoration:underline}
   input[type=checkbox],input[type=radio]{width:24px!important;height:24px!important}
   table.grid tr.fr input{height:36px!important;font-size:14px}
   button.icon{min-width:40px}
-  #coffeeBtn{display:none}   /* the top bar is full on a phone; About has the same link */
 }
 
 /* Calm look: one accent colour; type colours only where they carry meaning (plans, the relationship map, rack units);
