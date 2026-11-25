@@ -16,7 +16,37 @@ concurrency:
 permissions:
   contents: read
 
+# The jobs start together: none waits for another's result (a failing unit test does not hold the browser tests back),
+# so a run takes as long as its slowest job.
 jobs:
+  # What a pull request touches: the browser tests are left out when it changes only the Lansweeper push script, its
+  # tests or the documentation, which they do not test. A push to main runs everything, and so does any doubt (no base,
+  # an empty diff, this job failing).
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      browser: ${{ steps.diff.outputs.browser }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          browser=true
+          if [ "$EVENT" = pull_request ] && [ -n "$BASE" ]; then
+            files=$(git diff --name-only "$BASE"...HEAD)
+            printf '%s\n' "$files"
+            if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Evq '^(scripts/Lansweeper-Push\.ps1|tests/push-script\.ps1|docs/.*|[^/]*\.md)$'; then browser=false; fi
+          fi
+          echo "browser=$browser" >> "$GITHUB_OUTPUT"
+          echo "Browser tests: $browser"
+
   unit:
     name: API, directory, Lansweeper and user tests
     runs-on: ubuntu-latest
@@ -46,11 +76,13 @@ jobs:
     # The Playwright image has Chromium and its system libraries already, so nothing is installed per run.
     container: mcr.microsoft.com/playwright:v1.64.1-noble
     timeout-minutes: 20
-    needs: unit
+    needs: changes
+    # Skipped only when the change touches nothing they test; run when the check itself could not tell.
+    if: ${{ !cancelled() && needs.changes.outputs.browser != 'false' }}
     strategy:
       fail-fast: false
       matrix:
-        group: [a, b, c]   # each a third of tests/browser (scripts/browser-tests.mjs --shard), several files at once
+        group: [a, b, c, d]   # each a quarter of tests/browser (scripts/browser-tests.mjs --shard), several files at once
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -69,7 +101,6 @@ jobs:
     name: "Release steps: archive, image build and scan"
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: unit
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
