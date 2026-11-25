@@ -15,7 +15,9 @@
     Monitors are linked to the PC they are attached to (from the monitor scan, and from Lansweeper's Relations for
     monitors that are assets of their own). The installed software of each device is
     sent as well, and its firmware, last power event, disks and antivirus state. A virtual machine that a Hyper-V or
-    VMware host scan lists is linked to its host. Switch ports are not read: the inventory keeps those connections by hand.
+    VMware host scan lists is linked to its host. A device a scanned switch sees alone on a port is linked to that switch
+    port ("plugged into"); a port with several devices (an uplink, an access point, a phone with a PC behind it) is passed
+    over, and a connection made by hand in NOBS is never changed.
 
     The first run asks for the NOBS address and the feed token (Settings -> Feed -> Create token), checks both
     against the server, and keeps them: the address in Lansweeper-Push.config.ps1 next to this script, the token
@@ -104,6 +106,10 @@ $script:Wanted = [ordered]@{
     # an asset of its own is linked to its host ("Runs on" in NOBS). Not there in every Lansweeper: then no link.
     tblHyperVGuest = @('AssetID', 'Name')
     tblVMwareGuest = @('AssetID', 'Name')
+    # The MAC addresses a scanned switch sees on each of its ports (AssetID is the switch), and the ports' names: a device
+    # alone on a port is plugged into it ("Plugged into" in NOBS). Not there without SNMP scans of the switches: then no link.
+    tblSNMPAssetMac = @('AssetID', 'IfIndex', 'AssetMacAddress')
+    tblSNMPIfaces  = @('AssetID', 'IfIndex', 'IfName', 'IfDescription')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
     tblSoftwareUni = @('SoftID', 'softwareName')
     # The printers set up on a Windows machine (also PDF, XPS, Fax: NOBS keeps only the real ones, by their port).
@@ -587,6 +593,86 @@ function Add-VmHostRelations($conn, $records) {
     return $n
 }
 
+# The port number in a switch port's name: 22 of 22, Port 22, 1/1/22 (Aruba CX), Gi1/0/22 (Cisco), Gi0/22, ge-0/0/21
+# (Juniper counts from 0). None for what has no plain number in NOBS: a second stack member (2/1/5), an uplink module
+# (Te1/1/1, Gi1/1/1), a module letter (A1), a 10G or faster port by name, a VLAN or a link aggregation.
+function Get-PortNumber([string]$Name) {
+    $n = "$Name".Trim()
+    if ($n -match '^(?i)(vlan|vl|trk|lag|po|port-channel|bridge-aggregation|bagg|ae|bond)\s*\d') { return $null }
+    if ($n -match '^(?i)(ge)-(\d+)/(\d+)/(\d+)$') { if ([int]$Matches[2] -eq 0 -and [int]$Matches[3] -eq 0) { return [int]$Matches[4] + 1 } else { return $null } }
+    if ($n -match '^(?i)(gi|gigabitethernet|fa|fastethernet)\s*(\d+)/(\d+)/(\d+)$') { if ([int]$Matches[2] -le 1 -and [int]$Matches[3] -eq 0) { return [int]$Matches[4] } else { return $null } }
+    if ($n -match '^(?i)(gi|gigabitethernet|fa|fastethernet)\s*(\d+)/(\d+)$') { if ([int]$Matches[2] -eq 0) { return [int]$Matches[3] } else { return $null } }
+    if ($n -match '^(\d+)/(\d+)/(\d+)$') { if ([int]$Matches[1] -le 1 -and [int]$Matches[2] -le 1) { return [int]$Matches[3] } else { return $null } }
+    if ($n -match '^(\d+)/(\d+)$') { if ([int]$Matches[1] -le 1) { return [int]$Matches[2] } else { return $null } }
+    if ($n -match '^(?i)(port\s*|ethernet\s*|eth\s*)?(\d+)$') { return [int]$Matches[2] }
+    return $null
+}
+
+# Devices linked to the switch port they are plugged into: from the MAC addresses each scanned switch sees on its ports.
+# Only a port that sees one device of the inventory (and at most MaxMacs addresses: more is an uplink or an access point)
+# counts, and only a device found on one such port. Virtual machines are left out (their host's port sees them).
+# Changes the records in place and returns how many got a link.
+function Add-SwitchPortRelations($conn, $records, [int]$MaxMacs = 3) {
+    if (-not ((Test-Col 'tblSNMPAssetMac' 'AssetID') -and (Test-Col 'tblSNMPAssetMac' 'IfIndex') -and (Test-Col 'tblSNMPAssetMac' 'AssetMacAddress'))) { return 0 }
+    $norm = { param($m) ("$m" -replace '[^0-9a-fA-F]', '').ToLowerInvariant() }
+    # A virtual machine's address (VMware, Hyper-V, VirtualBox, KVM): its host's port sees it, it is plugged into nothing.
+    $vmOui = @('005056', '000c29', '000569', '001c14', '00155d', '080027', '525400')
+    $byMac = @{}; $byRef = @{}
+    foreach ($rec in $records) {
+        if (-not $rec['ref'] -or "$($rec['ref'])" -like 'mon-*') { continue }
+        $byRef[[string]$rec['ref']] = $rec
+        # A virtual machine sits behind its host's port; network gear (a firewall, a switch, an access point) is the other
+        # end of an uplink, kept by hand in NOBS.
+        if ("$($rec['assetType'])" -match '^(?i)(virtual machine|switch|router|firewall|wireless|access ?point|wifi|wi-fi|wlan)') { continue }
+        $macs = @($rec['mac']) + @(@($rec['nics']) | Where-Object { $_ } | ForEach-Object { $_['mac'] })
+        foreach ($m in $macs) {
+            $k = & $norm $m
+            if ($k.Length -ne 12 -or $vmOui -contains $k.Substring(0, 6)) { continue }
+            if ($byMac.ContainsKey($k) -and $byMac[$k] -ne $rec) { $byMac[$k] = $null } else { $byMac[$k] = $rec }
+        }
+    }
+    $ifName = if (Test-Col 'tblSNMPIfaces' 'IfName') { 'i.[IfName]' } else { 'NULL' }
+    $ifDesc = if (Test-Col 'tblSNMPIfaces' 'IfDescription') { 'i.[IfDescription]' } else { 'NULL' }
+    $join = if ((Test-Col 'tblSNMPIfaces' 'AssetID') -and (Test-Col 'tblSNMPIfaces' 'IfIndex')) { 'LEFT JOIN [tblSNMPIfaces] i ON i.[AssetID] = m.[AssetID] AND i.[IfIndex] = m.[IfIndex]' } else { $ifName = 'NULL'; $ifDesc = 'NULL'; '' }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = "SELECT m.[AssetID] AS sw, m.[IfIndex] AS ix, m.[AssetMacAddress] AS mac, $ifName AS ifname, $ifDesc AS ifdesc FROM [tblSNMPAssetMac] m $join WHERE m.[AssetID] IS NOT NULL AND m.[AssetMacAddress] IS NOT NULL"
+    $cmd.CommandTimeout = 300
+    $ports = @{}
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $sw = ConvertTo-Text $reader['sw']; $ix = ConvertTo-Text $reader['ix']; $k = & $norm $reader['mac']
+            if (-not $sw -or $k.Length -ne 12) { continue }
+            $key = "$sw|$ix"
+            if (-not $ports.ContainsKey($key)) { $ports[$key] = @{ sw = $sw; name = $(if (Get-Clean $reader['ifname']) { Get-Clean $reader['ifname'] } else { Get-Clean $reader['ifdesc'] }); macs = @{} } }
+            $ports[$key].macs[$k] = $true
+        }
+    } finally { $reader.Close() }
+    # Each device and the ports that see it alone.
+    $portsOf = @{}
+    foreach ($p in $ports.Values) {
+        if ($p.macs.Count -gt $MaxMacs -or -not $byRef.ContainsKey($p.sw)) { continue }
+        # Compared by their ref: records are dictionaries, which Select-Object -Unique cannot tell apart.
+        $refs = @($p.macs.Keys | Where-Object { $byMac.ContainsKey($_) -and $byMac[$_] } | ForEach-Object { [string]$byMac[$_]['ref'] } | Sort-Object -Unique)
+        if ($refs.Count -ne 1 -or $refs[0] -eq $p.sw) { continue }
+        $dev = $byRef[$refs[0]]
+        $no = Get-PortNumber $p.name
+        if ($null -eq $no -or $no -lt 1) { continue }
+        $r = [string]$dev['ref']
+        if (-not $portsOf.ContainsKey($r)) { $portsOf[$r] = @() }
+        $portsOf[$r] += , @{ sw = $p.sw; port = $no }
+    }
+    $n = 0
+    foreach ($r in @($portsOf.Keys)) {
+        $list = @($portsOf[$r] | Sort-Object { "$($_.sw)|$($_.port)" } -Unique)
+        if ($list.Count -ne 1) { continue }
+        $rec = $byRef[$r]
+        $rec['links'] = @(@($rec['links']) | Where-Object { $_ -and $_.kind -ne 'connected' }) + @([ordered]@{ ref = $list[0].sw; kind = 'connected'; port = [string]$list[0].port })
+        $n++
+    }
+    return $n
+}
+
 # Virtual machines are their own type (no rack slot); a computer whose manufacturer or model says virtual is one.
 $script:VmPattern = 'vmware|virtual|qemu|kvm|xen|hyper-v|virtualbox|parallels|bochs|nutanix|proxmox'
 function Get-AssetTypeText($reader) {
@@ -924,6 +1010,7 @@ function Get-LsRecords {
             # Not known this time: every computer keeps the host link it has (keep), so none is taken away.
             foreach ($rec in $list) { if ($rec['ref'] -and "$($rec['ref'])" -notlike 'mon-*') { $rec['links'] = @(@($rec['links']) | Where-Object { $_ -and $_.kind -ne 'hosted' }) + @([ordered]@{ kind = 'hosted'; keep = $true }) } }
         }
+        try { $n = Add-SwitchPortRelations $conn $list; if ($n) { Write-PushLog "$n device(s) linked to the switch port they are plugged into" } } catch { Write-PushLog "Could not read the switch ports: $($_.Exception.Message)" 'WARN' }
         $script:IpLocations = Get-IpLocations $conn
         return , $list.ToArray()
     } finally { $conn.Dispose() }

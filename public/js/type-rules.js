@@ -8,6 +8,11 @@
 export const RULE_FIELDS = { any: 'Type, model or name', model: 'Model', type: 'Lansweeper type', name: 'Name', chassis: 'Chassis' };
 
 const r = (field, words, to) => ({ field, words, to, on: true });
+/* The model names of server lines (HPE, Dell, Fujitsu, Lenovo, IBM, Cisco, Supermicro). */
+export const SERVER_MODELS = 'proliant, poweredge, primergy, thinksystem, system x, bladecenter, ucsc-, ucsb-, superserver';
+/* Whether a model is one of a server line: it makes a server of a device typed PC, notebook or other, also with a list
+   of rules edited in Settings (which may not have the rule above). */
+export const isServerModel = model => { const m = String(model || '').toLowerCase(); return !!m && SERVER_MODELS.split(',').map(w => w.trim()).some(w => m.includes(w)); };
 export const DEFAULT_TYPE_RULES = [
   /* What the model or name says beats Lansweeper's type: it files industrial and video devices it reaches over the
      network as switches, network devices or web servers. */
@@ -41,6 +46,8 @@ export const DEFAULT_TYPE_RULES = [
   /* A hypervisor host is a physical server: ESXi, Hyper-V Server, Proxmox and the like, by name, model or type. Its
      virtual machines were taken by the rules just above. */
   r('any', 'esxi, vmware esx, vsphere, vcenter, hyper-v server, proxmox, xenserver, xcp-ng, nutanix, hypervisor, vmware', 'server'),
+  /* Server lines by their model: a ProLiant or PowerEdge is a server, whatever Lansweeper's type (Windows) or a name says. */
+  r('model', SERVER_MODELS, 'server'),
   r('chassis', 'portable, laptop, notebook, sub notebook, convertible, detachable', 'notebook'),
   /* Naming schemes: NB for a notebook and PC for a desktop, followed by a number (acmenb35, ACMEPC11, ZH-PC-0151). */
   r('name', 'nb, notebook, laptop', 'notebook'),

@@ -1,4 +1,6 @@
-import { LOGIN_RE } from './feed.js';
+import { LOGIN_RE, typeSetByHand } from './feed.js';
+import { isServerModel } from '../public/js/type-rules.js';
+import { stamp } from '../public/js/dates.js';
 import { markStockAuto } from './stock-auto.js';
 import { svgProblem, svgWithoutComments } from './state.js';
 import { liftOvr } from './fill.js';
@@ -138,6 +140,16 @@ export function migrateState(s) {
   }
   /* Before 0.9.88 a device could also be Not in use or In repair: both are In stock now (in use, in stock or retired). */
   for (const o of [...(s.objs || []), ...(s.review || [])]) if (o && ['unused', 'repair'].includes(o.status)) { o.status = 'stock'; changed = true; }
+  /* Before 0.9.178 a server model (ProLiant, PowerEdge) or a Windows Server could be typed PC: it is a server now, unless
+     a person chose its type. */
+  const TYPE_LABEL = { pc: 'PC', notebook: 'Notebook', other: 'Other' };
+  for (const o of s.objs || []) {
+    if (!o || !TYPE_LABEL[o.type] || typeSetByHand(s, o)) continue;
+    const why = isServerModel(o.model) ? `its model is a server's (${o.model})` : /windows server/i.test(String(o.os || '')) ? `its system is ${o.os}` : '';
+    if (!why) continue;
+    ((s.history ??= {})[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Type changed from ${TYPE_LABEL[o.type]} to Server by the type rules: ${why}` });
+    o.type = 'server'; changed = true;
+  }
   /* Before 0.9.177: devices in stock by themselves get their mark (stock-auto.js). */
   if (markStockAuto(s)) changed = true;
   for (const u of s.users || []) if (u && u.active === false && !u.leftAt) { u.leftAt = new Date().toISOString(); u.leftBy = true; changed = true; }

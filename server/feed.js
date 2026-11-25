@@ -2,7 +2,7 @@ import { attachedIds } from '../public/js/follow-host.js';
 import { historyLens, noteChanges } from './sync-changes.js';
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
-import { HOST_KINDS, relationProblem } from '../public/js/relations.js';
+import { HOST_KINDS, NET_GEAR, PORT_KINDS, relationProblem } from '../public/js/relations.js';
 import { LS_FIELDS, LS_FILL, fieldOrder } from '../public/js/sync-map.js';
 import { HttpError } from './errors.js';
 import { KNOWN_TYPES, intakeOf, normalizeVirtual } from './state.js';
@@ -18,7 +18,7 @@ import { parseCsv } from '../public/js/csv.js';
 import { realPrinters } from '../public/js/printers.js';
 export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
-import { typeByRules } from '../public/js/type-rules.js';
+import { typeByRules, isServerModel } from '../public/js/type-rules.js';
 
 /* The fields Lansweeper writes: one list with Settings → Data sources (public/js/sync-map.js). */
 const FEED_FIELDS = LS_FIELDS;
@@ -65,8 +65,9 @@ export function recordsFromJson(list) {
     /* A field that is not text or a number (an object, a list) is left empty, not stored as "[object Object]". */
     for (const k of FEED_TEXT) r[k] = raw && raw[k] != null && typeof raw[k] !== 'object' ? String(raw[k]).trim().slice(0, LONG_TEXT.includes(k) ? 1000 : 200) : '';
     /* A link joins this object to another one: by the other object's Lansweeper ref (or its name), with a port. Two
-       kinds come: attached (a monitor on its computer) and hosted (a virtual machine on its host). */
-    r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && (l.kind === 'attached' || l.kind === 'hosted')).slice(0, 50).map(l => ({
+       kinds come: attached (a monitor on its computer), hosted (a virtual machine on its host) and connected (a device
+       on the switch port a switch scan sees it on alone). */
+    r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && (l.kind === 'attached' || l.kind === 'hosted' || l.kind === 'connected')).slice(0, 50).map(l => ({
       ref: String(l && l.ref != null ? l.ref : '').trim().slice(0, 200),
       name: String(l && l.name != null ? l.name : '').trim().slice(0, 200),
       kind: l.kind,
@@ -235,20 +236,43 @@ function applyLinks(s, pairs, counts, seen) {
     for (const a of o.accessories || []) { if (a.links && !a.linksAt) a.linksAt = seen; addMerged(o.id, a.links, a.linksAt); }
   }
   const wantedOf = new Map(), own = new Set();
+  /* One switch port per device and push: the one its own record brings wins over a dock's (a laptop that left its dock
+     plugged in at another desk); docks that disagree give none. So the link does not swap back and forth each push. */
+  const ownPlug = new Set(pairs.filter(x => !x.linksOnly && Array.isArray(x.r.links) && x.r.links.some(l => l && l.kind === 'connected')).map(x => x.obj.id));
+  const plugKey = l => `${l.ref || l.name}|${l.port}`;
   for (const { r, obj, linksOnly } of pairs) {
     const owned = lsWrites(s, obj, 'links');
     if (!Array.isArray(r.links) || !owned) continue;
     if (!linksOnly) own.add(obj.id);
     const wanted = wantedOf.get(obj.id) || new Set();
     wantedOf.set(obj.id, wanted);
-    for (const l of linksOnly ? r.links : [...r.links, ...(mergedLinks.get(obj.id) || [])]) {
+    let list = linksOnly ? r.links : [...r.links, ...(mergedLinks.get(obj.id) || [])];
+    const plugs = list.filter(l => l && l.kind === 'connected');
+    if (plugs.length) {
+      const mine = linksOnly ? [] : r.links.filter(l => l && l.kind === 'connected');
+      const keep = mine.length ? mine.slice(0, 1) : ownPlug.has(obj.id) || new Set(plugs.map(plugKey)).size > 1 ? [] : plugs.slice(0, 1);
+      list = [...list.filter(l => !(l && l.kind === 'connected')), ...keep];
+    }
+    for (const l of list) {
       /* keep: the push could not tell this time (a guest two hosts list, the host step failed): the links of that kind
          Lansweeper made stay as they are, and none is made. */
       if (l && l.keep) { for (const x of s.rels) if (x.from === obj.id && x.kind === l.kind && x.src === 'Lansweeper') wanted.add(x.to + '|' + x.kind); continue; }
       const to = (l.ref && byRef.get(String(l.ref))) || (l.name && byName.get(l.name.toLowerCase())) || null;
       if (!to || to === obj || to.status === 'retired' || obj.status === 'retired') continue;
-      const port = l.port || null;
+      /* A switch port is a number, as one picked by hand. */
+      const port = l.kind === 'connected' && /^\d{1,4}$/.test(l.port || '') ? +l.port : l.port || null;
       wanted.add(to.id + '|' + l.kind);
+      /* A switch port: what Lansweeper sees is kept with the device (Sources). A device plugged in by hand stays as it
+         is; a port the switch does not have is passed over; one Lansweeper made to another port or switch moves. */
+      if (l.kind === 'connected') {
+        const plug = { to: to.id, port: port || '' };
+        if (obj.feed) obj.feed.plug = plug;
+        if (typeof port !== 'number' || port < 1) continue;
+        /* Network gear is the other end of an uplink (kept by hand), not plugged into the switch above it. */
+        if ([...NET_GEAR, 'accesspoint'].includes(obj.type)) continue;
+        if (s.rels.some(x => x.from === obj.id && PORT_KINDS.includes(x.kind) && x.src !== 'Lansweeper')) { counts.plugHand = (counts.plugHand || 0) + 1; continue; }
+        if (to.ports > 0 && +port > to.ports + (+to.sfp || 0)) { counts.plugNoPort = (counts.plugNoPort || 0) + 1; continue; }
+      }
       /* A port that another device already uses is not taken: the link is left out and counted, and the push goes on. */
       if (port != null && (to.type === 'patch' || to.ports > 0) && s.rels.some(x => x.to === to.id && String(x.port) === String(port) && x.from !== obj.id)){
         counts.portConflict = (counts.portConflict || 0) + 1; continue;
@@ -270,6 +294,8 @@ function applyLinks(s, pairs, counts, seen) {
       if (relationProblem(l.kind, asGuest ? { ...obj, kind: 'vm' } : obj, to, s.rels.filter(x => !mine.includes(x)))) { counts.linkRefused = (counts.linkRefused || 0) + 1; for (const x of mine) wanted.add(x.to + '|' + x.kind); continue; }
       if (asGuest) { obj.kind = 'vm'; ((s.history ??= {})[obj.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Kind set to Virtual machine (it runs on ${to.name})` }); }
       for (const x of mine) { s.rels.splice(s.rels.indexOf(x), 1); n++; }
+      /* Plugged in elsewhere now: the link Lansweeper made before goes (one link per device; none made by hand). */
+      if (l.kind === 'connected') for (const x of s.rels.filter(x => x.from === obj.id && x.kind === 'connected' && x.src === 'Lansweeper')) { s.rels.splice(s.rels.indexOf(x), 1); n++; }
       s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null, src: 'Lansweeper' });
       n++;
     }
@@ -294,7 +320,9 @@ export function modelFor(s, name) {
 /* The app type for a Lansweeper type name: a type mapping set in Settings (the name, without case) wins; then the type
    rules, in their order (the ones shipped, or the list edited in Settings → Feed). */
 /* A type chosen by hand on the page (or one the history says was changed by a person) is never changed by the rules. */
-export const typeSetByHand = (s, o) => pickOf(o, 'type') === 'hand' || ((s.history || {})[o.id] || []).some(h => /^Type changed from .+ by (?!the type rules)/.test(h.msg || ''));
+/* A message of the type rules has "by the type rules" where a person's has their name; a model in the message ("… (X by
+   Y)") does not make it a person's. */
+export const typeSetByHand = (s, o) => pickOf(o, 'type') === 'hand' || ((s.history || {})[o.id] || []).some(h => /^Type changed from .+ by /.test(h.msg || '') && !/^Type changed from .+? by the type rules\b/.test(h.msg || ''));
 /* Returns the type for a device from Lansweeper: name is Lansweeper's type name; model, devName and chassis go to the
    type rules too. role (workstation, server or dc, from Windows) moves a PC to server and back. */
 export function typeFor(s, name, model, role, devName = '', chassis = '') {
@@ -308,8 +336,8 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const byRules = virt(typeByRules(s.typeRules, { type: text, model, name: devName, chassis }).type);
   /* Windows says whether it is a workstation, a server or a domain controller, which is surer than the type's name:
      it moves a computer between PC and server. */
-  if ((role === 'server' || role === 'dc') && ['pc', 'notebook', 'other'].includes(byRules)) return 'server';
-  if (role === 'workstation' && byRules === 'server') return 'pc';
+  if ((role === 'server' || role === 'dc' || isServerModel(model)) && ['pc', 'notebook', 'other'].includes(byRules)) return 'server';
+  if (role === 'workstation' && byRules === 'server' && !isServerModel(model)) return 'pc';
   return byRules;
 }
 

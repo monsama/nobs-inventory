@@ -1,6 +1,6 @@
 /* The device page's sources: what Lansweeper, Microsoft Entra and Intune (with Defender) and Active Directory say of a
    device, one tab each in the Sources panel. */
-import { scanSpan, GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
+import { rels, scanSpan, GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 import { html, rawHtml } from './html.js';
@@ -23,7 +23,17 @@ function lsDates(o){
     row('Received', f.seen || 'not yet', 'When this app last received it from Lansweeper (the push script or an import). It says nothing about a scan.'),
     added ? row('Added here', added, 'When this device was added to NOBS Inventory') : '',
     f.linked ? row('Linked', f.linked, 'When this device was first matched to its Lansweeper asset') : '',
+    plugRow(o, row),
   ];
+}
+/* The switch port a switch scan sees the device on alone, and whether the inventory says the same. */
+function plugRow(o, row){
+  const p = o.feed && o.feed.plug, sw = p && byId(p.to);
+  if (!sw) return '';
+  const same = rels.some(r => r.from === o.id && r.kind === 'connected' && r.to === sw.id && String(r.port) === String(p.port));
+  const other = !same && rels.some(r => r.from === o.id && r.kind === 'connected');
+  return row('Switch port', html`${sw.name}${p.port ? ` · port ${p.port}` : ''}${other ? html`<p class="fieldnote warn">The inventory has it plugged in elsewhere (set by hand, so kept). Change it under Relations if Lansweeper is right.</p>` : ''}`,
+    'Where a scan of the switch sees this device: the port it is alone on');
 }
 /* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
 export function feedPanel(o){
@@ -44,7 +54,7 @@ export function feedPanel(o){
     : 'Where a value comes from shows beside each field; click the mark to compare the sources or fix one. Name and serial number are never overwritten.';
   /* Software and Links sit in the same list as the rest, so their boxes line up with the values above. */
   const takenBox = (k, text) => html`<label class="pchk lsbox-check"><input type="checkbox" data-lslist="${k}" ${feedOwns(o, k) ? 'checked' : ''}> ${text}</label>`;
-  return html`<div class="panelbox">${head}${dl(o.excluded || o.detached ? '' : html`<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (monitors)')}</dd>`)}
+  return html`<div class="panelbox">${head}${dl(o.excluded || o.detached ? '' : html`<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (monitors, host, switch port)')}</dd>`)}
     <div class="addrel"><span class="note" style="flex:1">${note}</span>${s.k === 'excluded' ? '' : html`<button id="detachFeed">Detach</button>`}</div></div>`;
 }
 /* What Microsoft Entra and Intune report about the device, read-only: how it is joined and managed, its compliance and
