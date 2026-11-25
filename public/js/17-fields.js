@@ -1,7 +1,7 @@
 /* The fields of a device page: which a type has, the control of each (lists, the model and address combos, dates),
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
 import { verifiedNote } from './22-stocktake.js';
-import { ownerDiffers, intuneOwnerOf, dirLocOf, listTypes, evEl, $$, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
+import { registeredOnly, ownerDiffers, intuneOwnerOf, dirLocOf, listTypes, evEl, $$, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
 import { USERS, freeStarts, isAdmin } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
@@ -431,7 +431,7 @@ export function fieldNote(o, k){
     if (sn && sn.gateway && sn.gateway !== o.gateway) return `<span></span><p class="fieldnote warn">${esc(`Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`)} <button type="button" class="link gwfix">Use ${esc(sn.gateway)}</button></p>`;
   }
   if (k === 'loc' && o.status !== 'retired' && !o.review) return locNote(o) + verifiedNote(o);
-  if (k === 'user' && !o.review && ownerDiffers(o)) return userNote(o);
+  if (k === 'user' && !o.review){ const n = userNote(o); if (n) return n; }
   if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') t = 'The warranty has ended.'; else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
   return t ? `<span></span><p class="fieldnote ${cls}">${esc(t)}</p>` : '';
 }
@@ -452,9 +452,16 @@ function locNote(o){
 /* Under the user: Intune names another primary user than the person it is given to here. Give it to them with one
    click (the field changes as if picked); never by itself, as the person here may be right (a shared or lent device). */
 function userNote(o){
-  const g = o.graph, p = intuneOwnerOf(o), name = g.ownerName || g.owner;
+  const g = o.graph;
+  if (!g || g.gone || !g.owner || o.status === 'retired') return '';
+  /* Given to someone else here; in stock though Intune names a person (Data quality: In stock, but someone uses it);
+     or a personal device, only registered in Entra, with nobody here: whose it is. */
+  const personal = registeredOnly(o) && !o.uid && !o.user && !o.hotdesk, stock = o.status === 'stock' && !o.uid && !o.hotdesk;
+  if (!ownerDiffers(o) && !stock && !personal) return '';
+  const p = intuneOwnerOf(o), name = g.ownerName || g.owner;
+  const what = personal ? 'owns it: a personal device, only registered in Entra' : stock ? `is its primary user, though it is in stock${p ? '' : ' (nobody here)'}` : p ? 'is the primary user' : 'is the primary user, nobody here';
   const ed = isAdmin() && !!p;
-  return `<span></span><p class="fieldnote user-intune">${esc(`Intune: ${name}`)} <span class="muted">${esc(p ? 'is the primary user' : 'is the primary user, nobody here')}</span>${ed ? ` · <button type="button" class="link" data-useruse="${esc(p.id)}">Give it to ${esc(p.name)}</button>` : ''}</p>`;
+  return `<span></span><p class="fieldnote user-intune">${esc(`Intune: ${name}`)} <span class="muted">${esc(what)}</span>${ed ? ` · <button type="button" class="link" data-useruse="${esc(p.id)}">Give it to ${esc(p.name)}</button>` : ''}</p>`;
 }
 /* The subnet a device is in: the one picked on it, or else the one its address falls in. */
 export function subnetFor(o){

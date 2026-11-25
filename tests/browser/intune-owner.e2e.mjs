@@ -18,6 +18,8 @@ saveState(db, { ...s0, users: [...s0.users, person('ua', 'Anna'), person('ub', '
   dev('n1', { uid: 'ua', user: 'Anna', graph: { join: 'AzureAd', owner: 'beat@corp.example', ownerName: 'Beat B.' } }),
   dev('n2', { uid: 'ua', user: 'Anna', graph: { join: 'AzureAd', owner: 'zoe@corp.example', ownerName: 'Zoe' } }),
   dev('n3', { uid: 'ub', user: 'Beat', graph: { join: 'AzureAd', owner: 'beat@corp.example', ownerName: 'Beat B.' } }),
+  dev('n4', { status: 'stock', graph: { join: 'AzureAd', owner: 'beat@corp.example', ownerName: 'Beat B.' } }),
+  dev('n5', { graph: { join: 'Registered', owner: 'zoe@corp.example', ownerName: 'Zoe' } }),
 ] });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
@@ -48,6 +50,14 @@ try {
   await p.click('[data-useruse]');
   await storedBy(() => loadState(db), s => s.objs.find(o => o.id === 'n1').uid === 'ub');
   await until(p, () => !document.querySelector('.fieldnote.user-intune'));
+  // in stock, though Intune names Beat: said, and giving it to Beat puts it in use
+  await open('n4');
+  assert.match(await p.textContent('.fieldnote.user-intune'), /Intune: Beat B\. is its primary user, though it is in stock · Give it to Beat/);
+  await p.click('[data-useruse]');
+  await storedBy(() => loadState(db), s => { const o = s.objs.find(o => o.id === 'n4'); return o.uid === 'ub' && o.status === 'active'; });
+  // a personal device: whose it is
+  await open('n5');
+  assert.match(await p.textContent('.fieldnote.user-intune'), /Intune: Zoe owns it: a personal device, only registered in Entra/);
   assert.deepEqual(errors, []);
   console.log('intune owner: ok');
 } finally { await browser.close(); server.close(); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

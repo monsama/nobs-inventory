@@ -155,7 +155,7 @@ export const QUALITY_FIX = {
   leaver: ['user', 'bkAct', 'select them and take them back into stock, or give them to someone else'],
   addisabled: ['status', 'bkAct', 'select the ones no longer used and set their status'],
   ownerdiff: ['user', null, 'open each and give it to the right person'],
-  stockused: ['user', 'bkAct', 'hand each out to its user, or select them and set them to In use'],
+  stockused: ['user', null, 'open each: Give it to the person Intune names (under User / owner), or Hand out…'],
   reported: [null, null, 'open each, look at the problem and mark it as done'],
   /* The bar for it is "Make them rooms…" (02-views.js); the column shows what AD says. */
   locnew: ['dloc', null, ''],

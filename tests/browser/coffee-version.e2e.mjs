@@ -1,5 +1,6 @@
-/* Browser test: Buy me a coffee is always in the top bar (the cup only on a phone), and the version is always at the
-   right end of the status bar: a button to About on a screen with room, text on a phone. */
+/* Browser test: Buy me a coffee is always in the top bar (in the account menu on a phone, where the search needs the
+   room), and the version is always at the right end of the status bar, once: a button to About on a screen with room,
+   text on a phone. */
 import { chromium, devices } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
@@ -22,14 +23,19 @@ try {
     await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
     await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
     await p.waitForSelector('#verBtn:not([hidden])', { state: 'attached' });
-    assert.equal(await p.isVisible('header #coffeeBtn'), true, `${name}: coffee in the top bar`);
     assert.equal(await p.getAttribute('#coffeeBtn', 'href'), 'https://buymeacoffee.com/monsama');
     if (name === 'desktop') {
+      assert.equal(await p.isVisible('header #coffeeBtn'), true, 'coffee in the top bar');
       assert.equal((await p.textContent('#coffeeBtn')).trim(), 'Buy me a coffee');
+      assert.equal(await p.isVisible('#verTxt'), false, 'the version once');
       assert.equal(await p.textContent('#verBtn'), 'v' + version);
       await p.click('#verBtn'); await p.waitForSelector('#setPane');
       assert.match(await p.textContent('#setPane'), new RegExp(version.replace(/\./g, '\\.')), 'About says the version');
     } else {
+      assert.equal(await p.isVisible('header #coffeeBtn'), false, 'the search keeps the room');
+      assert.ok((await p.locator('#gsBox').boundingBox()).width > 90, 'the search is usable');
+      await p.click('#barMoreBtn'); assert.equal(await p.isVisible('#barMore #coffeeMenu'), true, 'coffee in the account menu');
+      await p.keyboard.press('Escape');
       assert.equal(await p.isVisible('#verBtn'), false); assert.equal(await p.isVisible('#verTxt'), true);
       assert.equal(await p.textContent('#verTxt'), 'v' + version);
     }

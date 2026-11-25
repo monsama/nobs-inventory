@@ -7,7 +7,7 @@ import { renderSetModels } from './settings-feed.js';
 import { applyRole, isAdmin } from './04-settings.js';
 import { closeModal } from './19-modal.js';
 import { queueServerSave, render } from './07-render.js';
-import { listTypes, VIEWBOX_RE, ICON, iconSvg, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol, tico, relIndex, modelNames, REVIEW } from './01-core.js';
+import { ofTypeSel, listTypes, VIEWBOX_RE, ICON, iconSvg, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol, tico, relIndex, modelNames, REVIEW } from './01-core.js';
 import { SVG_ELEMENTS, SVG_ATTRS } from './svg-rules.js';
 import { html, rawHtml } from './html.js';
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
@@ -52,7 +52,8 @@ export const fieldKey = label => {
    Drawn again on its own after each change, so the list keeps its place. */
 export function renderSetTypeFields(){ renderTypeDetail(); }
 const MODELS_KEY = '__models';
-const devicesOf = k => objs.filter(o => o.type === k);
+/* As the list counts them: devices only registered in Entra are not in their type (ofTypeSel). */
+const devicesOf = k => objs.filter(o => ofTypeSel(o, k));
 /* A change saved on leaving a field redraws the type, while the focus has already moved on (Tab to the next field):
    fn runs, and the focus is put back on the field it went to, found again by its data attribute. */
 function keepFocus(fn){ setTimeout(() => keepFocusNow(fn)); }

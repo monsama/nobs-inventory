@@ -30,7 +30,7 @@ export const CARD_FIELDS = {
   serial: ['Serial', o => mono(o.serial)],
   os: ['OS', o => esc(o.os || '')],
   fw: ['Firmware', o => esc(o.fw || '')],
-  ports: ['Ports', (o, idx) => o.type === 'switch' ? `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o, idx)} used` : (o.type === 'patch' || hasPorts(o)) && o.ports ? `${o.ports} · ${used(o, idx)} used` : ''],
+  ports: ['Ports', (o, idx) => o.type === 'switch' ? `${o.ports || 0}${o.sfp ? ` + ${o.sfp} SFP` : ''} · ${used(o, idx)} used` : (o.type === 'patch' || hasPorts(o)) && o.ports ? `${o.ports} · ${used(o, idx)} used` : ''],
   ext: ['Extension', o => mono(o.ext)],
   kind: ['Kind', o => o.type === 'server' ? (o.kind === 'vm' ? 'Virtual machine' : o.kind === 'physical' ? 'Physical' : '') : ''],
   cap: ['Capacity', o => esc([o.cap, o.proto].filter(Boolean).join(' · '))],

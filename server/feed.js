@@ -240,6 +240,32 @@ function applyLinks(s, pairs, counts, seen) {
      plugged in at another desk); docks that disagree give none. So the link does not swap back and forth each push. */
   const ownPlug = new Set(pairs.filter(x => !x.linksOnly && Array.isArray(x.r.links) && x.r.links.some(l => l && l.kind === 'connected')).map(x => x.obj.id));
   const plugKey = l => `${l.ref || l.name}|${l.port}`;
+  /* The switch port each pair brings, chosen as said above. */
+  const plugOf = (r, obj, linksOnly) => {
+    const list = linksOnly ? r.links : [...r.links, ...(mergedLinks.get(obj.id) || [])], plugs = list.filter(l => l && l.kind === 'connected');
+    if (!plugs.length) return null;
+    const mine = linksOnly ? [] : r.links.filter(l => l && l.kind === 'connected');
+    return mine.length ? mine[0] : ownPlug.has(obj.id) || new Set(plugs.map(plugKey)).size > 1 ? null : plugs[0];
+  };
+  /* Before any port is checked: a switch port Lansweeper linked before that this push no longer brings (the device
+     replaced, moved, two devices swapping ports) is let go, so the port is free for the device on it now. Only when
+     the push carries switch ports at all (the switch scan worked) and the device's own record came; one kept by hand
+     is never touched. What Lansweeper sees goes with the device (Sources), and goes with the link. */
+  if (pairs.some(x => Array.isArray(x.r.links) && x.r.links.some(l => l && l.kind === 'connected'))) {
+    const plugFor = new Map();
+    for (const { r, obj, linksOnly } of pairs) {
+      if (!Array.isArray(r.links) || !lsWrites(s, obj, 'links')) continue;
+      const l = plugOf(r, obj, linksOnly);
+      if (!linksOnly) plugFor.set(obj.id, l || plugFor.get(obj.id) || null); else if (l && !plugFor.get(obj.id)) plugFor.set(obj.id, l);
+    }
+    for (const [id, l] of plugFor) {
+      const to = l && ((l.ref && byRef.get(String(l.ref))) || (l.name && byName.get(l.name.toLowerCase())));
+      const port = l && /^\d{1,4}$/.test(l.port || '') ? +l.port : null;
+      for (const x of s.rels.filter(x => x.from === id && x.kind === 'connected' && x.src === 'Lansweeper' && !(to && x.to === to.id && x.port === port))) { s.rels.splice(s.rels.indexOf(x), 1); n++; }
+      const o = ids.get(id);
+      if (!l && o && o.feed && o.feed.plug) { delete o.feed.plug; n++; }
+    }
+  }
   for (const { r, obj, linksOnly } of pairs) {
     const owned = lsWrites(s, obj, 'links');
     if (!Array.isArray(r.links) || !owned) continue;
@@ -266,7 +292,7 @@ function applyLinks(s, pairs, counts, seen) {
          is; a port the switch does not have is passed over; one Lansweeper made to another port or switch moves. */
       if (l.kind === 'connected') {
         const plug = { to: to.id, port: port || '' };
-        if (obj.feed) obj.feed.plug = plug;
+        if (obj.feed && JSON.stringify(obj.feed.plug || null) !== JSON.stringify(plug)) { obj.feed.plug = plug; n++; }
         if (typeof port !== 'number' || port < 1) continue;
         /* Network gear is the other end of an uplink (kept by hand), not plugged into the switch above it. */
         if ([...NET_GEAR, 'accesspoint'].includes(obj.type)) continue;
@@ -316,8 +342,11 @@ function applyLinks(s, pairs, counts, seen) {
 const PORT_GEAR = ['switch', 'router', 'firewall'];
 function fillPorts(s, o, r, seen){
   const n = /^\d{1,3}$/.test(r.portCount || '') ? +r.portCount : 0, sfp = /^\d{1,3}$/.test(r.sfpCount || '') ? +r.sfpCount : 0;
+  /* Once per device: ports a person cleared afterwards stay cleared. Not while the feed is off, nor over a count set by hand. */
+  if (s.feedOn === false || (o.feed && o.feed.portsFilled) || pickOf(o, 'ports') === 'hand') return false;
   if (!PORT_GEAR.includes(o.type) || n + sfp < 1 || n + sfp > 200 || o.ports > 0 || o.sfp > 0) return false;
   o.ports = n; if (sfp) o.sfp = sfp; else delete o.sfp;
+  if (o.feed) o.feed.portsFilled = true;
   if (o.id) ((s.history ??= {})[o.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${n} ports${sfp ? ` and ${sfp} SFP+ ports` : ''}, from the switch scan` });
   return true;
 }
@@ -353,7 +382,7 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
 
 /* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
 /* scans: a newer scan day, or a dock's links seen again (they are kept for DOCK_LINKS_DAYS from then): saved too. */
-export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans', 'settled', 'present'].some(k => counts[k] > 0);
+export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'printers', 'people', 'networks', 'scans', 'settled', 'present', 'inUse'].some(k => counts[k] > 0);
 
 /* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
 /* byHand: an export an admin uploaded: its new devices go straight in (IP-only ones still wait), as the person chose the file. */
