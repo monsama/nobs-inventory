@@ -442,10 +442,11 @@ span.sb-ver{cursor:default}
 .statusbar .ph-only{display:none}
 @media screen and (max-width:760px){.statusbar .ph-only{display:inline-flex;margin-left:auto}}
 /* Buy me a coffee: always in the top bar, a warm outline; on a narrow screen the cup only. */
-#coffeeBtn.coffee{display:inline-flex;align-items:center;gap:6px;height:26px;min-height:0;padding:0 10px;border:1px solid color-mix(in srgb,#e8a400 55%,var(--bd));border-radius:13px;background:color-mix(in srgb,#ffdd00 12%,transparent);color:var(--fg);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap}
+#coffeeBtn.coffee{display:inline-flex;flex:none;align-items:center;gap:6px;height:26px;min-height:0;overflow:hidden;padding:0 10px;border:1px solid color-mix(in srgb,#e8a400 55%,var(--bd));border-radius:13px;background:color-mix(in srgb,#ffdd00 12%,transparent);color:var(--fg);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap}
 #coffeeBtn.coffee:hover{background:color-mix(in srgb,#ffdd00 24%,transparent)}
 #coffeeBtn.coffee .i{width:15px;height:15px}
-@media (max-width:900px){#coffeeBtn.coffee{padding:0;width:26px;flex:none;justify-content:center}#coffeeBtn .coffee-t{display:none}}
+/* The words only where the bar has room for them; the cup alone below (never squeezed, so no text spills out). */
+@media (max-width:1180px){#coffeeBtn.coffee{padding:0;width:26px;justify-content:center}#coffeeBtn .coffee-t{display:none}}
 /* On a phone the top bar has no room left (the search would shrink to a stub): the coffee goes into the account menu. */
 #coffeeMenu{display:none}
 @media screen and (max-width:760px){#coffeeBtn.coffee{display:none}#barMore #coffeeMenu{display:inline-flex;gap:8px}}

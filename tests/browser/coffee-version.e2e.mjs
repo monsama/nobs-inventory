@@ -31,6 +31,19 @@ try {
       assert.equal(await p.textContent('#verBtn'), 'v' + version);
       await p.click('#verBtn'); await p.waitForSelector('#setPane');
       assert.match(await p.textContent('#setPane'), new RegExp(version.replace(/\./g, '\\.')), 'About says the version');
+      await p.keyboard.press('Escape');
+      // every width with room for the bar: nothing overlaps, the coffee never spills its words (a bell with a count too)
+      await p.evaluate(() => { const b = document.getElementById('bellBtn'); b.hidden = false; const n = document.getElementById('bellN'); n.hidden = false; n.textContent = '1'; });
+      for (let w = 770; w <= 1600; w += 30) {
+        await p.setViewportSize({ width: w, height: 800 });
+        const bad = await p.evaluate(() => {
+          const c = document.getElementById('coffeeBtn');
+          const items = [...document.querySelectorAll('#bar > *')].filter(e => e.offsetParent && !e.matches('[popover]')).map(e => e.getBoundingClientRect()).filter(r => r.width);
+          const over = items.some((a, i) => items.slice(i + 1).some(b => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
+          return c.scrollWidth > c.clientWidth + 1 || over;
+        });
+        assert.equal(bad, false, `the top bar at ${w}px`);
+      }
     } else {
       assert.equal(await p.isVisible('header #coffeeBtn'), false, 'the search keeps the room');
       assert.ok((await p.locator('#gsBox').boundingBox()).width > 90, 'the search is usable');
