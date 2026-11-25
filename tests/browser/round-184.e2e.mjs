@@ -23,11 +23,15 @@ saveState(db, { ...loadState(db), useLansweeper: true, history: {}, objs: [
   dev('pa', 'pc', 'PC-A', { feed: { sys: 'Lansweeper', ref: 'pa', scanned: today, plug: { to: 's1', port: 3 } } }),
   dev('pb', 'pc', 'PC-B', { feed: { sys: 'Lansweeper', ref: 'pb', scanned: today, plug: { to: 's1', port: 14 } } }),
   dev('mo', 'monitor', 'MON-A'),
+  dev('pn', 'pc', 'PC-NAME', { feed: { sys: 'Lansweeper', ref: 'pn', scanned: today, plug: { to: 's1', port: 'Gi1/0/14' } } }),
+  dev('pf', 'pc', 'PC-FAR', { feed: { sys: 'Lansweeper', ref: 'pf', scanned: today, plug: { to: 's1', port: 30 } } }),
   dev('nb', 'notebook', 'MY-MAC', { serial: '', graph: { join: 'Registered', owner: 'zoe@corp.example', ownerName: 'Zoe Z.' } }),
 ], rels: [
   { id: 'r1', from: 'pa', to: 's1', kind: 'connected', port: 3, vlan: null, src: 'Lansweeper' },
   { id: 'r2', from: 'pb', to: 's2', kind: 'connected', port: 7, vlan: null },
   { id: 'r3', from: 'mo', to: 'pa', kind: 'attached', port: null, vlan: null },
+  { id: 'r4', from: 'pn', to: 's2', kind: 'connected', port: 1, vlan: null },
+  { id: 'r5', from: 'pf', to: 's2', kind: 'connected', port: 2, vlan: null },
 ] });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
@@ -49,6 +53,11 @@ try {
   await p.waitForSelector('[data-close="pa"]'); await p.click('[data-close="pa"]');
   await until(p, async () => (await import('/js/01-core.js')).st.tab === 'table');
   assert.equal(await tab(), 'table');
+  // opened from another view (the Overview): back to the List, not to an older Table
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).view(); });
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('pa'));
+  await p.waitForSelector('[data-close="pa"]'); await p.click('[data-close="pa"]');
+  await until(p, async () => (await import('/js/01-core.js')).st.tab === 'cards');
 
   // 2. Relations mark the sync's link; Sources takes Lansweeper's port over the one set by hand
   const open = async (id, t) => { await p.evaluate(async id => (await import('/js/02-views.js')).openObj(id), id); await p.waitForSelector('.otabs'); if (t) await p.click(`[data-otabgo="${t}"]`); };
@@ -56,6 +65,8 @@ try {
   assert.match(await p.textContent('[data-pane="relations"]'), /Lansweeper/);
   await open('pb', 'sources'); await p.waitForSelector('[data-plugtake]');
   assert.match(await p.textContent('[data-plugtake]'), /Use Lansweeper's: SW-1 · port 14/);
+  // a port given as a name, or one the switch does not have: said, but nothing to take over
+  for (const id of ['pn', 'pf']) { await open(id, 'sources'); await p.waitForSelector('dt:text("Switch port")'); assert.equal(await p.locator('[data-plugtake]').count(), 0, id); }
 
   // 3. the port view marks port 14, and its map leaves the monitor out
   await p.click('[data-otabgo="details"]').catch(() => {});
@@ -63,6 +74,7 @@ try {
   await p.waitForSelector('.port[data-port="14"]');
   assert.equal(await p.evaluate(() => document.querySelector('.port[data-port="14"]').classList.contains('lsdiff')), true);
   assert.match(await p.textContent('.lsdiff-box'), /Port 14\s*PC-B/);
+  assert.doesNotMatch(await p.textContent('.lsdiff-box'), /NaN|PC-NAME/, 'a port given as a name is no port here');
   assert.doesNotMatch(await p.textContent('#view'), /MON-A/, 'no monitor behind the PC');
 
   // ... and taking Lansweeper's port moves PC-B there

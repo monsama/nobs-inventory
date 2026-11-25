@@ -646,7 +646,7 @@ export const QUALITY = {
   noserial: ['No serial number', 'A physical device without its serial number', o => !o.serial && o.kind !== 'vm' && !['vm', 'rack', 'patch'].includes(o.type) && !registeredOnly(o)],
   nouser: ['No user', 'A computer or phone in use that nobody is assigned to', o => PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk && !registeredOnly(o)],
   unseen: ['Not seen for 90 days', 'No source has seen it for over 90 days: is it still there?', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
-  unconfirmed: ['Not confirmed on site for 12 months', 'Not found in an inventory check, or confirmed on its page, for over a year', o => { if (!(st.stocktakes || []).some(t => t.finished)) return false; const d = daysSinceVerified(o); return d === null || d > STOCKTAKE_DAYS; }],
+  unconfirmed: ['Not confirmed on site for 12 months', 'Not found in an inventory check, or confirmed on its page, for over a year', o => { if (registeredOnly(o) || !(st.stocktakes || []).some(t => t.finished)) return false; const d = daysSinceVerified(o); return d === null || d > STOCKTAKE_DAYS; }],
   /* In stock, but someone has it: a user on it, or Intune's primary user is a person here and a source saw it lately. */
   stockused: ['In stock, but someone uses it', 'In stock, though it has a user, or Intune names a person here as its primary user and a source saw it in the last 30 days: hand it out, or, if it really is in stock, change its primary user in Intune', o => {
     if (o.status !== 'stock' || !PERSONAL.includes(o.type)) return false;

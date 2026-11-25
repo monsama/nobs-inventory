@@ -374,11 +374,12 @@ export function renderObj(o){
   { const pt = /** @type {HTMLElement|null} */ ($('#view [data-plugtake]'));
     if (pt) pt.onclick = () => {
       const p = o.feed && o.feed.plug, sw = p && byId(p.to); if (!sw || !isAdmin()) return;
+      if (!/^\d{1,4}$/.test(String(p.port)) || (sw.ports > 0 && +p.port > sw.ports + (+sw.sfp || 0))){ toast(`${sw.name} has no port ${p.port} here: set its ports first.`); return; }
       const was = rels.filter(r => r.from === o.id && r.kind === 'connected' && r.src !== 'Lansweeper');
       const other = rels.find(r => r.to === sw.id && String(r.port) === String(p.port) && r.from !== o.id && r.kind !== 'patched');
       if (other){ toast(`Port ${p.port} on ${sw.name} is taken by ${byId(other.from) ? byId(other.from).name : 'another device'}. Free it first.`); return; }
       for (const r of was) rels.splice(rels.indexOf(r), 1);
-      rels.push({ id: rid(), from: o.id, to: sw.id, kind: 'connected', port: +p.port || p.port, vlan: null, src: 'Lansweeper' });
+      rels.push({ id: rid(), from: o.id, to: sw.id, kind: 'connected', port: +p.port, vlan: null, src: 'Lansweeper' });
       hist(o, now(), `Plugged into ${sw.name} port ${p.port}, as Lansweeper sees it, by ${who()}${was.length ? ` (was ${was.map(r => `${byId(r.to) ? byId(r.to).name : '?'}${r.port != null ? ' port ' + r.port : ''}`).join(', ')})` : ''}`);
       queueServerSave(); toast(`${o.name} is on ${sw.name} port ${p.port} now`); render();
     }; }

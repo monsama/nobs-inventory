@@ -600,7 +600,8 @@ export function openObj(id){
   if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); }
   /* The list it was opened from (List, Table or the map), so closing the device goes back there (a Data quality list
      in the Table keeps its bar and selection). */
-  if (['cards', 'table', 'map'].includes(st.tab)) st.backTab = st.tab;
+  /* Opened from another view (Overview, search, ports): back to the List; from another device: as before. */
+  if (FIXED_TABS[st.tab]) st.backTab = ['cards', 'table', 'map'].includes(st.tab) ? st.tab : 'cards';
   st.tab = id; view(); const v = $('#view'); if (v) v.scrollTop = 0;
   /* The focus was on what opened it (a card, a row, the search), which is gone now: it goes to the device's name, so Tab
      carries on in the device instead of from the top of the page. A field focused on purpose keeps it. */

@@ -63,7 +63,7 @@ export function renderPorts(){
   const lsDiff = new Map();
   for (const o of objs) {
     const pl = o.feed && o.feed.plug;
-    if (!pl || pl.to !== sw.id || o.status === 'retired' || !pl.port) continue;
+    if (!pl || pl.to !== sw.id || o.status === 'retired' || !/^\d{1,4}$/.test(String(pl.port))) continue;
     if (rels.some(r => r.from === o.id && r.to === sw.id && String(r.port) === String(pl.port))) continue;
     if (!lsDiff.has(+pl.port)) lsDiff.set(+pl.port, []);
     lsDiff.get(+pl.port).push(o);
