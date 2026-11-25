@@ -35,3 +35,12 @@ test('devices typed PC before become servers on start, unless a person chose the
   assert.deepEqual(s.objs.map(o => o.type), ['server', 'server', 'pc', 'pc']);
   assert.match(s.history.a[0].msg, /Type changed from PC to Server by the type rules: its model is a server's \(Hewlett-Packard ProLiant DL380 Gen9\)/);
 });
+
+test('a type rules message with " by " in a model is not a person\'s choice; a person\'s is', async () => {
+  const { typeSetByHand } = await import('../server/feed.js');
+  const h = msg => ({ history: { a: [{ t: '1', msg }] } });
+  assert.equal(typeSetByHand(h("Type changed from PC to Server by the type rules: its model is a server's (Server by Acme)"), { id: 'a' }), false);
+  assert.equal(typeSetByHand(h('Type changed from other to Switch by the type rules (Lansweeper)'), { id: 'a' }), false);
+  assert.equal(typeSetByHand(h('Type changed from Server to PC by admin'), { id: 'a' }), true);
+  assert.equal(typeSetByHand(h('Type changed from Access point to Other by Ana Muster'), { id: 'a' }), true);
+});

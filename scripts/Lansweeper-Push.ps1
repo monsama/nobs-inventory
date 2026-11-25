@@ -593,15 +593,18 @@ function Add-VmHostRelations($conn, $records) {
     return $n
 }
 
-# The port number in a switch port's name: 22 of 1/1/22, Gi1/0/22, Port 22 or 22. A port of a second stack member
-# (2/1/5) has no number of its own in NOBS: none.
+# The port number in a switch port's name: 22 of 22, Port 22, 1/1/22 (Aruba CX), Gi1/0/22 (Cisco), Gi0/22, ge-0/0/21
+# (Juniper counts from 0). None for what has no plain number in NOBS: a second stack member (2/1/5), an uplink module
+# (Te1/1/1, Gi1/1/1), a module letter (A1), a 10G or faster port by name, a VLAN or a link aggregation.
 function Get-PortNumber([string]$Name) {
     $n = "$Name".Trim()
-    # A VLAN or a link aggregation (trunk, port channel, LAG) is no port a device is plugged into.
-    if ($n -match '^(?i)(vlan|vl|trk|lag|po|port-channel|bridge-aggregation|ae|bond)\s*\d') { return $null }
-    if ($n -match '(\d+)/(\d+)/(\d+)$') { if ([int]$Matches[1] -le 1) { return [int]$Matches[3] } else { return $null } }
-    if ($n -match '(\d+)/(\d+)$') { if ([int]$Matches[1] -le 1) { return [int]$Matches[2] } else { return $null } }
-    if ($n -match '^[A-Za-z \-]*?(\d+)$') { return [int]$Matches[1] }
+    if ($n -match '^(?i)(vlan|vl|trk|lag|po|port-channel|bridge-aggregation|bagg|ae|bond)\s*\d') { return $null }
+    if ($n -match '^(?i)(ge)-(\d+)/(\d+)/(\d+)$') { if ([int]$Matches[2] -eq 0 -and [int]$Matches[3] -eq 0) { return [int]$Matches[4] + 1 } else { return $null } }
+    if ($n -match '^(?i)(gi|gigabitethernet|fa|fastethernet)\s*(\d+)/(\d+)/(\d+)$') { if ([int]$Matches[2] -le 1 -and [int]$Matches[3] -eq 0) { return [int]$Matches[4] } else { return $null } }
+    if ($n -match '^(?i)(gi|gigabitethernet|fa|fastethernet)\s*(\d+)/(\d+)$') { if ([int]$Matches[2] -eq 0) { return [int]$Matches[3] } else { return $null } }
+    if ($n -match '^(\d+)/(\d+)/(\d+)$') { if ([int]$Matches[1] -le 1 -and [int]$Matches[2] -le 1) { return [int]$Matches[3] } else { return $null } }
+    if ($n -match '^(\d+)/(\d+)$') { if ([int]$Matches[1] -le 1) { return [int]$Matches[2] } else { return $null } }
+    if ($n -match '^(?i)(port\s*|ethernet\s*|eth\s*)?(\d+)$') { return [int]$Matches[2] }
     return $null
 }
 
@@ -618,7 +621,9 @@ function Add-SwitchPortRelations($conn, $records, [int]$MaxMacs = 3) {
     foreach ($rec in $records) {
         if (-not $rec['ref'] -or "$($rec['ref'])" -like 'mon-*') { continue }
         $byRef[[string]$rec['ref']] = $rec
-        if ("$($rec['assetType'])" -eq 'Virtual machine') { continue }
+        # A virtual machine sits behind its host's port; network gear (a firewall, a switch, an access point) is the other
+        # end of an uplink, kept by hand in NOBS.
+        if ("$($rec['assetType'])" -match '^(?i)(virtual machine|switch|router|firewall|wireless|access ?point|wifi|wi-fi|wlan)') { continue }
         $macs = @($rec['mac']) + @(@($rec['nics']) | Where-Object { $_ } | ForEach-Object { $_['mac'] })
         foreach ($m in $macs) {
             $k = & $norm $m

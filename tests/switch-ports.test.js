@@ -41,3 +41,26 @@ test('a connection made by hand stays; a used port or one the switch lacks is pa
   assert.equal(c3.plugNoPort, 1, 'SW03 has 24 ports');
   assert.deepEqual(plugs(s), [['pc2', 'sw', 22, undefined]]);
 });
+
+test('network gear is not plugged into the switch above it', () => {
+  const s = base([ls('sw', 'SW03', '50', 'switch', { ports: 48 }), ls('fw', 'FW-1', '70', 'firewall')]);
+  mergeRecords(s, recordsFromJson([{ name: 'SW03', ref: '50', assetType: 'Switch' }, { name: 'FW-1', ref: '70', assetType: 'Firewall', links: [{ kind: 'connected', ref: '50', port: '48' }] }]), now, []);
+  assert.deepEqual(plugs(s), []);
+});
+
+test('a laptop with a dock kept as an attachment: its own port wins over the dock\'s, and nothing swaps between pushes', () => {
+  const s = base([ls('sw', 'SW03', '50', 'switch', { ports: 48 }),
+    ls('pc', 'PC-1', '51', 'notebook', { accessories: [{ name: 'Docking station', kind: 'Dock', seenAs: 'pc-1.corp.example', ref: '80' }] })], { mergeTwins: true });
+  const push = (pcLinks, dockLinks) => mergeRecords(s, recordsFromJson([
+    { name: 'SW03', ref: '50', assetType: 'Switch' },
+    { name: 'PC-1', ref: '51', assetType: 'Windows', role: 'workstation', links: pcLinks },
+    { name: 'pc-1.corp.example', ref: '80', assetType: 'Windows', links: dockLinks },
+  ]), now, []);
+  push([{ kind: 'connected', ref: '50', port: '7' }], [{ kind: 'connected', ref: '50', port: '12' }]);
+  assert.deepEqual(plugs(s), [['pc', 'sw', 7, 'Lansweeper']], 'its own record\'s port');
+  const ids = s.rels.map(r => r.id);
+  push([{ kind: 'connected', ref: '50', port: '7' }], [{ kind: 'connected', ref: '50', port: '12' }]);
+  assert.deepEqual(s.rels.map(r => r.id), ids, 'the same push again changes nothing');
+  push([], [{ kind: 'connected', ref: '50', port: '12' }]);
+  assert.deepEqual(plugs(s), [['pc', 'sw', 12, 'Lansweeper']], 'seen only through its dock: the dock\'s port');
+});

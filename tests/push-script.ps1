@@ -147,6 +147,13 @@ $script:Cols = $saveCols
 # device on two ports, a virtual machine and a second stack member's port are passed over.
 Check 'port no: 1/1/22' (Get-PortNumber '1/1/22') 22
 Check 'port no: Gi1/0/5' (Get-PortNumber 'GigabitEthernet1/0/5') 5
+Check 'port no: Gi0/7' (Get-PortNumber 'Gi0/7') 7
+Check 'port no: Cisco uplink module' ([string](Get-PortNumber 'Te1/1/1')) ''
+Check 'port no: Cisco Gi uplink module' ([string](Get-PortNumber 'Gi1/1/1')) ''
+Check 'port no: ProCurve module letter' ([string](Get-PortNumber 'A1')) ''
+Check 'port no: Juniper from 0' (Get-PortNumber 'ge-0/0/5') 6
+Check 'port no: Juniper 10G' ([string](Get-PortNumber 'xe-0/0/1')) ''
+Check 'port no: H3C aggregation' ([string](Get-PortNumber 'BAGG1')) ''
 Check 'port no: 22' (Get-PortNumber '22') 22
 Check 'port no: Port 7' (Get-PortNumber 'Port 7') 7
 Check 'port no: second stack member' ([string](Get-PortNumber '2/1/5')) ''
@@ -163,6 +170,7 @@ $precs = @(
   [ordered]@{ ref = '54'; name = 'PC-TWO'; mac = 'aa:00:00:00:00:54'; assetType = 'Windows'; links = @() },
   [ordered]@{ ref = '55'; name = 'VM-1'; mac = '00:50:56:00:00:55'; assetType = 'Windows'; links = @() },
   [ordered]@{ ref = '56'; name = 'PC-STACK2'; mac = 'aa:00:00:00:00:56'; assetType = 'Windows'; links = @() },
+  [ordered]@{ ref = '58'; name = 'FW-1'; mac = 'aa:00:00:00:00:58'; assetType = 'Firewall'; links = @() },
   [ordered]@{ ref = '57'; name = 'PC-NIC'; mac = ''; nics = @(@{ mac = 'aa:00:00:00:00:57' }); assetType = 'Windows'; links = @([ordered]@{ ref = '9'; kind = 'attached'; port = '' }) })
 $macs = New-Table @('sw','ix','mac','ifname','ifdesc') @(
   @('50', '22', '6C:70:39:10:B0:39', '1/1/22', '1/1/22'),
@@ -171,6 +179,7 @@ $macs = New-Table @('sw','ix','mac','ifname','ifdesc') @(
   @('50', '9', '00:50:56:00:00:55', '1/1/9', ''),
   @('50', '10', 'aa:00:00:00:00:56', '2/1/10', ''),
   @('50', '11', 'aa:00:00:00:00:57', '', 'Port 11'),
+  @('50', '47', 'aa:00:00:00:00:58', '1/1/47', ''),
   @('50', '48', 'aa:00:00:00:01:01', '1/1/48', ''), @('50', '48', 'aa:00:00:00:01:02', '1/1/48', ''), @('50', '48', 'aa:00:00:00:01:03', '1/1/48', ''), @('50', '48', 'aa:00:00:00:00:51', '1/1/48', ''))
 Check 'switch ports: two linked' (Add-SwitchPortRelations (New-Conn $macs) $precs) 2
 Check 'switch ports: to the switch' $precs[1]['links'][0].ref '50'
@@ -180,7 +189,8 @@ Check 'switch ports: a port with two devices is passed over' "$($precs[2]['links
 Check 'switch ports: a device on two ports is passed over' $precs[4]['links'].Count 0
 Check 'switch ports: a virtual machine is passed over' $precs[5]['links'].Count 0
 Check 'switch ports: a second stack member is passed over' $precs[6]['links'].Count 0
-Check 'switch ports: by an adapter, the other links stay' (($precs[7]['links'] | ForEach-Object { "$($_.kind):$($_.port)" }) -join ',') 'attached:,connected:11'
+Check 'switch ports: network gear is passed over' $precs[7]['links'].Count 0
+Check 'switch ports: by an adapter, the other links stay' (($precs[8]['links'] | ForEach-Object { "$($_.kind):$($_.port)" }) -join ',') 'attached:,connected:11'
 Check 'switch ports: none without the tables' (& { $script:Cols = @{}; Add-SwitchPortRelations (New-Conn $macs) $precs }) 0
 $script:Cols = $saveCols
 
