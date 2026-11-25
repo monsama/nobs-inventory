@@ -34,7 +34,8 @@ test('a synced server the rules know as virtual gets Kind virtual at start or sy
   normalizeVirtual(s, { rules: true });
   const k = id => s.objs.find(o => o.id === id).kind;
   assert.deepEqual(['v1', 'v2', 'v3', 'v4', 'w1'].map(k), ['vm', 'vm', 'vm', 'vm', 'vm']);
-  assert.deepEqual(['p1', 'p2', 'm1'].map(k), [undefined, undefined, undefined], 'physical models and hand-entered servers: not known until someone says');
+  assert.equal(k('p1'), 'physical', 'a server line\'s model (ProLiant) is physical');
+  assert.deepEqual(['p2', 'm1'].map(k), [undefined, undefined], 'other models and hand-entered servers: not known until someone says');
   assert.equal(k('h1'), 'physical', 'a Kind already set stays');
   assert.match(s.history.v1[0].msg, /Kind set to Virtual machine/);
   assert.equal(virtualByRules(s, { model: 'KVM', name: 'app-vm03' }), true);

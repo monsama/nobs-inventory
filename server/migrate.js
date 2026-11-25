@@ -145,6 +145,11 @@ export function migrateState(s) {
   const TYPE_LABEL = { pc: 'PC', notebook: 'Notebook', other: 'Other' };
   for (const o of s.objs || []) {
     if (!o || !TYPE_LABEL[o.type] || typeSetByHand(s, o)) continue;
+    /* Not over a type mapping of Settings for its Lansweeper type, nor once anything (a person, the rules, a mapping)
+       moved it away from Server: so this never fights a choice, at any start. */
+    const lsType = String((o.feed && o.feed.assetType) || '').toLowerCase();
+    if (lsType && Object.keys(s.typeMap || {}).some(k => k.toLowerCase() === lsType)) continue;
+    if (((s.history || {})[o.id] || []).some(h => /^Type changed from Server to /i.test(String(h && h.msg || '')))) continue;
     const why = isServerModel(o.model) ? `its model is a server's (${o.model})` : /windows server/i.test(String(o.os || '')) ? `its system is ${o.os}` : '';
     if (!why) continue;
     ((s.history ??= {})[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Type changed from ${TYPE_LABEL[o.type]} to Server by the type rules: ${why}` });

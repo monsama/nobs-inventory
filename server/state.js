@@ -8,7 +8,7 @@ import { linksProblem } from '../public/js/links.js';
 import { maintProblem } from '../public/js/maintenance.js';
 import { SVG_ATTRS, SVG_ELEMENTS } from '../public/js/svg-rules.js';
 import { graphSettingsProblem } from './graph-keys.js';
-import { typeByRules, typeRulesProblem } from '../public/js/type-rules.js';
+import { typeByRules, typeRulesProblem, isServerModel } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
 import { fieldModeProblem, fieldOrderProblem } from '../public/js/sync-map.js';
 import { groupRolesProblem } from '../public/js/group-roles.js';
@@ -644,6 +644,10 @@ export function normalizeVirtual(s, { rules = false } = {}) {
     if (rules && (o.type === 'server' || o.type === 'pc') && !o.kind && o.feed && virtualByRules(s, o)) {
       o.kind = 'vm'; n++;
       if (s.history && typeof s.history === 'object') (s.history[o.id] ??= []).unshift({ t: new Date().toISOString(), msg: 'Kind set to Virtual machine (its model or Lansweeper type says virtual)' });
+    } else if (rules && o.type === 'server' && !o.kind && isServerModel(o.model)) {
+      /* A server line's model (ProLiant, PowerEdge) is a physical machine. */
+      o.kind = 'physical'; n++;
+      if (s.history && typeof s.history === 'object') (s.history[o.id] ??= []).unshift({ t: new Date().toISOString(), msg: `Kind set to Physical (a server model: ${o.model})` });
     }
   }
   return n;

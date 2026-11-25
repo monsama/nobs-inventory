@@ -44,3 +44,24 @@ test('a type rules message with " by " in a model is not a person\'s choice; a p
   assert.equal(typeSetByHand(h('Type changed from Server to PC by admin'), { id: 'a' }), true);
   assert.equal(typeSetByHand(h('Type changed from Access point to Other by Ana Muster'), { id: 'a' }), true);
 });
+
+test('the start-up retyping leaves a type mapping of Settings and a device moved away from Server alone', () => {
+  const s = { typeMap: { Windows: 'pc' }, history: { b: [{ t: '1', msg: 'Type changed from Server to PC by the type rules (Ana)' }] }, objs: [
+    { id: 'a', type: 'pc', model: 'HP ProLiant DL380 Gen9', feed: { sys: 'Lansweeper', ref: '1', assetType: 'Windows' } },
+    { id: 'b', type: 'pc', model: 'Dell PowerEdge R640' },
+    { id: 'c', type: 'pc', model: 'Dell PowerEdge R640' },
+  ] };
+  migrateState(s); migrateState(s);
+  assert.deepEqual(s.objs.map(o => o.type), ['pc', 'pc', 'server']);
+});
+
+test('a server with a server model and no Kind is physical; a Kind already set stays', async () => {
+  const { normalizeVirtual } = await import('../server/state.js');
+  const s = { history: {}, objs: [
+    { id: 'a', type: 'server', model: 'HP ProLiant ML350 Gen10' }, { id: 'b', type: 'server', model: 'Dell PowerEdge R640', kind: 'vm' },
+    { id: 'c', type: 'server', model: 'Supermicro X11' },
+  ] };
+  normalizeVirtual(s, { rules: true });
+  assert.deepEqual(s.objs.map(o => o.kind), ['physical', 'vm', undefined]);
+  assert.match(s.history.a[0].msg, /Kind set to Physical \(a server model: HP ProLiant ML350 Gen10\)/);
+});

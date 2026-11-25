@@ -15,7 +15,7 @@ import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './0
 import { typeText, dayText, agoText, lastSeenOf, sourcesOf, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { goneAllWith } from './gone.js';
-import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
+import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, used, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { openSettings, pickLocTexts, RACKABLE, ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, rackLocFollow, rackTopUsed, who } from './04-settings.js';
@@ -323,9 +323,9 @@ export function renderObj(o){
   const TABS = [['details', 'Details', 0], ['relations', 'Relations', rs.length], ...(srcHtml ? [['sources', 'Sources', 0]] : []), ['history', 'History', 0]];
   /* A device with ports (a switch, router, firewall): its port view one click away, with the ports in use. A link to
      another view, not a tab of this page: the arrow keys pass it by. */
-  const portsUsed = hasPorts(o) ? new Set(rels.filter(r => r.to === o.id && r.port != null && r.port !== '').map(r => String(r.port))).size : 0;
+  const portsUsed = hasPorts(o) ? used(o) : 0;   /* as the List counts them: the ports with a device, and linked LAGs */
   const total = (+o.ports || 0) + (+o.sfp || 0);
-  const portsBtn = hasPorts(o) ? html`<button type="button" class="otab otab-go" data-portsgo title="${`The ports of ${o.name}: what is plugged in where, port groups and port setup (Network → Ports)`}">Ports${total ? html` <span class="cnt">${portsUsed} of ${total}</span>` : ''} <span aria-hidden="true">→</span></button>` : '';
+  const portsBtn = hasPorts(o) && (total > 0 || ['switch', 'router', 'firewall'].includes(o.type)) ? html`<button type="button" class="otab otab-go" data-portsgo title="${`The ports of ${o.name}: what is plugged in where, port groups and port setup (Network → Ports)`}">Ports${total ? html` <span class="cnt">${portsUsed} of ${total}</span>` : ''} <span aria-hidden="true">→</span></button>` : '';
   /* Another device opens on Details, as a new record does; the tab picked stays while this one is redrawn. */
   if (st.objTabFor !== o.id){ st.objTab = 'details'; st.objTabFor = o.id; }
   const tab = TABS.some(t => t[0] === st.objTab) ? st.objTab : 'details';

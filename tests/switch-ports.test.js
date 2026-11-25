@@ -75,3 +75,38 @@ test('a switch scan fills the port count of a switch that has none; ports set by
   assert.deepEqual([by('SW04').ports, by('SW04').sfp], [22, 22], 'set by hand: kept');
   assert.deepEqual([by('SW05').ports, by('SW05').sfp], [8, undefined], 'a new switch gets its ports too');
 });
+
+test('a port Lansweeper linked before is freed when the push no longer brings it: replaced devices, swapped ports', () => {
+  const s = base([ls('sw', 'SW03', '50', 'switch', { ports: 24 }), ls('a', 'PC-A', '51', 'pc'), ls('b', 'PC-B', '52', 'pc')]);
+  const push = (aLinks, bLinks) => mergeRecords(s, recordsFromJson([{ name: 'SW03', ref: '50', assetType: 'Switch' },
+    { name: 'PC-A', ref: '51', assetType: 'Windows', links: aLinks }, { name: 'PC-B', ref: '52', assetType: 'Windows', links: bLinks }]), now, []);
+  push([{ kind: 'connected', ref: '50', port: '5' }], [{ kind: 'connected', ref: '50', port: '7' }]);
+  assert.deepEqual(plugs(s), [['a', 'sw', 5, 'Lansweeper'], ['b', 'sw', 7, 'Lansweeper']]);
+  const c = push([{ kind: 'connected', ref: '50', port: '7' }], [{ kind: 'connected', ref: '50', port: '5' }]);
+  assert.ok(!c.portConflict, 'swapped ports are no conflict');
+  assert.deepEqual(plugs(s).sort(), [['a', 'sw', 7, 'Lansweeper'], ['b', 'sw', 5, 'Lansweeper']]);
+  push([], [{ kind: 'connected', ref: '50', port: '7' }]);
+  assert.deepEqual(plugs(s), [['b', 'sw', 7, 'Lansweeper']], 'A seen on no port any more: its link goes, port 7 is B\'s');
+  assert.equal(s.objs.find(o => o.id === 'a').feed.plug, undefined, 'and what Lansweeper saw goes with it');
+  const again = mergeRecords(s, recordsFromJson([{ name: 'SW03', ref: '50', assetType: 'Switch' }, { name: 'PC-A', ref: '51', assetType: 'Windows', links: [] }, { name: 'PC-B', ref: '52', assetType: 'Windows', links: [{ kind: 'connected', ref: '50', port: '7' }] }]), now, []);
+  assert.ok(!again.links, 'the same push again changes nothing');
+});
+
+test('a push without switch ports at all (the switch scan failed) keeps the links', () => {
+  const s = base([ls('sw', 'SW03', '50', 'switch', { ports: 24 }), ls('a', 'PC-A', '51', 'pc')],
+    { rels: [{ id: 'r1', from: 'a', to: 'sw', kind: 'connected', port: 5, vlan: null, src: 'Lansweeper' }] });
+  mergeRecords(s, recordsFromJson([{ name: 'SW03', ref: '50', assetType: 'Switch' }, { name: 'PC-A', ref: '51', assetType: 'Windows', links: [] }]), now, []);
+  assert.deepEqual(plugs(s), [['a', 'sw', 5, 'Lansweeper']]);
+});
+
+test('ports are filled once: a count a person cleared stays cleared, and none while the feed is off', () => {
+  const s = base([ls('sw', 'SW03', '50', 'switch')]);
+  const push = () => mergeRecords(s, recordsFromJson([{ name: 'SW03', ref: '50', assetType: 'Switch', portCount: '24', sfpCount: '4' }]), now, []);
+  push(); const o = s.objs[0];
+  assert.equal(o.ports, 24);
+  o.ports = 0; delete o.sfp; push();
+  assert.equal(o.ports, 0, 'cleared by a person: stays');
+  const t = base([ls('sw', 'SW03', '50', 'switch')], { feedOn: false });
+  mergeRecords(t, recordsFromJson([{ name: 'SW03', ref: '50', assetType: 'Switch', portCount: '24' }]), now, []);
+  assert.equal(t.objs[0].ports, undefined, 'feed off: nothing written');
+});
