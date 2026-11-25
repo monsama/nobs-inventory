@@ -109,7 +109,7 @@ $script:Wanted = [ordered]@{
     # The MAC addresses a scanned switch sees on each of its ports (AssetID is the switch), and the ports' names: a device
     # alone on a port is plugged into it ("Plugged into" in NOBS). Not there without SNMP scans of the switches: then no link.
     tblSNMPAssetMac = @('AssetID', 'IfIndex', 'AssetMacAddress')
-    tblSNMPIfaces  = @('AssetID', 'IfIndex', 'IfName', 'IfDescription')
+    tblSNMPIfaces  = @('AssetID', 'IfIndex', 'IfName', 'IfDescription', 'IfType', 'IfSpeed')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
     tblSoftwareUni = @('SoftID', 'softwareName')
     # The printers set up on a Windows machine (also PDF, XPS, Fax: NOBS keeps only the real ones, by their port).
@@ -608,6 +608,50 @@ function Get-PortNumber([string]$Name) {
     return $null
 }
 
+# The ports a scanned switch (router, firewall) has, from its interfaces: the highest plain port number is the count, and
+# the 10 Gbit/s or faster ports at the end of the row are its SFP+ ports (numbered after the copper ones in NOBS). Only
+# Ethernet interfaces count, when Lansweeper has their type. Sets portCount and sfpCount on the records it knows; returns
+# how many.
+function Add-SwitchPortCounts($conn, $records) {
+    if (-not ((Test-Col 'tblSNMPIfaces' 'AssetID') -and ((Test-Col 'tblSNMPIfaces' 'IfName') -or (Test-Col 'tblSNMPIfaces' 'IfDescription')))) { return 0 }
+    $byRef = @{}
+    foreach ($rec in $records) { if ($rec['ref'] -and "$($rec['ref'])" -notlike 'mon-*') { $byRef[[string]$rec['ref']] = $rec } }
+    $col = { param($c) if (Test-Col 'tblSNMPIfaces' $c) { "[$($script:Cols['tblSNMPIfaces'][$c.ToLowerInvariant()])]" } else { 'NULL' } }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = "SELECT [AssetID] AS sw, $(& $col 'IfName') AS ifname, $(& $col 'IfDescription') AS ifdesc, $(& $col 'IfType') AS iftype, $(& $col 'IfSpeed') AS ifspeed FROM [tblSNMPIfaces] WHERE [AssetID] IS NOT NULL"
+    $cmd.CommandTimeout = 300
+    $ports = @{}
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $sw = ConvertTo-Text $reader['sw']
+            if (-not $sw -or -not $byRef.ContainsKey($sw)) { continue }
+            # 6 ethernetCsmacd, 62 fastEther, 117 gigabitEthernet: other kinds (VLANs, loopbacks, tunnels) are no port.
+            $type = ConvertTo-Text $reader['iftype']
+            if ($type -and $type -notin @('6', '62', '117')) { continue }
+            $name = if (Get-Clean $reader['ifname']) { Get-Clean $reader['ifname'] } else { Get-Clean $reader['ifdesc'] }
+            $no = Get-PortNumber $name
+            if ($null -eq $no -or $no -lt 1 -or $no -gt 200) { continue }
+            $speed = 0.0; [void][double]::TryParse((ConvertTo-Text $reader['ifspeed']), [ref]$speed)
+            if (-not $ports.ContainsKey($sw)) { $ports[$sw] = @{} }
+            $ports[$sw][$no] = ($speed -ge 4e9)
+        }
+    } finally { $reader.Close() }
+    $n = 0
+    foreach ($sw in @($ports.Keys)) {
+        $p = $ports[$sw]
+        if ($p.Count -lt 4) { continue }
+        $total = [int](($p.Keys | Measure-Object -Maximum).Maximum)
+        # The fast ports at the end of the row; a switch of only fast ports has them all as ports (no split).
+        $sfp = 0
+        for ([int]$i = $total; $i -ge 1 -and $p.ContainsKey($i) -and $p[$i]; $i--) { $sfp++ }
+        if ($sfp -ge $total) { $sfp = 0 }
+        $byRef[$sw]['portCount'] = [string]($total - $sfp); $byRef[$sw]['sfpCount'] = [string]$sfp
+        $n++
+    }
+    return $n
+}
+
 # Devices linked to the switch port they are plugged into: from the MAC addresses each scanned switch sees on its ports.
 # Only a port that sees one device of the inventory (and at most MaxMacs addresses: more is an uplink or an access point)
 # counts, and only a device found on one such port. Virtual machines are left out (their host's port sees them).
@@ -1010,6 +1054,7 @@ function Get-LsRecords {
             # Not known this time: every computer keeps the host link it has (keep), so none is taken away.
             foreach ($rec in $list) { if ($rec['ref'] -and "$($rec['ref'])" -notlike 'mon-*') { $rec['links'] = @(@($rec['links']) | Where-Object { $_ -and $_.kind -ne 'hosted' }) + @([ordered]@{ kind = 'hosted'; keep = $true }) } }
         }
+        try { $n = Add-SwitchPortCounts $conn $list; if ($n) { Write-PushLog "$n switch(es) with their port count" } } catch { Write-PushLog "Could not read the switch port counts: $($_.Exception.Message)" 'WARN' }
         try { $n = Add-SwitchPortRelations $conn $list; if ($n) { Write-PushLog "$n device(s) linked to the switch port they are plugged into" } } catch { Write-PushLog "Could not read the switch ports: $($_.Exception.Message)" 'WARN' }
         $script:IpLocations = Get-IpLocations $conn
         return , $list.ToArray()

@@ -194,6 +194,25 @@ Check 'switch ports: by an adapter, the other links stay' (($precs[8]['links'] |
 Check 'switch ports: none without the tables' (& { $script:Cols = @{}; Add-SwitchPortRelations (New-Conn $macs) $precs }) 0
 $script:Cols = $saveCols
 
+# A switch's port count from its interfaces: the highest plain port number, the fast ports at the end as SFP+; VLANs
+# and other kinds are no ports.
+$saveCols = $script:Cols
+$script:Cols = @{ tblSNMPIfaces = @{ assetid = 'AssetID'; ifname = 'IfName'; ifdescription = 'IfDescription'; iftype = 'IfType'; ifspeed = 'IfSpeed' } }
+$crecs = @([ordered]@{ ref = '50'; name = 'SW03'; links = @() }, [ordered]@{ ref = '60'; name = 'SW-SMALL'; links = @() }, [ordered]@{ ref = '70'; name = 'SW-ALLFAST'; links = @() })
+$rows = @()
+for ($i = 1; $i -le 24; $i++) { $rows += , @('50', "1/1/$i", '', '6', '1000000000') }
+for ($i = 25; $i -le 28; $i++) { $rows += , @('50', "1/1/$i", '', '6', '10000000000') }
+$rows += , @('50', 'vlan1', '', '53', ''); $rows += , @('50', '1/1/99', '', '24', '')
+$rows += , @('60', '1', '', '', ''); $rows += , @('60', '2', '', '', '')
+for ($i = 1; $i -le 8; $i++) { $rows += , @('70', "$i", '', '6', '10000000000') }
+$ifs = New-Table @('sw','ifname','ifdesc','iftype','ifspeed') $rows
+Check 'port counts: two switches' (Add-SwitchPortCounts (New-Conn $ifs) $crecs) 2
+Check 'port counts: copper' $crecs[0]['portCount'] '24'
+Check 'port counts: SFP+ at the end' $crecs[0]['sfpCount'] '4'
+Check 'port counts: too few ports' ([string]$crecs[1]['portCount']) ''
+Check 'port counts: all fast, no split' "$($crecs[2]['portCount'])/$($crecs[2]['sfpCount'])" '8/0'
+$script:Cols = $saveCols
+
 # What the push leaves out is counted in Lansweeper and said in the log.
 $Config = @{ MaxAgeDays = 0 }
 $script:Cols['tblAssetCustom'] = @{ state = 'State'; assetid = 'AssetID' }; $script:Cols['tblAssets'] = @{ lastseen = 'Lastseen' }

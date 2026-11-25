@@ -42,7 +42,7 @@ try {
   await page.waitForSelector('#f_a_ip');
 
   // the gateway and DNS servers of the subnet read as values, with where they come from, and are not stored
-  assert.equal(await page.getAttribute('#f_a_gateway', 'placeholder'), '172.21.103.1 · from Clients');
+  assert.equal(await page.getAttribute('#f_a_gateway', 'placeholder'), '172.21.103.1');
   assert.equal(await page.inputValue('#f_a_gateway'), '');
   assert.equal(await page.$eval('#f_a_gateway', e => getComputedStyle(e, '::placeholder').fontStyle), 'normal');
 

@@ -64,3 +64,14 @@ test('a laptop with a dock kept as an attachment: its own port wins over the doc
   push([], [{ kind: 'connected', ref: '50', port: '12' }]);
   assert.deepEqual(plugs(s), [['pc', 'sw', 12, 'Lansweeper']], 'seen only through its dock: the dock\'s port');
 });
+
+test('a switch scan fills the port count of a switch that has none; ports set by hand stay', () => {
+  const s = base([ls('sw', 'SW03', '50', 'switch'), ls('sw2', 'SW04', '60', 'switch', { ports: 22, sfp: 22 })]);
+  mergeRecords(s, recordsFromJson([{ name: 'SW03', ref: '50', assetType: 'Switch', portCount: '24', sfpCount: '4' }, { name: 'SW04', ref: '60', assetType: 'Switch', portCount: '48', sfpCount: '4' },
+    { name: 'SW05', ref: '61', assetType: 'Switch', portCount: '8', sfpCount: '0' }]), now, []);
+  const by = n => s.objs.find(o => o.name === n);
+  assert.deepEqual([by('SW03').ports, by('SW03').sfp], [24, 4]);
+  assert.match(s.history.sw[0].msg, /Lansweeper: 24 ports and 4 SFP\+ ports, from the switch scan/);
+  assert.deepEqual([by('SW04').ports, by('SW04').sfp], [22, 22], 'set by hand: kept');
+  assert.deepEqual([by('SW05').ports, by('SW05').sfp], [8, undefined], 'a new switch gets its ports too');
+});
