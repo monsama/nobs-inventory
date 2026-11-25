@@ -118,8 +118,9 @@ try {
   });
   await p.waitForSelector('#f_p1_subnet');
   assert.match(await p.textContent('#f_p1_subnet option[value=""]'), /Auto: Office · 10\.20\.0\.0\/24 \(from the address\)/);
-  assert.equal(await p.getAttribute('#f_p1_gateway', 'placeholder'), '10.20.0.1 · from Office');
-  assert.equal(await p.getAttribute('#f_p1_dns', 'placeholder'), '10.20.0.5, 10.20.0.6 · from Office');
+  assert.equal(await p.getAttribute('#f_p1_gateway', 'placeholder'), '10.20.0.1');
+  assert.match(await p.getAttribute('#f_p1_gateway', 'title'), /^10\.20\.0\.1: from the subnet Office\./, 'where it comes from: on hover');
+  assert.equal(await p.getAttribute('#f_p1_dns', 'placeholder'), '10.20.0.5, 10.20.0.6');
   assert.equal(await p.inputValue('#f_p1_gateway'), '', 'the gateway is not written into the device');
   // the address lists the free ones of its subnet: the first free first, one in use left out; a taken one typed is named
   await core(async () => { const c = await import('/js/01-core.js'); c.objs.push({ id: 'p9', code: 'INV-0099', type: 'pc', name: 'PC-NINE', status: 'active', loc: c.byId('p1').loc, ovr: {}, feed: null, ip: '10.20.0.100' }); });

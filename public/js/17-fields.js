@@ -83,7 +83,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     /* A device without its own gateway or DNS servers uses those of its subnet: shown in grey, not stored on the device. */
     const from = (k === 'gateway' || k === 'dns') && !val ? subnetFor(o) : null;
     const inherited = from ? (k === 'gateway' ? from.gateway : (from.dns || []).join(', ')) : '';
-    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}${inherited ? ' inherit' : ''}" value="${esc(val ?? '')}"${inherited ? ` placeholder="${esc(inherited)} · from ${esc(from.name)}" title="From the subnet ${esc(from.name)}. Type a value to set one for this device."` : ''}>`;
+    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}${inherited ? ' inherit' : ''}" value="${esc(val ?? '')}"${inherited ? ` placeholder="${esc(inherited)}" title="${esc(inherited)}: from the subnet ${esc(from.name)}. Type a value to set one for this device."` : ''}>`;
     /* A model can be typed or picked from the models already on the devices, in the app's own list (a browser's suggestion
        list cannot be styled like the other dropdowns). A new one typed here is offered to the others once saved. */
     if (k === 'model') ctl = comboHtml(ctl.replace('<input ', `<input placeholder="Type or pick a model" aria-describedby="${id}_note" `), id);
