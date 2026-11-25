@@ -537,14 +537,16 @@ export function reorderTabs(src, tgt){
 }
 export function closeObjTab(id){
   st.open = st.open.filter(x => x !== id); st.tabIds = st.tabIds.filter(x => x !== id);
-  if (st.tab === id) st.tab = 'cards';
+  if (st.tab === id) st.tab = backTab();
   view();
 }
+/* Where closing the last device page leads: the list it was opened from, else the List. */
+const backTab = () => ['cards', 'table', 'map'].includes(st.backTab) ? st.backTab : 'cards';
 /* Closes every open object tab except `keep` (or all of them when keep is null). The views stay open. */
 export function closeObjTabs(keep){
   st.open = st.open.filter(x => x === keep);
   st.tabIds = st.tabIds.filter(x => FIXED_TABS[x] || x === keep);
-  if (!FIXED_TABS[st.tab] && st.tab !== keep) st.tab = keep || 'cards';
+  if (!FIXED_TABS[st.tab] && st.tab !== keep) st.tab = keep || backTab();
   view();
 }
 /* The menu of a tab is a popover at the pointer: a click beside it or Escape closes it, and it is then gone. */
@@ -596,6 +598,9 @@ $('#objbar').addEventListener('click', onTabClick);
 export function openObj(id){
   newSeen(id);
   if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); }
+  /* The list it was opened from (List, Table or the map), so closing the device goes back there (a Data quality list
+     in the Table keeps its bar and selection). */
+  if (['cards', 'table', 'map'].includes(st.tab)) st.backTab = st.tab;
   st.tab = id; view(); const v = $('#view'); if (v) v.scrollTop = 0;
   /* The focus was on what opened it (a card, a row, the search), which is gone now: it goes to the device's name, so Tab
      carries on in the device instead of from the top of the page. A field focused on purpose keeps it. */

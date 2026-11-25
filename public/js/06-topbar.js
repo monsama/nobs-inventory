@@ -1,4 +1,4 @@
-import { TYPES, evEl, $$, $, COSTS, REVIEW, UNDO, leftFilters, objs, rels, st } from './01-core.js';
+import { QUALITY, TYPES, evEl, $$, $, COSTS, REVIEW, UNDO, leftFilters, objs, rels, st } from './01-core.js';
 import { newObjModal } from './05-new-object.js';
 import { isAdmin, me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render.js';
@@ -59,7 +59,7 @@ function drawBell(){
   const hid = pool.length - n;
   pop.innerHTML = html`<div class="bell-hdr"><b>Notifications</b><span class="muted">${n || 'none'}</span></div>
     ${n ? html`<div class="bell-list">${shown.map(x => html`<div class="bell-item ${x.sev}"><button type="button" class="bell-go" data-bell="${x.id}"><span class="dot ${x.sev}" aria-hidden="true"></span><span class="bell-t"><b>${x.title}</b><small>${x.text}</small></span></button><button type="button" class="icon bell-x" data-bellhide="${x.id}" title="Hide until it changes" aria-label="${`Hide until it changes: ${x.title}`}">×</button></div>`)}</div>`
-      : html`<p class="muted bell-none">No notifications right now.</p>`}
+      : html`<p class="muted bell-none">No notifications right now.<span data-bellq></span></p>`}
     <div class="bell-foot">${hid > 0 && html`<button type="button" class="link" data-bellall>Show ${hid} hidden</button>`}<span class="grow"></span><button type="button" class="link" data-bellov title="Everything open, counted by topic, on the Overview">All that needs attention</button></div>`;
 }
 /* Where a notice leads: the device, the Table filtered, a part of the Overview, a tab, Pending devices or a Settings tab. */
@@ -75,7 +75,16 @@ function goNotice(g){
     const el = g.overview && document.getElementById(g.overview); if (el) el.scrollIntoView({ block: 'start' });
   }
 }
+/* With no notifications, the bell still points to Data quality when it has devices to complete (counted only when the
+   bell opens: Data quality is standing work, not a notification, so it adds no count to the bell). */
+$('#bellPop').addEventListener('toggle', e => {
+  const slot = /** @type {HTMLElement} */ (e.target).querySelector('[data-bellq]');
+  if (!slot || /** @type {any} */ (e).newState !== 'open') return;
+  const n = objs.filter(o => o.status !== 'retired' && Object.values(QUALITY).some(q => q[2](o))).length;
+  slot.innerHTML = n ? String(html` <button type="button" class="link" data-bellqgo>Data quality: ${n} ${n === 1 ? 'device' : 'devices'} to complete</button>`) : '';
+});
 $('#bellPop').addEventListener('click', e => {
+  if (e.target.closest('[data-bellqgo]')){ goNotice({ overview: 'ovQuality' }); return; }
   const go = e.target.closest('[data-bell]'), hide = e.target.closest('[data-bellhide]'), all = e.target.closest('[data-bellall]');
   if (e.target.closest('[data-bellov]')){ goNotice({ overview: 'ovAttention' }); return; }
   if (go){ const x = NOTICES.find(n => n.id === go.dataset.bell); if (x) goNotice(x.go); }

@@ -1,5 +1,5 @@
 /* A switch's ports: setup, front panel, groups and the port map (split out of 02-views.js, which re-exports it). */
-import { portRangeError, seenChip, lagLinkOf, hasPorts, vlanLabel, $, STATUS, TYPES, byId, isUplink, objs, pfxOf, rels, st, tico, toast, used } from './01-core.js';
+import { portRangeError, seenChip, lagLinkOf, hasPorts, vlanLabel, $, STATUS, TYPES, byId, isUplink, isAttached, objs, pfxOf, rels, st, tico, toast, used } from './01-core.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { isAdmin } from './04-settings.js';
@@ -58,6 +58,16 @@ export function renderPorts(){
   const groupColour = i => `hsl(${(210 + i * 97) % 360} 28% 50%)`;   /* muted: a group is a group, not a warning */
   /* A port in a linked LAG is in use by the device on the other end of the LAG. */
   const lagUse = p => { const g = groupOf(p); const r = g && g.lag ? lagLinkOf(sw, g) : null; return r ? {r, d: byId(r.to === sw.id ? r.from : r.to), g} : null; };
+  /* Where Lansweeper's switch scan sees a device that the inventory has elsewhere (a connection set by hand): marked on
+     the port and listed under the panel, each with a way to its device (Sources → Use Lansweeper's). */
+  const lsDiff = new Map();
+  for (const o of objs) {
+    const pl = o.feed && o.feed.plug;
+    if (!pl || pl.to !== sw.id || o.status === 'retired' || !pl.port) continue;
+    if (rels.some(r => r.from === o.id && r.to === sw.id && String(r.port) === String(pl.port))) continue;
+    if (!lsDiff.has(+pl.port)) lsDiff.set(+pl.port, []);
+    lsDiff.get(+pl.port).push(o);
+  }
   const portBtn = p => {
     const inc = onPort(p), lu = lagUse(p);
     const dev = inc[0] ? byId(inc[0].from) : lu ? lu.d : null;
@@ -71,7 +81,8 @@ export function renderPorts(){
     const single = (sw.ports || 0) + (sw.sfp || 0) === 1;
     const gi = (sw.portGroups || []).findIndex(g => p >= g.from && p <= g.to);
     const grp = gi >= 0 ? html` grp${(sw.portGroups[gi].lag) ? ' lag' : ''}" style="--g:${groupColour(gi)}` : '';
-    return html`<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''} ${single?'single':''}${grp}" data-port="${p}" ${single?'disabled':''} title="${tip}" aria-label="${tip}">${p}</button>`;
+    const ls = lsDiff.get(p), tipLs = ls ? `${tip} · Lansweeper sees ${ls.map(o => o.name).join(', ')} here` : tip;
+    return html`<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''} ${single?'single':''}${ls ? ' lsdiff' : ''}${grp}" data-port="${p}" ${single?'disabled':''} title="${tipLs}" aria-label="${tipLs}">${p}</button>`;
   };
   const groups0 = sw.portGroups || [];
   /* A group being edited fills the form at the bottom; Save group writes it back in its place. */
@@ -81,8 +92,9 @@ export function renderPorts(){
   const sfps = []; for (let p = (sw.ports || 0)+1; p <= (sw.ports || 0)+(sw.sfp || 0); p++) sfps.push(p);
   const usedN = used(sw);
 
-  /* Everything plugged into the switch, with what hangs behind each device (a PC behind a phone, monitors behind a PC). */
-  const behind = (o, depth=0) => rels.filter(r => r.to === o.id && !isUplink(r.kind)).map(r => { const d = byId(r.from); return {d, r, depth, kids: depth < 3 ? behind(d, depth+1) : []}; });
+  /* Everything plugged into the switch, with what is plugged in behind each device (a PC behind a phone); the monitors and
+     docks attached to a computer are no network and are left out. */
+  const behind = (o, depth=0) => rels.filter(r => r.to === o.id && !isUplink(r.kind) && !isAttached(r.kind)).map(r => { const d = byId(r.from); return {d, r, depth, kids: depth < 3 ? behind(d, depth+1) : []}; });
   const flat = (arr, out=[]) => { arr.forEach(x => { out.push(x); flat(x.kids, out); }); return out; };
   const rows = [];
   for (let p = 1; p <= (sw.ports || 0) + (sw.sfp || 0); p++){
@@ -116,6 +128,7 @@ export function renderPorts(){
       ${groups0.length ? html`<div class="pgrouplegend">${groups0.map((g, i) => html`<span class="pgl${g.lag ? ' lag' : ''}" style="--g:${groupColour(i)}"><i></i>${g.name} <span class="muted">${pfxOf(sw) + g.from}${g.to !== g.from ? '-' + pfxOf(sw) + g.to : ''}</span>${g.lag ? html`<b>LAG</b>` : ''}</span>`)}</div>` : ''}
       <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? html`<span>Ports ${(sw.ports || 0)+1}-${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
     </div>
+    ${lsDiff.size ? html`<div class="panelbox lsdiff-box"><div class="hdr">Lansweeper sees otherwise <span class="cnt">${[...lsDiff.values()].flat().length}</span></div><p class="note" style="padding:8px 12px 0">The switch scan sees these devices on a port of ${sw.name} where the inventory does not have them (set by hand elsewhere). Open one: Sources → Switch port takes Lansweeper's.</p><div class="relist">${[...lsDiff].sort((a, b) => a[0] - b[0]).map(([p, list]) => list.map(o => html`<div class="relrow"><span class="k">Port ${pfxOf(sw) + p}</span><span class="t">${rawHtml(tico(o.type, 'tico sm'))}<a class="link" data-open="${o.id}">${o.name}</a></span></div>`))}</div></div>` : ''}
     ${st.portNo != null ? html`<div class="panelbox"><div class="hdr">Port ${pfxOf(sw) + st.portNo}</div><div class="addrel port-desc" data-edit><label class="muted" for="pnDesc">Description</label><input id="pnDesc" maxlength="120" value="${(sw.portNotes || {})[st.portNo] || ''}" placeholder="${portDetail[0] && portDetail[0].d.purpose ? `From the device: ${portDetail[0].d.purpose}` : 'What is on this port, e.g. Printer, 3rd floor'}" aria-label="Description of this port" style="flex:1"></div>${portDetail.length ? portDetail.map(x => html`<div class="path">${[{o:x.d}, ...(x.via && x.via.device ? [{o:x.via.device}] : []), ...x.sub.map(s => ({o:s.d}))].map((n, i) => html`${i ? (x.via && i === 1 ? html`<span class="edge">${x.via.port}${x.via.outlet ? ' · ' + x.via.outlet.name : ''}</span>` : edge) : ''}<button class="node" data-open="${n.o.id}">${rawHtml(tico(n.o.type,'tico sm'))}${n.o.name}</button>`)}</div>${x.via ? html`<p class="note via-note">${viaHtml(x.via)}</p>` : ''}${portInfo(x.via && x.via.device ? {...x, d: x.via.device} : x)}`) : html`<div class="path">${selLag ? html`<span class="muted">Part of the LAG ${selLag.g.name}, linked to</span> <button class="node" data-open="${selLag.d.id}">${rawHtml(tico(selLag.d.type,'tico sm'))}${selLag.d.name}</button>` : selGroup && selGroup.lag ? html`<span class="muted">Part of the LAG ${selGroup.name}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : html`<span class="muted">Port is free.</span>${isAdmin() ? html`<button id="assignBtn" class="primary">Plug in a device…</button><button id="assignNewBtn">New device…</button>` : ''}`}</div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
       <div class="relist">${groups0.length ? groups0.map((g, i) => html`<div class="relrow"><span class="k">${g.name}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${pfxOf(sw) + g.from}${g.from === g.to ? '' : '-' + pfxOf(sw) + g.to}${g.kind ? ` · ${g.kind}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${g.name}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${g.name}">×</button></div>`) : html`<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>`}</div>

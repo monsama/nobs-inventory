@@ -171,7 +171,7 @@ export function renderOverview(){
         <div class="ov-att">${mtDue.slice(0, 8).map(mtRow)}</div>
         ${mtDue.length > 8 ? html`<div class="chain"><button type="button" class="link" data-ovmt="all">Show all ${mtDue.length} in the Table</button></div>` : ''}</div>` : ''}
       ${planHtml(live)}
-      <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
+      <div class="panelbox" id="ovQuality"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar ${qPct >= 90 ? 'ok' : qPct >= 60 ? 'warn' : 'bad'}" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
         ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${r.label}</b><small>${r.hint}</small></span></button>`)}</div>`
           : html`<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>

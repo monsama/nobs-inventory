@@ -4,6 +4,7 @@ import { rels, scanSpan, GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_U
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 import { html, rawHtml } from './html.js';
+import { isAdmin } from './04-settings.js';
 
 /* A row of a source's list: left out when it has no value (a value may be html``, empty or not). */
 const filled = v => v != null && v !== false && String(v) !== '';
@@ -32,7 +33,7 @@ function plugRow(o, row){
   if (!sw) return '';
   const same = rels.some(r => r.from === o.id && r.kind === 'connected' && r.to === sw.id && String(r.port) === String(p.port));
   const other = !same && rels.some(r => r.from === o.id && r.kind === 'connected');
-  return row('Switch port', html`${sw.name}${p.port ? ` · port ${p.port}` : ''}${other ? html`<p class="fieldnote warn">The inventory has it plugged in elsewhere (set by hand, so kept). Change it under Relations if Lansweeper is right.</p>` : ''}`,
+  return row('Switch port', html`${sw.name}${p.port ? ` · port ${p.port}` : ''}${other ? html`<p class="fieldnote warn">The inventory has it plugged in elsewhere (set by hand, so kept).${isAdmin() ? html` <button type="button" class="link" data-plugtake>Use Lansweeper's: ${sw.name}${p.port ? ` · port ${p.port}` : ''}</button>` : ''}</p>` : ''}`,
     'Where a scan of the switch sees this device: the port it is alone on');
 }
 /* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
