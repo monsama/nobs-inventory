@@ -55,7 +55,7 @@ export function recordsFromCsv(text) {
    found it (firstSeen). Only those it sent are set, so an older push script that sends none keeps what is there. */
 const scanDays = r => Object.fromEntries(['scanned', 'tried', 'firstSeen'].filter(k => r[k]).map(k => [k, r[k]]));
 const FEED_TEXT = ['name', 'serial', 'ip', 'ip6', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
-  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'userName', 'scanned', 'tried', 'firstSeen', 'price', 'supplier', 'invoice'];
+  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'userName', 'scanned', 'tried', 'firstSeen', 'price', 'supplier', 'invoice', 'portCount', 'sfpCount'];
 /* Lists joined with "; " (every antivirus product, every drive) are longer than one value. */
 const LONG_TEXT = ['av', 'disk'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
@@ -311,6 +311,16 @@ function applyLinks(s, pairs, counts, seen) {
   return n;
 }
 
+/* The port count a switch scan gives (copper ports, then SFP+ ports) fills a switch, router or firewall that has none
+   yet; ports set by hand are never changed. Returns whether it filled them. */
+const PORT_GEAR = ['switch', 'router', 'firewall'];
+function fillPorts(s, o, r, seen){
+  const n = /^\d{1,3}$/.test(r.portCount || '') ? +r.portCount : 0, sfp = /^\d{1,3}$/.test(r.sfpCount || '') ? +r.sfpCount : 0;
+  if (!PORT_GEAR.includes(o.type) || n + sfp < 1 || n + sfp > 200 || o.ports > 0 || o.sfp > 0) return false;
+  o.ports = n; if (sfp) o.sfp = sfp; else delete o.sfp;
+  if (o.id) ((s.history ??= {})[o.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${n} ports${sfp ? ` and ${sfp} SFP+ ports` : ''}, from the switch scan` });
+  return true;
+}
 /* A model from Lansweeper is the model the user gave it, when there is a rename for it; otherwise it is kept as it comes. */
 export function modelFor(s, name) {
   const text = String(name || '');
@@ -523,6 +533,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       /* Every value it came with is Lansweeper's. */
       for (const k of [...FEED_FIELDS, 'user', 'loc']) if (obj[k]) markSource(obj, k, 'ls');
       for (const k of FEED_FIELDS) noteValue(obj, k, 'ls', obj[k], r.scanned || seen);
+      fillPorts(s, obj, r, seen);
       s.objs.push(obj); index(obj); inPush.add(obj);
       pairs.push({ r, obj });
       counts.created++;
@@ -581,6 +592,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       if (nics.length) found.nics = nics; else delete found.nics;
       changed = true;
     }
+    if (fillPorts(s, found, r, seen)) changed = true;
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = lsWrites(s, found, 'user');
     if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; markSource(found, 'user', 'ls'); changed = true; }
