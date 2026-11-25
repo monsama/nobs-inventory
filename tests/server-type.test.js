@@ -1,0 +1,37 @@
+/* A server model (ProLiant, PowerEdge) or a Windows Server is a server, from every source; devices typed PC before
+   become servers on start, unless a person chose their type. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { typeFor } from '../server/feed.js';
+import { graphType } from '../server/graph.js';
+import { adType } from '../server/ldap-sync.js';
+import { migrateState } from '../server/migrate.js';
+
+test('a server model is a server, whatever the type name, role or rules list', () => {
+  assert.equal(typeFor({}, 'Windows', 'HP ProLiant DL380 Gen9', ''), 'server', 'Lansweeper without a role');
+  assert.equal(typeFor({}, 'Windows', 'HP ProLiant DL380 Gen9', 'workstation'), 'server', 'a server model beats the role');
+  assert.equal(typeFor({}, 'Windows', 'Dell PowerEdge R740', '', 'ACMEPC11'), 'server', 'beats a PC-like name');
+  assert.equal(typeFor({ typeRules: [{ field: 'type', words: 'windows', to: 'pc', on: true }] }, 'Windows', 'HPE ProLiant DL360 Gen10', ''), 'server', 'with rules edited in Settings');
+  assert.equal(typeFor({}, 'Windows', 'VMware Virtual Platform', ''), 'server', 'a VM is still a server');
+  assert.equal(typeFor({}, 'Windows', 'HP EliteBook 840 G8', 'workstation'), 'notebook');
+  assert.equal(typeFor({}, 'Windows', 'HP ProDesk 600', 'workstation'), 'pc');
+});
+
+test('Intune: a Windows server is a server, a Windows client a PC', () => {
+  assert.equal(graphType({}, { platform: 'Windows', os: 'Windows Server 2019 Standard', model: '', name: 'APP01' }), 'server');
+  assert.equal(graphType({}, { platform: 'Windows', os: 'Windows 11 Pro', model: '', name: 'X1' }), 'pc');
+  assert.equal(graphType({}, { platform: 'Windows', os: 'Windows 10', model: 'ProLiant DL380 Gen9', name: 'X2' }), 'server');
+  assert.equal(adType({}, { os: 'Windows Server 2022 Datacenter', name: 'APP02' }), 'server');
+});
+
+test('devices typed PC before become servers on start, unless a person chose the type', () => {
+  const s = { history: { c: [{ t: '1', msg: 'Type changed from Server to PC by admin' }] }, objs: [
+    { id: 'a', type: 'pc', model: 'Hewlett-Packard ProLiant DL380 Gen9' },
+    { id: 'b', type: 'other', os: 'Windows Server 2016 Standard' },
+    { id: 'c', type: 'pc', model: 'Dell PowerEdge R640' },
+    { id: 'd', type: 'pc', model: 'HP ProDesk 600', os: 'Windows 11' },
+  ] };
+  migrateState(s);
+  assert.deepEqual(s.objs.map(o => o.type), ['server', 'server', 'pc', 'pc']);
+  assert.match(s.history.a[0].msg, /Type changed from PC to Server by the type rules: its model is a server's \(Hewlett-Packard ProLiant DL380 Gen9\)/);
+});

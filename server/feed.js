@@ -18,7 +18,7 @@ import { parseCsv } from '../public/js/csv.js';
 import { realPrinters } from '../public/js/printers.js';
 export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
-import { typeByRules } from '../public/js/type-rules.js';
+import { typeByRules, isServerModel } from '../public/js/type-rules.js';
 
 /* The fields Lansweeper writes: one list with Settings → Data sources (public/js/sync-map.js). */
 const FEED_FIELDS = LS_FIELDS;
@@ -308,8 +308,8 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const byRules = virt(typeByRules(s.typeRules, { type: text, model, name: devName, chassis }).type);
   /* Windows says whether it is a workstation, a server or a domain controller, which is surer than the type's name:
      it moves a computer between PC and server. */
-  if ((role === 'server' || role === 'dc') && ['pc', 'notebook', 'other'].includes(byRules)) return 'server';
-  if (role === 'workstation' && byRules === 'server') return 'pc';
+  if ((role === 'server' || role === 'dc' || isServerModel(model)) && ['pc', 'notebook', 'other'].includes(byRules)) return 'server';
+  if (role === 'workstation' && byRules === 'server' && !isServerModel(model)) return 'pc';
   return byRules;
 }
 

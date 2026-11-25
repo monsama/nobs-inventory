@@ -497,9 +497,11 @@ export function graphType(s, d) {
   const p = String(d.platform || d.os || '').toLowerCase();
   if (/ipados|ios/.test(p)) return 'ios';
   if (/android/.test(p)) return 'android';
-  const t = typeFor(s, '', d.model, '', d.name, '');
+  /* Intune names a Windows server's platform Windows (one managed by Defender, say): its system's name says Server. */
+  const server = /windows server|\bserver 20\d\d\b/.test(`${p} ${String(d.os || '').toLowerCase()}`);
+  const t = typeFor(s, '', d.model, server ? 'server' : '', d.name, '');
   if (/macos|mac os/.test(p)) return t === 'other' || t === 'pc' ? 'notebook' : t;
-  if (/windows/.test(p)) return t === 'other' ? 'pc' : t;
+  if (/windows/.test(p)) return t === 'other' ? (server ? 'server' : 'pc') : t;
   return t;
 }
 /* Adds devices from the list of those Graph has and the inventory does not. Each gets the next code, its type from its
