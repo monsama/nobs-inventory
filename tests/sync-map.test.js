@@ -114,7 +114,7 @@ test('a monitor Lansweeper sees on a dock hangs on the device the dock was merge
   const sw = { id: 'sw', code: 'INV-0004', name: 'SW-1', status: 'active', type: 'switch', ports: 24, feed: { sys: 'Lansweeper', ref: 'sw1' } };
   s.objs.push(sw);
   mergeRecords(s, [{ name: 'nb-7.corp.example', ref: 'dk7', links: [{ ref: 'sw1', kind: 'connected', port: '5' }] }], at);
-  assert.ok(s.rels.some(r => r.from === 'pc' && r.to === 'sw' && r.port === '5'), 'plugged in through the dock');
+  assert.ok(s.rels.some(r => r.from === 'pc' && r.to === 'sw' && r.port === 5), 'plugged in through the dock (the port a number, as one picked by hand)');
   mergeRecords(s, [{ name: 'NB-7', serial: 'S7', ref: 'nb7', links: [] }, { name: 'Dell P2422H', serial: 'M1', ref: 'm1', links: [{ ref: 'dk7', kind: 'attached' }] }], at);
   assert.ok(s.rels.some(r => r.from === 'mo' && r.to === 'pc'), 'the monitor stays on the device');
   // a dock kept as an attachment (Merge docking-station records): by its ref and the name Lansweeper sees it as

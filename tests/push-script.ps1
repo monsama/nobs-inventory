@@ -143,6 +143,47 @@ Check 'vm hosts: keep marker has no host' ([string]$vrecs[5]['links'][0].ref) ''
 Check 'vm hosts: none without the tables' (& { $script:Cols = @{}; Add-VmHostRelations (New-Conn $guests) $vrecs }) 0
 $script:Cols = $saveCols
 
+# A device a switch sees alone on a port is plugged into it, with the port's number; a port with several devices, a
+# device on two ports, a virtual machine and a second stack member's port are passed over.
+Check 'port no: 1/1/22' (Get-PortNumber '1/1/22') 22
+Check 'port no: Gi1/0/5' (Get-PortNumber 'GigabitEthernet1/0/5') 5
+Check 'port no: 22' (Get-PortNumber '22') 22
+Check 'port no: Port 7' (Get-PortNumber 'Port 7') 7
+Check 'port no: second stack member' ([string](Get-PortNumber '2/1/5')) ''
+Check 'port no: vlan' ([string](Get-PortNumber 'Vlan1')) ''
+Check 'port no: trunk' ([string](Get-PortNumber 'Trk2')) ''
+Check 'port no: port channel' ([string](Get-PortNumber 'Port-channel1')) ''
+$saveCols = $script:Cols
+$script:Cols = @{ tblSNMPAssetMac = @{ assetid = 'AssetID'; ifindex = 'IfIndex'; assetmacaddress = 'AssetMacAddress' }; tblSNMPIfaces = @{ assetid = 'AssetID'; ifindex = 'IfIndex'; ifname = 'IfName'; ifdescription = 'IfDescription' } }
+$precs = @(
+  [ordered]@{ ref = '50'; name = 'SW03'; mac = 'aa:00:00:00:00:50'; assetType = 'Switch'; links = @() },
+  [ordered]@{ ref = '51'; name = 'PC-ALONE'; mac = '6c:70:39:10:b0:39'; assetType = 'Windows'; links = @() },
+  [ordered]@{ ref = '52'; name = 'PC-SHARE'; mac = 'aa:00:00:00:00:52'; assetType = 'Windows'; links = @() },
+  [ordered]@{ ref = '53'; name = 'PHONE'; mac = 'aa:00:00:00:00:53'; assetType = 'VoIP'; links = @() },
+  [ordered]@{ ref = '54'; name = 'PC-TWO'; mac = 'aa:00:00:00:00:54'; assetType = 'Windows'; links = @() },
+  [ordered]@{ ref = '55'; name = 'VM-1'; mac = '00:50:56:00:00:55'; assetType = 'Windows'; links = @() },
+  [ordered]@{ ref = '56'; name = 'PC-STACK2'; mac = 'aa:00:00:00:00:56'; assetType = 'Windows'; links = @() },
+  [ordered]@{ ref = '57'; name = 'PC-NIC'; mac = ''; nics = @(@{ mac = 'aa:00:00:00:00:57' }); assetType = 'Windows'; links = @([ordered]@{ ref = '9'; kind = 'attached'; port = '' }) })
+$macs = New-Table @('sw','ix','mac','ifname','ifdesc') @(
+  @('50', '22', '6C:70:39:10:B0:39', '1/1/22', '1/1/22'),
+  @('50', '5', 'AA0000000052', '1/1/5', ''), @('50', '5', 'AA0000000053', '1/1/5', ''),
+  @('50', '7', 'aa:00:00:00:00:54', '1/1/7', ''), @('50', '8', 'aa:00:00:00:00:54', '1/1/8', ''),
+  @('50', '9', '00:50:56:00:00:55', '1/1/9', ''),
+  @('50', '10', 'aa:00:00:00:00:56', '2/1/10', ''),
+  @('50', '11', 'aa:00:00:00:00:57', '', 'Port 11'),
+  @('50', '48', 'aa:00:00:00:01:01', '1/1/48', ''), @('50', '48', 'aa:00:00:00:01:02', '1/1/48', ''), @('50', '48', 'aa:00:00:00:01:03', '1/1/48', ''), @('50', '48', 'aa:00:00:00:00:51', '1/1/48', ''))
+Check 'switch ports: two linked' (Add-SwitchPortRelations (New-Conn $macs) $precs) 2
+Check 'switch ports: to the switch' $precs[1]['links'][0].ref '50'
+Check 'switch ports: kind' $precs[1]['links'][0].kind 'connected'
+Check 'switch ports: port number' $precs[1]['links'][0].port '22'
+Check 'switch ports: a port with two devices is passed over' "$($precs[2]['links'].Count)/$($precs[3]['links'].Count)" '0/0'
+Check 'switch ports: a device on two ports is passed over' $precs[4]['links'].Count 0
+Check 'switch ports: a virtual machine is passed over' $precs[5]['links'].Count 0
+Check 'switch ports: a second stack member is passed over' $precs[6]['links'].Count 0
+Check 'switch ports: by an adapter, the other links stay' (($precs[7]['links'] | ForEach-Object { "$($_.kind):$($_.port)" }) -join ',') 'attached:,connected:11'
+Check 'switch ports: none without the tables' (& { $script:Cols = @{}; Add-SwitchPortRelations (New-Conn $macs) $precs }) 0
+$script:Cols = $saveCols
+
 # What the push leaves out is counted in Lansweeper and said in the log.
 $Config = @{ MaxAgeDays = 0 }
 $script:Cols['tblAssetCustom'] = @{ state = 'State'; assetid = 'AssetID' }; $script:Cols['tblAssets'] = @{ lastseen = 'Lastseen' }

@@ -65,8 +65,9 @@ export function recordsFromJson(list) {
     /* A field that is not text or a number (an object, a list) is left empty, not stored as "[object Object]". */
     for (const k of FEED_TEXT) r[k] = raw && raw[k] != null && typeof raw[k] !== 'object' ? String(raw[k]).trim().slice(0, LONG_TEXT.includes(k) ? 1000 : 200) : '';
     /* A link joins this object to another one: by the other object's Lansweeper ref (or its name), with a port. Two
-       kinds come: attached (a monitor on its computer) and hosted (a virtual machine on its host). */
-    r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && (l.kind === 'attached' || l.kind === 'hosted')).slice(0, 50).map(l => ({
+       kinds come: attached (a monitor on its computer), hosted (a virtual machine on its host) and connected (a device
+       on the switch port a switch scan sees it on alone). */
+    r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && (l.kind === 'attached' || l.kind === 'hosted' || l.kind === 'connected')).slice(0, 50).map(l => ({
       ref: String(l && l.ref != null ? l.ref : '').trim().slice(0, 200),
       name: String(l && l.name != null ? l.name : '').trim().slice(0, 200),
       kind: l.kind,
@@ -247,8 +248,18 @@ function applyLinks(s, pairs, counts, seen) {
       if (l && l.keep) { for (const x of s.rels) if (x.from === obj.id && x.kind === l.kind && x.src === 'Lansweeper') wanted.add(x.to + '|' + x.kind); continue; }
       const to = (l.ref && byRef.get(String(l.ref))) || (l.name && byName.get(l.name.toLowerCase())) || null;
       if (!to || to === obj || to.status === 'retired' || obj.status === 'retired') continue;
-      const port = l.port || null;
+      /* A switch port is a number, as one picked by hand. */
+      const port = l.kind === 'connected' && /^\d{1,4}$/.test(l.port || '') ? +l.port : l.port || null;
       wanted.add(to.id + '|' + l.kind);
+      /* A switch port: what Lansweeper sees is kept with the device (Sources). A device plugged in by hand stays as it
+         is; a port the switch does not have is passed over; one Lansweeper made to another port or switch moves. */
+      if (l.kind === 'connected') {
+        const plug = { to: to.id, port: port || '' };
+        if (obj.feed) obj.feed.plug = plug;
+        if (typeof port !== 'number' || port < 1) continue;
+        if (s.rels.some(x => x.from === obj.id && x.kind === 'connected' && x.src !== 'Lansweeper')) { counts.plugHand = (counts.plugHand || 0) + 1; continue; }
+        if (to.ports > 0 && +port > to.ports + (+to.sfp || 0)) { counts.plugNoPort = (counts.plugNoPort || 0) + 1; continue; }
+      }
       /* A port that another device already uses is not taken: the link is left out and counted, and the push goes on. */
       if (port != null && (to.type === 'patch' || to.ports > 0) && s.rels.some(x => x.to === to.id && String(x.port) === String(port) && x.from !== obj.id)){
         counts.portConflict = (counts.portConflict || 0) + 1; continue;
@@ -270,6 +281,8 @@ function applyLinks(s, pairs, counts, seen) {
       if (relationProblem(l.kind, asGuest ? { ...obj, kind: 'vm' } : obj, to, s.rels.filter(x => !mine.includes(x)))) { counts.linkRefused = (counts.linkRefused || 0) + 1; for (const x of mine) wanted.add(x.to + '|' + x.kind); continue; }
       if (asGuest) { obj.kind = 'vm'; ((s.history ??= {})[obj.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Kind set to Virtual machine (it runs on ${to.name})` }); }
       for (const x of mine) { s.rels.splice(s.rels.indexOf(x), 1); n++; }
+      /* Plugged in elsewhere now: the link Lansweeper made before goes (one link per device; none made by hand). */
+      if (l.kind === 'connected') for (const x of s.rels.filter(x => x.from === obj.id && x.kind === 'connected' && x.src === 'Lansweeper')) { s.rels.splice(s.rels.indexOf(x), 1); n++; }
       s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null, src: 'Lansweeper' });
       n++;
     }
