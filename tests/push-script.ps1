@@ -161,7 +161,7 @@ Check 'port no: vlan' ([string](Get-PortNumber 'Vlan1')) ''
 Check 'port no: trunk' ([string](Get-PortNumber 'Trk2')) ''
 Check 'port no: port channel' ([string](Get-PortNumber 'Port-channel1')) ''
 $saveCols = $script:Cols
-$script:Cols = @{ tblSNMPAssetMac = @{ assetid = 'AssetID'; ifindex = 'IfIndex'; assetmacaddress = 'AssetMacAddress' }; tblSNMPIfaces = @{ assetid = 'AssetID'; ifindex = 'IfIndex'; ifname = 'IfName'; ifdescription = 'IfDescription' } }
+$script:Cols = @{ tblSNMPAssetMac = @{ assetid = 'AssetID'; ifindex = 'IfIndex'; assetmacaddress = 'AssetMacAddress'; indirectlyconnected = 'IndirectlyConnected' }; tblSNMPInfo = @{ assetid = 'AssetID'; ifindex = 'IfIndex'; ifname = 'ifName'; portname = 'Portname'; ifdescription = 'IfDescription'; uplink = 'Uplink' } }
 $precs = @(
   [ordered]@{ ref = '50'; name = 'SW03'; mac = 'aa:00:00:00:00:50'; assetType = 'Switch'; links = @() },
   [ordered]@{ ref = '51'; name = 'PC-ALONE'; mac = '6c:70:39:10:b0:39'; assetType = 'Windows'; links = @() },
@@ -171,17 +171,22 @@ $precs = @(
   [ordered]@{ ref = '55'; name = 'VM-1'; mac = '00:50:56:00:00:55'; assetType = 'Windows'; links = @() },
   [ordered]@{ ref = '56'; name = 'PC-STACK2'; mac = 'aa:00:00:00:00:56'; assetType = 'Windows'; links = @() },
   [ordered]@{ ref = '58'; name = 'FW-1'; mac = 'aa:00:00:00:00:58'; assetType = 'Firewall'; links = @() },
+  [ordered]@{ ref = '59'; name = 'PC-UPLINKPORT'; mac = 'aa:00:00:00:00:59'; assetType = 'Windows'; links = @() },
+  [ordered]@{ ref = '61'; name = 'PC-PORTNAME'; mac = 'aa:00:00:00:00:60'; assetType = 'Windows'; links = @() },
   [ordered]@{ ref = '57'; name = 'PC-NIC'; mac = ''; nics = @(@{ mac = 'aa:00:00:00:00:57' }); assetType = 'Windows'; links = @([ordered]@{ ref = '9'; kind = 'attached'; port = '' }) })
-$macs = New-Table @('sw','ix','mac','ifname','ifdesc') @(
-  @('50', '22', '6C:70:39:10:B0:39', '1/1/22', '1/1/22'),
-  @('50', '5', 'AA0000000052', '1/1/5', ''), @('50', '5', 'AA0000000053', '1/1/5', ''),
-  @('50', '7', 'aa:00:00:00:00:54', '1/1/7', ''), @('50', '8', 'aa:00:00:00:00:54', '1/1/8', ''),
-  @('50', '9', '00:50:56:00:00:55', '1/1/9', ''),
-  @('50', '10', 'aa:00:00:00:00:56', '2/1/10', ''),
-  @('50', '11', 'aa:00:00:00:00:57', '', 'Port 11'),
-  @('50', '47', 'aa:00:00:00:00:58', '1/1/47', ''),
-  @('50', '48', 'aa:00:00:00:01:01', '1/1/48', ''), @('50', '48', 'aa:00:00:00:01:02', '1/1/48', ''), @('50', '48', 'aa:00:00:00:01:03', '1/1/48', ''), @('50', '48', 'aa:00:00:00:00:51', '1/1/48', ''))
-Check 'switch ports: two linked' (Add-SwitchPortRelations (New-Conn $macs) $precs) 2
+$macs = New-Table @('sw','ix','mac','indirect','ifname','portname','ifdesc','uplink') @(
+  @('50', '22', '6C:70:39:10:B0:39', 'False', '1/1/22', '', '1/1/22', 'False'),
+  @('50', '5', 'AA0000000052', 'False', '1/1/5', '', '', 'False'), @('50', '5', 'AA0000000053', 'False', '1/1/5', '', '', 'False'),
+  @('50', '7', 'aa:00:00:00:00:54', 'False', '1/1/7', '', '', 'False'), @('50', '8', 'aa:00:00:00:00:54', 'False', '1/1/8', '', '', 'False'),
+  @('50', '9', '00:50:56:00:00:55', 'False', '1/1/9', '', '', 'False'),
+  @('50', '10', 'aa:00:00:00:00:56', 'False', '2/1/10', '', '', 'False'),
+  @('50', '11', 'aa:00:00:00:00:57', 'False', '', '', 'Port 11', 'False'),
+  @('50', '47', 'aa:00:00:00:00:58', 'False', '1/1/47', '', '', 'False'),
+  @('50', '30', '6c:70:39:10:b0:39', 'True', '1/1/30', '', '', 'False'),
+  @('50', '31', 'aa:00:00:00:00:59', 'False', '1/1/31', '', '', 'True'),
+  @('50', '32', 'aa:00:00:00:00:60', 'False', '', 'Port 32', '', 'False'),
+  @('50', '48', 'aa:00:00:00:01:01', 'False', '1/1/48', '', '', 'False'), @('50', '48', 'aa:00:00:00:01:02', 'False', '1/1/48', '', '', 'False'), @('50', '48', 'aa:00:00:00:01:03', 'False', '1/1/48', '', '', 'False'), @('50', '48', 'aa:00:00:00:00:51', 'False', '1/1/48', '', '', 'False'))
+Check 'switch ports: three linked' (Add-SwitchPortRelations (New-Conn $macs) $precs) 3
 Check 'switch ports: to the switch' $precs[1]['links'][0].ref '50'
 Check 'switch ports: kind' $precs[1]['links'][0].kind 'connected'
 Check 'switch ports: port number' $precs[1]['links'][0].port '22'
@@ -190,22 +195,25 @@ Check 'switch ports: a device on two ports is passed over' $precs[4]['links'].Co
 Check 'switch ports: a virtual machine is passed over' $precs[5]['links'].Count 0
 Check 'switch ports: a second stack member is passed over' $precs[6]['links'].Count 0
 Check 'switch ports: network gear is passed over' $precs[7]['links'].Count 0
-Check 'switch ports: by an adapter, the other links stay' (($precs[8]['links'] | ForEach-Object { "$($_.kind):$($_.port)" }) -join ',') 'attached:,connected:11'
+Check 'switch ports: seen only through another switch: not a second port' $precs[1]['links'][0].port '22'
+Check 'switch ports: a port Lansweeper marks as uplink is passed over' $precs[8]['links'].Count 0
+Check 'switch ports: by Lansweeper''s port name' $precs[9]['links'][0].port '32'
+Check 'switch ports: by an adapter, the other links stay' (($precs[10]['links'] | ForEach-Object { "$($_.kind):$($_.port)" }) -join ',') 'attached:,connected:11'
 Check 'switch ports: none without the tables' (& { $script:Cols = @{}; Add-SwitchPortRelations (New-Conn $macs) $precs }) 0
 $script:Cols = $saveCols
 
 # A switch's port count from its interfaces: the highest plain port number, the fast ports at the end as SFP+; VLANs
 # and other kinds are no ports.
 $saveCols = $script:Cols
-$script:Cols = @{ tblSNMPIfaces = @{ assetid = 'AssetID'; ifname = 'IfName'; ifdescription = 'IfDescription'; iftype = 'IfType'; ifspeed = 'IfSpeed' } }
+$script:Cols = @{ tblSNMPInfo = @{ assetid = 'AssetID'; ifname = 'ifName'; portname = 'Portname'; ifdescription = 'IfDescription'; iftype = 'IfType'; ifspeed = 'IfSpeed' } }
 $crecs = @([ordered]@{ ref = '50'; name = 'SW03'; links = @() }, [ordered]@{ ref = '60'; name = 'SW-SMALL'; links = @() }, [ordered]@{ ref = '70'; name = 'SW-ALLFAST'; links = @() })
 $rows = @()
-for ($i = 1; $i -le 24; $i++) { $rows += , @('50', "1/1/$i", '', '6', '1000000000') }
-for ($i = 25; $i -le 28; $i++) { $rows += , @('50', "1/1/$i", '', '6', '10000000000') }
-$rows += , @('50', 'vlan1', '', '53', ''); $rows += , @('50', '1/1/99', '', '24', '')
-$rows += , @('60', '1', '', '', ''); $rows += , @('60', '2', '', '', '')
-for ($i = 1; $i -le 8; $i++) { $rows += , @('70', "$i", '', '6', '10000000000') }
-$ifs = New-Table @('sw','ifname','ifdesc','iftype','ifspeed') $rows
+for ($i = 1; $i -le 24; $i++) { $rows += , @('50', "1/1/$i", '', '', '6', '1000000000') }
+for ($i = 25; $i -le 28; $i++) { $rows += , @('50', "1/1/$i", '', '', '6', '10000000000') }
+$rows += , @('50', 'vlan1', '', '', '53', ''); $rows += , @('50', '1/1/99', '', '', '24', '')
+$rows += , @('60', '1', '', '', '', ''); $rows += , @('60', '2', '', '', '', '')
+for ($i = 1; $i -le 8; $i++) { $rows += , @('70', "$i", '', '', '6', '10000000000') }
+$ifs = New-Table @('sw','ifname','portname','ifdesc','iftype','ifspeed') $rows
 Check 'port counts: two switches' (Add-SwitchPortCounts (New-Conn $ifs) $crecs) 2
 Check 'port counts: copper' $crecs[0]['portCount'] '24'
 Check 'port counts: SFP+ at the end' $crecs[0]['sfpCount'] '4'
