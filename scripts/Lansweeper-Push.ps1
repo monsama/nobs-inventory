@@ -34,7 +34,7 @@
     .\Lansweeper-Push.ps1 -DryRun                        # read Lansweeper, show the first records, send nothing
     .\Lansweeper-Push.ps1                                # normal push
     .\Lansweeper-Push.ps1 -RegisterTask                  # daily scheduled task
-    .\Lansweeper-Push.ps1 -FindTables                   # list the tables and columns that may hold links (port, switch, monitor)
+    .\Lansweeper-Push.ps1 -FindTables                   # list the tables and columns that may hold links (port, switch, SNMP interfaces, monitor)
     .\Lansweeper-Push.ps1 -ShowCertificate              # show the thumbprint of the NOBS certificate, for NobsCertThumbprint
 #>
 [CmdletBinding()]
@@ -108,8 +108,10 @@ $script:Wanted = [ordered]@{
     tblVMwareGuest = @('AssetID', 'Name')
     # The MAC addresses a scanned switch sees on each of its ports (AssetID is the switch), and the ports' names: a device
     # alone on a port is plugged into it ("Plugged into" in NOBS). Not there without SNMP scans of the switches: then no link.
-    tblSNMPAssetMac = @('AssetID', 'IfIndex', 'AssetMacAddress')
-    tblSNMPIfaces  = @('AssetID', 'IfIndex', 'IfName', 'IfDescription', 'IfType', 'IfSpeed')
+    # IndirectlyConnected: Lansweeper saw the address only through another switch (an uplink). tblSNMPInfo holds the
+    # switch's interfaces: their names (ifName 1/1/22, Portname, IfDescription), type, speed and Lansweeper's uplink mark.
+    tblSNMPAssetMac = @('AssetID', 'IfIndex', 'AssetMacAddress', 'IndirectlyConnected')
+    tblSNMPInfo    = @('AssetID', 'IfIndex', 'ifName', 'Portname', 'IfDescription', 'IfType', 'IfSpeed', 'Uplink')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
     tblSoftwareUni = @('SoftID', 'softwareName')
     # The printers set up on a Windows machine (also PDF, XPS, Fax: NOBS keeps only the real ones, by their port).
@@ -373,7 +375,7 @@ function Find-LsTables {
     $conn = Open-LsConnection
     try {
         $cmd = $conn.CreateCommand()
-        $cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME LIKE '%port%' OR TABLE_NAME LIKE '%switch%' OR TABLE_NAME LIKE '%connect%' OR TABLE_NAME LIKE '%network%' OR TABLE_NAME LIKE '%monitor%' OR TABLE_NAME LIKE '%soft%' OR TABLE_NAME LIKE '%install%' OR TABLE_NAME LIKE '%bios%' OR TABLE_NAME LIKE '%firmware%' OR TABLE_NAME LIKE '%boot%' OR TABLE_NAME LIKE '%uptime%' OR TABLE_NAME LIKE '%disk%' OR TABLE_NAME LIKE '%drive%' OR TABLE_NAME LIKE '%volume%' OR TABLE_NAME LIKE '%quickfix%' OR TABLE_NAME LIKE '%patch%' OR TABLE_NAME LIKE '%hotfix%' OR TABLE_NAME LIKE '%update%' OR TABLE_NAME LIKE '%antivir%' OR TABLE_NAME LIKE '%virus%' OR TABLE_NAME LIKE '%defender%' OR TABLE_NAME LIKE '%security%' ORDER BY TABLE_NAME, ORDINAL_POSITION"
+        $cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME LIKE '%port%' OR TABLE_NAME LIKE '%switch%' OR TABLE_NAME LIKE '%snmp%' OR TABLE_NAME LIKE '%iface%' OR TABLE_NAME LIKE '%interface%' OR TABLE_NAME LIKE '%mac%' OR TABLE_NAME LIKE '%connect%' OR TABLE_NAME LIKE '%network%' OR TABLE_NAME LIKE '%monitor%' OR TABLE_NAME LIKE '%soft%' OR TABLE_NAME LIKE '%install%' OR TABLE_NAME LIKE '%bios%' OR TABLE_NAME LIKE '%firmware%' OR TABLE_NAME LIKE '%boot%' OR TABLE_NAME LIKE '%uptime%' OR TABLE_NAME LIKE '%disk%' OR TABLE_NAME LIKE '%drive%' OR TABLE_NAME LIKE '%volume%' OR TABLE_NAME LIKE '%quickfix%' OR TABLE_NAME LIKE '%patch%' OR TABLE_NAME LIKE '%hotfix%' OR TABLE_NAME LIKE '%update%' OR TABLE_NAME LIKE '%antivir%' OR TABLE_NAME LIKE '%virus%' OR TABLE_NAME LIKE '%defender%' OR TABLE_NAME LIKE '%security%' ORDER BY TABLE_NAME, ORDINAL_POSITION"
         $reader = $cmd.ExecuteReader()
         $lines = New-Object System.Collections.Generic.List[string]
         try { while ($reader.Read()) { $lines.Add("$($reader[0]).$($reader[1])") } } finally { $reader.Close() }
@@ -593,6 +595,14 @@ function Add-VmHostRelations($conn, $records) {
     return $n
 }
 
+# A switch interface's name as a reader row has it: ifName (1/1/22), else Lansweeper's Portname, else the description.
+function Get-IfName($row) {
+    foreach ($c in @('ifname', 'portname', 'ifdesc')) { $v = Get-Clean $row[$c]; if ($v) { return $v } }
+    return ''
+}
+# A yes of SQL Server (bit 1, True).
+function Test-Yes($v) { return "$v" -match '^(?i)(1|true|yes)$' }
+
 # The port number in a switch port's name: 22 of 22, Port 22, 1/1/22 (Aruba CX), Gi1/0/22 (Cisco), Gi0/22, ge-0/0/21
 # (Juniper counts from 0). None for what has no plain number in NOBS: a second stack member (2/1/5), an uplink module
 # (Te1/1/1, Gi1/1/1), a module letter (A1), a 10G or faster port by name, a VLAN or a link aggregation.
@@ -613,12 +623,12 @@ function Get-PortNumber([string]$Name) {
 # Ethernet interfaces count, when Lansweeper has their type. Sets portCount and sfpCount on the records it knows; returns
 # how many.
 function Add-SwitchPortCounts($conn, $records) {
-    if (-not ((Test-Col 'tblSNMPIfaces' 'AssetID') -and ((Test-Col 'tblSNMPIfaces' 'IfName') -or (Test-Col 'tblSNMPIfaces' 'IfDescription')))) { return 0 }
+    if (-not ((Test-Col 'tblSNMPInfo' 'AssetID') -and ((Test-Col 'tblSNMPInfo' 'ifName') -or (Test-Col 'tblSNMPInfo' 'Portname') -or (Test-Col 'tblSNMPInfo' 'IfDescription')))) { return 0 }
     $byRef = @{}
     foreach ($rec in $records) { if ($rec['ref'] -and "$($rec['ref'])" -notlike 'mon-*') { $byRef[[string]$rec['ref']] = $rec } }
-    $col = { param($c) if (Test-Col 'tblSNMPIfaces' $c) { "[$($script:Cols['tblSNMPIfaces'][$c.ToLowerInvariant()])]" } else { 'NULL' } }
+    $col = { param($c) if (Test-Col 'tblSNMPInfo' $c) { "[$($script:Cols['tblSNMPInfo'][$c.ToLowerInvariant()])]" } else { 'NULL' } }
     $cmd = $conn.CreateCommand()
-    $cmd.CommandText = "SELECT [AssetID] AS sw, $(& $col 'IfName') AS ifname, $(& $col 'IfDescription') AS ifdesc, $(& $col 'IfType') AS iftype, $(& $col 'IfSpeed') AS ifspeed FROM [tblSNMPIfaces] WHERE [AssetID] IS NOT NULL"
+    $cmd.CommandText = "SELECT [AssetID] AS sw, $(& $col 'ifName') AS ifname, $(& $col 'Portname') AS portname, $(& $col 'IfDescription') AS ifdesc, $(& $col 'IfType') AS iftype, $(& $col 'IfSpeed') AS ifspeed FROM [tblSNMPInfo] WHERE [AssetID] IS NOT NULL"
     $cmd.CommandTimeout = 300
     $ports = @{}
     $reader = $cmd.ExecuteReader()
@@ -629,8 +639,7 @@ function Add-SwitchPortCounts($conn, $records) {
             # 6 ethernetCsmacd, 62 fastEther, 117 gigabitEthernet: other kinds (VLANs, loopbacks, tunnels) are no port.
             $type = ConvertTo-Text $reader['iftype']
             if ($type -and $type -notin @('6', '62', '117')) { continue }
-            $name = if (Get-Clean $reader['ifname']) { Get-Clean $reader['ifname'] } else { Get-Clean $reader['ifdesc'] }
-            $no = Get-PortNumber $name
+            $no = Get-PortNumber (Get-IfName $reader)
             if ($null -eq $no -or $no -lt 1 -or $no -gt 200) { continue }
             $speed = 0.0; [void][double]::TryParse((ConvertTo-Text $reader['ifspeed']), [ref]$speed)
             if (-not $ports.ContainsKey($sw)) { $ports[$sw] = @{} }
@@ -675,11 +684,11 @@ function Add-SwitchPortRelations($conn, $records, [int]$MaxMacs = 3) {
             if ($byMac.ContainsKey($k) -and $byMac[$k] -ne $rec) { $byMac[$k] = $null } else { $byMac[$k] = $rec }
         }
     }
-    $ifName = if (Test-Col 'tblSNMPIfaces' 'IfName') { 'i.[IfName]' } else { 'NULL' }
-    $ifDesc = if (Test-Col 'tblSNMPIfaces' 'IfDescription') { 'i.[IfDescription]' } else { 'NULL' }
-    $join = if ((Test-Col 'tblSNMPIfaces' 'AssetID') -and (Test-Col 'tblSNMPIfaces' 'IfIndex')) { 'LEFT JOIN [tblSNMPIfaces] i ON i.[AssetID] = m.[AssetID] AND i.[IfIndex] = m.[IfIndex]' } else { $ifName = 'NULL'; $ifDesc = 'NULL'; '' }
+    $join = if ((Test-Col 'tblSNMPInfo' 'AssetID') -and (Test-Col 'tblSNMPInfo' 'IfIndex')) { 'LEFT JOIN [tblSNMPInfo] i ON i.[AssetID] = m.[AssetID] AND i.[IfIndex] = m.[IfIndex]' } else { '' }
+    $f = { param($c) if ($join -and (Test-Col 'tblSNMPInfo' $c)) { "i.[$($script:Cols['tblSNMPInfo'][$c.ToLowerInvariant()])]" } else { 'NULL' } }
+    $indirect = if (Test-Col 'tblSNMPAssetMac' 'IndirectlyConnected') { 'm.[IndirectlyConnected]' } else { 'NULL' }
     $cmd = $conn.CreateCommand()
-    $cmd.CommandText = "SELECT m.[AssetID] AS sw, m.[IfIndex] AS ix, m.[AssetMacAddress] AS mac, $ifName AS ifname, $ifDesc AS ifdesc FROM [tblSNMPAssetMac] m $join WHERE m.[AssetID] IS NOT NULL AND m.[AssetMacAddress] IS NOT NULL"
+    $cmd.CommandText = "SELECT m.[AssetID] AS sw, m.[IfIndex] AS ix, m.[AssetMacAddress] AS mac, $indirect AS indirect, $(& $f 'ifName') AS ifname, $(& $f 'Portname') AS portname, $(& $f 'IfDescription') AS ifdesc, $(& $f 'Uplink') AS uplink FROM [tblSNMPAssetMac] m $join WHERE m.[AssetID] IS NOT NULL AND m.[AssetMacAddress] IS NOT NULL"
     $cmd.CommandTimeout = 300
     $ports = @{}
     $reader = $cmd.ExecuteReader()
@@ -687,15 +696,17 @@ function Add-SwitchPortRelations($conn, $records, [int]$MaxMacs = 3) {
         while ($reader.Read()) {
             $sw = ConvertTo-Text $reader['sw']; $ix = ConvertTo-Text $reader['ix']; $k = & $norm $reader['mac']
             if (-not $sw -or $k.Length -ne 12) { continue }
+            # Seen only through another switch: not plugged in here.
+            if (Test-Yes $reader['indirect']) { continue }
             $key = "$sw|$ix"
-            if (-not $ports.ContainsKey($key)) { $ports[$key] = @{ sw = $sw; name = $(if (Get-Clean $reader['ifname']) { Get-Clean $reader['ifname'] } else { Get-Clean $reader['ifdesc'] }); macs = @{} } }
+            if (-not $ports.ContainsKey($key)) { $ports[$key] = @{ sw = $sw; name = (Get-IfName $reader); uplink = (Test-Yes $reader['uplink']); macs = @{} } }
             $ports[$key].macs[$k] = $true
         }
     } finally { $reader.Close() }
     # Each device and the ports that see it alone.
     $portsOf = @{}
     foreach ($p in $ports.Values) {
-        if ($p.macs.Count -gt $MaxMacs -or -not $byRef.ContainsKey($p.sw)) { continue }
+        if ($p.uplink -or $p.macs.Count -gt $MaxMacs -or -not $byRef.ContainsKey($p.sw)) { continue }
         # Compared by their ref: records are dictionaries, which Select-Object -Unique cannot tell apart.
         $refs = @($p.macs.Keys | Where-Object { $byMac.ContainsKey($_) -and $byMac[$_] } | ForEach-Object { [string]$byMac[$_]['ref'] } | Sort-Object -Unique)
         if ($refs.Count -ne 1 -or $refs[0] -eq $p.sw) { continue }
