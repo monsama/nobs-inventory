@@ -541,7 +541,8 @@ export function closeObjTab(id){
   view();
 }
 /* Where closing the last device page leads: the list it was opened from, else the List. */
-const backTab = () => ['cards', 'table', 'map'].includes(st.backTab) ? st.backTab : 'cards';
+const BACK_TABS = ['cards', 'table', 'map', 'net', 'overview'];
+const backTab = () => BACK_TABS.includes(st.backTab) ? st.backTab : 'cards';
 /* Closes every open object tab except `keep` (or all of them when keep is null). The views stay open. */
 export function closeObjTabs(keep){
   st.open = st.open.filter(x => x === keep);
@@ -601,7 +602,7 @@ export function openObj(id){
   /* The list it was opened from (List, Table or the map), so closing the device goes back there (a Data quality list
      in the Table keeps its bar and selection). */
   /* Opened from another view (Overview, search, ports): back to the List; from another device: as before. */
-  if (FIXED_TABS[st.tab]) st.backTab = ['cards', 'table', 'map'].includes(st.tab) ? st.tab : 'cards';
+  if (FIXED_TABS[st.tab]) st.backTab = BACK_TABS.includes(st.tab) ? st.tab : 'cards';
   st.tab = id; view(); const v = $('#view'); if (v) v.scrollTop = 0;
   /* The focus was on what opened it (a card, a row, the search), which is gone now: it goes to the device's name, so Tab
      carries on in the device instead of from the top of the page. A field focused on purpose keeps it. */

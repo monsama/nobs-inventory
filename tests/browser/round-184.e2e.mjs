@@ -17,20 +17,24 @@ const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const today = new Date().toISOString().slice(0, 10);
 const dev = (id, type, name, more) => ({ id, code: 'INV-' + id, type, name, status: 'active', loc: '', ovr: {}, serial: 'S-' + id, ...more });
-saveState(db, { ...loadState(db), useLansweeper: true, history: {}, objs: [
+saveState(db, { ...loadState(db), useLansweeper: true, vlans: [{ vid: 20, name: 'Office' }], history: {}, objs: [
   dev('s1', 'switch', 'SW-1', { ports: 24, feed: { sys: 'Lansweeper', ref: 's1', scanned: today } }),
   dev('s2', 'switch', 'SW-2', { ports: 24 }),
   dev('pa', 'pc', 'PC-A', { feed: { sys: 'Lansweeper', ref: 'pa', scanned: today, plug: { to: 's1', port: 3 } } }),
   dev('pb', 'pc', 'PC-B', { feed: { sys: 'Lansweeper', ref: 'pb', scanned: today, plug: { to: 's1', port: 14 } } }),
   dev('mo', 'monitor', 'MON-A'),
+  dev('ph', 'sip', 'PHONE-1'),
+  dev('pr', 'pc', 'PC-RECEPTION', { feed: { sys: 'Lansweeper', ref: 'pr', scanned: today, plug: { to: 's1', port: 8 } } }),
   dev('pn', 'pc', 'PC-NAME', { feed: { sys: 'Lansweeper', ref: 'pn', scanned: today, plug: { to: 's1', port: 'Gi1/0/14' } } }),
   dev('pf', 'pc', 'PC-FAR', { feed: { sys: 'Lansweeper', ref: 'pf', scanned: today, plug: { to: 's1', port: 30 } } }),
   dev('nb', 'notebook', 'MY-MAC', { serial: '', graph: { join: 'Registered', owner: 'zoe@corp.example', ownerName: 'Zoe Z.' } }),
 ], rels: [
   { id: 'r1', from: 'pa', to: 's1', kind: 'connected', port: 3, vlan: null, src: 'Lansweeper' },
-  { id: 'r2', from: 'pb', to: 's2', kind: 'connected', port: 7, vlan: null },
+  { id: 'r2', from: 'pb', to: 's2', kind: 'connected', port: 7, vlan: 20 },
   { id: 'r3', from: 'mo', to: 'pa', kind: 'attached', port: null, vlan: null },
   { id: 'r4', from: 'pn', to: 's2', kind: 'connected', port: 1, vlan: null },
+  { id: 'r6', from: 'ph', to: 's1', kind: 'connected', port: 8, vlan: null },
+  { id: 'r7', from: 'pr', to: 'ph', kind: 'connected', port: null, vlan: null },
   { id: 'r5', from: 'pf', to: 's2', kind: 'connected', port: 2, vlan: null },
 ] });
 
@@ -53,8 +57,12 @@ try {
   await p.waitForSelector('[data-close="pa"]'); await p.click('[data-close="pa"]');
   await until(p, async () => (await import('/js/01-core.js')).st.tab === 'table');
   assert.equal(await tab(), 'table');
-  // opened from another view (the Overview): back to the List, not to an older Table
+  // opened from the Overview: back to the Overview; from a view with no way back (Floor plans): the List, not an older Table
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).view(); });
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('pa'));
+  await p.waitForSelector('[data-close="pa"]'); await p.click('[data-close="pa"]');
+  await until(p, async () => (await import('/js/01-core.js')).st.tab === 'overview');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render.js')).view(); });
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('pa'));
   await p.waitForSelector('[data-close="pa"]'); await p.click('[data-close="pa"]');
   await until(p, async () => (await import('/js/01-core.js')).st.tab === 'cards');
@@ -75,11 +83,22 @@ try {
   assert.equal(await p.evaluate(() => document.querySelector('.port[data-port="14"]').classList.contains('lsdiff')), true);
   assert.match(await p.textContent('.lsdiff-box'), /Port 14\s*PC-B/);
   assert.doesNotMatch(await p.textContent('.lsdiff-box'), /NaN|PC-NAME/, 'a port given as a name is no port here');
+  assert.doesNotMatch(await p.textContent('.lsdiff-box'), /PC-RECEPTION/, 'behind a phone on that port: the same');
+  assert.match(await p.textContent('.legend'), /Lansweeper sees otherwise/);
+  // the port's detail says it, and the box's link opens the device on Sources; closing it comes back here
+  await p.click('.port[data-port="14"]'); await p.waitForSelector('.panelbox .fieldnote.warn');
+  assert.match(await p.textContent('#view'), /Lansweeper sees PC-B here/);
+  await p.click('.lsdiff-box a[data-open="pb"]'); await p.waitForSelector('[data-plugtake]');
+  await p.click('[data-close="pb"]'); await until(p, async () => (await import('/js/01-core.js')).st.tab === 'net');
   assert.doesNotMatch(await p.textContent('#view'), /MON-A/, 'no monitor behind the PC');
 
   // ... and taking Lansweeper's port moves PC-B there
   await open('pb', 'sources'); await p.waitForSelector('[data-plugtake]'); await p.click('[data-plugtake]');
-  await storedBy(() => loadState(db), s => { const r = s.rels.filter(r => r.from === 'pb' && r.kind === 'connected'); return r.length === 1 && r[0].to === 's1' && r[0].port === 14 && r[0].src === 'Lansweeper'; });
+  await storedBy(() => loadState(db), s => { const r = s.rels.filter(r => r.from === 'pb' && r.kind === 'connected'); return r.length === 1 && r[0].to === 's1' && r[0].port === 14 && r[0].src === 'Lansweeper' && r[0].vlan === 20; });
+  assert.match(await p.textContent('#toast'), /was SW-2 port 7/);
+  // Undo puts the connection set by hand back
+  await p.click('#toast .t-undo');
+  await storedBy(() => loadState(db), s => { const r = s.rels.filter(r => r.from === 'pb' && r.kind === 'connected'); return r.length === 1 && r[0].to === 's2' && r[0].port === 7; });
 
   // 4. a personal device: no Hand out, no Confirm on site, its owner in the List
   await open('nb');
@@ -87,6 +106,9 @@ try {
   assert.doesNotMatch(await p.textContent('#view'), /Confirm on site/);
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'cards'; c.st.type = 'registered'; (await import('/js/07-render.js')).view(); });
   await until(p, () => /Zoe Z\./.test(document.querySelector('#cards').textContent));
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'table'; (await import('/js/07-render.js')).view(); });
+  await until(p, () => /Zoe Z\./.test(document.querySelector('#view table.grid').textContent));
+  await open('nb'); assert.match(await p.textContent('.ofacts'), /Zoe Z\. \(Intune\)/);
 
   // 5. the empty bell points to Data quality
   await p.evaluate(() => { const b = document.getElementById('bellBtn'); b.hidden = false; });

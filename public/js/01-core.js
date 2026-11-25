@@ -993,6 +993,8 @@ function filteredAsIs(q){
 /* The way up from a device to the core: follow outgoing relations; through a patch panel, the cord of the port it came
    in on, else the panel's trunk (cabling.js). */
 export const pathUp = o => netChain(o, rels, byId);
+/* Whether a device reaches this switch port along its path up (directly, behind a phone, through a panel's cord). */
+export const reachesPort = (o, swId, port) => pathUp(o).some(s => s.o.id === swId && s.via && String(s.via.port) === String(port));
 
 /* Days since a stamp ("dd.mm.yyyy hh:mm"); 0 when it is not one. */
 export function daysSince(s){ const t = stampTime(s); return t ? (Date.now() - t) / 864e5 : 0; }

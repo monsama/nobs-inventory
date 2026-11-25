@@ -315,7 +315,8 @@ export function renderObj(o){
   /* The page: the key facts on top, then its parts as tabs. */
   const srcHtml = sourcesPanel(o);
   const seen = lastSeenOf(o), hostRel = rs.find(x => x.out && isAttached(x.r.kind));
-  const facts = [['User', o.user || (hostRel && hostRel.other.user) || '', o.user ? '' : hostRel && hostRel.other.user ? 'From ' + hostRel.other.name : ''],
+  const owner = !o.user && registeredOnly(o) && o.graph && !o.graph.gone ? o.graph.ownerName || o.graph.owner || '' : '';
+  const facts = [['User', o.user || (hostRel && hostRel.other.user) || (owner ? owner + ' (Intune)' : ''), o.user ? '' : hostRel && hostRel.other.user ? 'From ' + hostRel.other.name : owner ? 'Owner as Intune names them: a personal device, only registered in Entra' : ''],
     ['Location', o.loc || (hostRel && hostRel.other.loc) || ''], ['IP', o.ip || ''], ['Last seen', seen ? agoText(seen.day) : '', seen ? `${seen.at} by ${seen.src}` : '']];
   /* The sources it has been in, the ones that no longer list it marked gone (with when, in the tooltip). */
   const srcs = o.status === 'retired' ? [] : sourcesOf(o);
@@ -378,10 +379,20 @@ export function renderObj(o){
       const was = rels.filter(r => r.from === o.id && r.kind === 'connected' && r.src !== 'Lansweeper');
       const other = rels.find(r => r.to === sw.id && String(r.port) === String(p.port) && r.from !== o.id && r.kind !== 'patched');
       if (other){ toast(`Port ${p.port} on ${sw.name} is taken by ${byId(other.from) ? byId(other.from).name : 'another device'}. Free it first.`); return; }
+      /* The VLAN set on the connection it replaces goes along; Undo puts the connections set by hand back. */
+      const vlan = (was.find(r => r.vlan != null) || {}).vlan ?? null;
+      const wasText = was.map(r => `${byId(r.to) ? byId(r.to).name : '?'}${r.port != null ? ' port ' + r.port : ''}`).join(', ');
       for (const r of was) rels.splice(rels.indexOf(r), 1);
-      rels.push({ id: rid(), from: o.id, to: sw.id, kind: 'connected', port: +p.port, vlan: null, src: 'Lansweeper' });
-      hist(o, now(), `Plugged into ${sw.name} port ${p.port}, as Lansweeper sees it, by ${who()}${was.length ? ` (was ${was.map(r => `${byId(r.to) ? byId(r.to).name : '?'}${r.port != null ? ' port ' + r.port : ''}`).join(', ')})` : ''}`);
-      queueServerSave(); toast(`${o.name} is on ${sw.name} port ${p.port} now`); render();
+      const made = { id: rid(), from: o.id, to: sw.id, kind: 'connected', port: +p.port, vlan, src: 'Lansweeper' };
+      rels.push(made);
+      hist(o, now(), `Plugged into ${sw.name} port ${p.port}, as Lansweeper sees it, by ${who()}${was.length ? ` (was ${wasText})` : ''}`);
+      queueServerSave(); render();
+      toastUndo(`${o.name} is on ${sw.name} port ${p.port} now${was.length ? ` (was ${wasText})` : ''}`, () => {
+        const i = rels.indexOf(made); if (i >= 0) rels.splice(i, 1);
+        for (const r of was) if (!rels.includes(r)) rels.push(r);
+        hist(o, now(), `Undone: back on ${wasText || 'nothing'} (${who()})`);
+        queueServerSave(); render();
+      });
     }; }
   /* Ports: the port view of this device. */
   { const pb = $('#view [data-portsgo]'); if (pb) pb.onclick = () => { if (st.portsDevice !== o.id) st.portNo = null; st.portsDevice = o.id; st.tab = 'net'; view(); }; }

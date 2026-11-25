@@ -1,6 +1,6 @@
 /* The device page's sources: what Lansweeper, Microsoft Entra and Intune (with Defender) and Active Directory say of a
    device, one tab each in the Sources panel. */
-import { rels, scanSpan, GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
+import { reachesPort, rels, scanSpan, GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, agoHtml, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 import { html, rawHtml } from './html.js';
@@ -31,7 +31,7 @@ function lsDates(o){
 function plugRow(o, row){
   const p = o.feed && o.feed.plug, sw = p && byId(p.to);
   if (!sw) return '';
-  const same = rels.some(r => r.from === o.id && r.kind === 'connected' && r.to === sw.id && String(r.port) === String(p.port));
+  const same = reachesPort(o, sw.id, p.port);
   const other = !same && rels.some(r => r.from === o.id && r.kind === 'connected');
   /* Taken over only as a port the inventory can hold: a plain number the switch has (a name such as Gi1/0/14 is not). */
   const takeable = /^\d{1,4}$/.test(String(p.port)) && +p.port >= 1 && !(sw.ports > 0 && +p.port > sw.ports + (+sw.sfp || 0));

@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { typeSelLabel, sourceMark, sourcesDisagree, vmsOn, dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
+import { registeredOnly, typeSelLabel, sourceMark, sourcesDisagree, vmsOn, dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
 import { SERVER, viewSig } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -38,7 +38,7 @@ export const TABLE_COLS = [
   {k:'serial', w:160, label:'Serial', cell: o => String(html`<td class="n">${o.serial}</td>`)},
   {k:'loc', w:190, label:'Location', cell: o => String(html`<td>${o.loc}</td>`)},
   {k:'rack', w:130, label:'Rack', cell: o => String(html`<td class="n">${o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : ''}</td>`)},
-  {k:'user', w:160, label:'User', cell: o => String(html`<td>${o.user || ''}</td>`)},
+  {k:'user', w:160, label:'User', cell: o => String(o.user || !(registeredOnly(o) && o.graph && !o.graph.gone && (o.graph.ownerName || o.graph.owner)) ? html`<td>${o.user || ''}</td>` : html`<td class="muted" title="Owner as Intune names them: a personal device, only registered in Entra">${o.graph.ownerName || o.graph.owner}</td>`)},
   {k:'warranty', w:130, label:'Warranty ends', cell: o => String(html`<td>${o.warranty ? html`<span class="wty ${warrantyState(o)}">${dayText(o.warranty)}</span>` : ''}</td>`)},
   /* Replacement planning: when it was bought, the year it is due (and why), and what replacing it costs. */
   {k:'purchased', w:130, label:'Purchased', cell: o => String(html`<td>${o.purchased ? dayText(o.purchased) : ''}</td>`)},

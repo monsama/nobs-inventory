@@ -72,7 +72,8 @@ function goNotice(g){
     if (g.tab) st.q = '';
     st.tab = g.table ? 'table' : g.review ? 'cards' : g.overview ? 'overview' : g.tab;
     view();
-    const el = g.overview && document.getElementById(g.overview); if (el) el.scrollIntoView({ block: 'start' });
+    /* The part of the Overview it leads to is scrolled to and flashed, once drawn. */
+    if (g.overview) requestAnimationFrame(() => { const el = document.getElementById(g.overview); if (!el) return; el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.classList.remove('ov-flash'); void el.offsetWidth; el.classList.add('ov-flash'); });
   }
 }
 /* With no notifications, the bell still points to Data quality when it has devices to complete (counted only when the
@@ -99,7 +100,7 @@ $('#bellPop').addEventListener('click', e => {
 });
 
 /* A link inside a row or card (a device's web interface) opens itself, not the device. */
-document.addEventListener('click', e => { const t = evEl(e).closest('[data-open]'); if (t && !evEl(e).closest('[data-close]') && !evEl(e).closest('a[href]') && !evEl(e).closest('.fsrc')) openObj(t.dataset.open); });
+document.addEventListener('click', e => { const t = evEl(e).closest('[data-open]'); if (t && !evEl(e).closest('[data-close]') && !evEl(e).closest('a[href]') && !evEl(e).closest('.fsrc')){ if (t.dataset.openTab){ st.objTab = t.dataset.openTab; st.objTabFor = t.dataset.open; } openObj(t.dataset.open); } });
 
 /* ---------- tables: columns can be resized and moved ----------
    The order and widths of each table are kept by its place (tab and position), in the browser. */
