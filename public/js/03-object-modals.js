@@ -321,12 +321,17 @@ export function renderObj(o){
   if (srcs.length) facts.push(['Sources', srcs.length > 1 && srcs.every(x => x.gone) ? 'Gone from all' : srcs.map(x => x.gone ? `${x.src === 'ad' ? 'AD' : x.name} gone` : (x.src === 'ad' ? 'AD' : x.name)).join(' · '),
     srcs.map(x => `${x.name}: ${x.gone ? 'gone, ' + x.when : 'lists it'}`).join('\n')]);
   const TABS = [['details', 'Details', 0], ['relations', 'Relations', rs.length], ...(srcHtml ? [['sources', 'Sources', 0]] : []), ['history', 'History', 0]];
+  /* A device with ports (a switch, router, firewall): its port view one click away, with the ports in use. A link to
+     another view, not a tab of this page: the arrow keys pass it by. */
+  const portsUsed = hasPorts(o) ? new Set(rels.filter(r => r.to === o.id && r.port != null && r.port !== '').map(r => String(r.port))).size : 0;
+  const total = (+o.ports || 0) + (+o.sfp || 0);
+  const portsBtn = hasPorts(o) ? html`<button type="button" class="otab otab-go" data-portsgo title="${`The ports of ${o.name}: what is plugged in where, port groups and port setup (Network → Ports)`}">Ports${total ? html` <span class="cnt">${portsUsed} of ${total}</span>` : ''} <span aria-hidden="true">→</span></button>` : '';
   /* Another device opens on Details, as a new record does; the tab picked stays while this one is redrawn. */
   if (st.objTabFor !== o.id){ st.objTab = 'details'; st.objTabFor = o.id; }
   const tab = TABS.some(t => t[0] === st.objTab) ? st.objTab : 'details';
   $('#view').innerHTML = html`${rawHtml(reviewBanner(o))}${twinBanner(o)}${retiredBar}<div class="obj otabbed${o.status === 'retired' ? ' is-retired' : ''}" data-otab="${tab}">
     <div class="ofacts" aria-label="Key facts">${facts.map(([k, v, t]) => html`<span class="of"><small>${k}</small><span title="${t || v}">${v || '-'}</span></span>`)}</div>
-    <div class="otabs" role="tablist" aria-label="Parts of the device page">${TABS.map(([k, l, n]) => html`<button type="button" role="tab" class="otab${tab === k ? ' on' : ''}" data-otabgo="${k}" aria-selected="${String(tab === k)}" tabindex="${tab === k ? '0' : '-1'}">${l}${n ? html` <span class="cnt">${n}</span>` : ''}</button>`)}</div>
+    <div class="otabs"><div class="otablist" role="tablist" aria-label="Parts of the device page">${TABS.map(([k, l, n]) => html`<button type="button" role="tab" class="otab${tab === k ? ' on' : ''}" data-otabgo="${k}" aria-selected="${String(tab === k)}" tabindex="${tab === k ? '0' : '-1'}">${l}${n ? html` <span class="cnt">${n}</span>` : ''}</button>`)}</div>${portsBtn}</div>
     <section class="opane ogrid" data-pane="details"><div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row)}
         ${rawHtml(rackFields(o))}
@@ -364,6 +369,8 @@ export function renderObj(o){
         const bs = [...bar.querySelectorAll('[data-otabgo]')], i = bs.indexOf(/** @type {any} */ (document.activeElement)); if (i < 0) return;
         const n = e.key === 'Home' ? 0 : e.key === 'End' ? bs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : bs.length - 1)) % bs.length;
         e.preventDefault(); go(bs[n].dataset.otabgo); bs[n].focus(); }); } }
+  /* Ports: the port view of this device. */
+  { const pb = $('#view [data-portsgo]'); if (pb) pb.onclick = () => { if (st.portsDevice !== o.id) st.portNo = null; st.portsDevice = o.id; st.tab = 'net'; view(); }; }
   /* + Add a relation opens the form, and it stays open on every device until the page is reloaded. */
   { const ob = $('#arOpen'); if (ob) ob.onclick = () => { st.relAdd = true; ob.parentElement.hidden = true; for (const id of ['arRow', 'arOutletRow']){ const r = document.getElementById(id); if (r) r.hidden = false; } const k = $('#arKind'); if (k) k.focus(); }; }
   /* Hide: an empty panel goes back to the Add line. */

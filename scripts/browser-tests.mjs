@@ -1,7 +1,7 @@
 /* Runs the browser tests (tests/browser/*.e2e.mjs) side by side: each file starts its own server on a free port with
    its own database and its own browser, so several can run at once. A file that fails has its output shown.
      node scripts/browser-tests.mjs              every file
-     node scripts/browser-tests.mjs --shard 2/3  the second of three parts (CI runs the parts on separate machines)
+     node scripts/browser-tests.mjs --shard 2/4  the second of four parts (CI runs the parts on separate machines)
      node scripts/browser-tests.mjs flows phone  only these files
    NI_TEST_JOBS sets how many run at once (default: half the CPU cores, 2 to 4). PLAYWRIGHT_CHROMIUM names the browser
    to use; without it, Playwright's own browser, or else a Chromium found in /opt/pw-browsers (a machine where another
