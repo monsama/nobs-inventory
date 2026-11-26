@@ -162,8 +162,9 @@ export function bindTableBulk(n){
     /* Retired: the Retire dialog, which also gives up the user, contract, floor-plan spot and responsible. Into stock
        with somebody: the take-back, as on the device page, so no device in stock still has a user. */
     if (v === 'retired'){ retirePicked(); return; }
-    const withUser = [...st.bulk].map(byId).filter(o => o && (o.uid || o.user || o.hotdesk));
-    if (v === 'stock' && withUser.length){ takeBackModal(withUser); return; }
+    /* In stock, some with a user: the take-back for all picked (it takes those without a user in as well). */
+    const picked = [...st.bulk].map(byId).filter(Boolean);
+    if (v === 'stock' && picked.some(o => o.uid || o.user || o.hotdesk)){ takeBackModal(picked); return; }
     const to = v;
     /* Any other status: set on each, with one Undo. */
     const list = [...st.bulk].map(byId).filter(Boolean);

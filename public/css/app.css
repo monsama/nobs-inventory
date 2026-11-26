@@ -2904,3 +2904,6 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 #histPanel>summary{cursor:pointer}
 #histPanel>summary::before{content:"";display:inline-block;width:6px;height:6px;margin:0 9px 2px 2px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(-45deg);transition:transform .15s}
 #histPanel[open]>summary::before{transform:rotate(45deg)}
+/* A person's last devices: the line wraps, and a long name breaks rather than widening the page on a phone. */
+.fb-past{flex-wrap:wrap;row-gap:4px}
+.fb-past .link{min-width:0;overflow-wrap:anywhere;text-align:left}

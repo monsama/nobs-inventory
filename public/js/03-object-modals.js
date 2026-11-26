@@ -72,13 +72,15 @@ function retireTies(o){
   const plan = o.planPos && PLANS.find(p => p.id === o.planPos.plan);
   const cts = contractsOf(o);
   const resp = [o.respIn, o.respEx].filter(Boolean).map(contactOf).filter(Boolean);
-  const downs = rels.filter(r => r.to === o.id && PORT_KINDS.includes(r.kind) && byId(r.from));
+  /* Patch cords from a panel too: no path runs through a retired device. */
+  const downs = rels.filter(r => r.to === o.id && (PORT_KINDS.includes(r.kind) || r.kind === 'patched') && byId(r.from));
+  const downNames = [...new Set(downs.map(r => byId(r.from).name))];
   return [
     (o.uid || o.hotdesk) && ['user', html`Take it from ${o.user}`, () => { o.uid = null; o.hotdesk = false; pickHand(o, 'user'); }],
     plugs.length && ['plug', html`Unplug it from ${plugs.map(r => `${byId(r.to).name}${r.port != null ? ' port ' + portLabel(byId(r.to), r.port) : ''}`).join(', ')}, so the port is free`, () => plugs.forEach(r => rels.splice(rels.indexOf(r), 1))],
     /* A switch (or any device with ports) retired: what is plugged into it is unplugged, so no port map or path runs
        through a retired device. */
-    downs.length && ['downs', html`Unplug the ${downs.length === 1 ? 'device' : downs.length + ' devices'} on its ports: ${downs.map(r => byId(r.from).name).join(', ')} (${downs.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => downs.forEach(r => rels.splice(rels.indexOf(r), 1))],
+    downs.length && ['downs', html`Unplug what is on its ports: ${downNames.join(', ')} (${downNames.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => downs.forEach(r => rels.splice(rels.indexOf(r), 1))],
     host.length && ['host', html`Take it off ${host.map(r => byId(r.to).name).join(', ')}`, () => host.forEach(r => rels.splice(rels.indexOf(r), 1))],
     attached.length && ['attached', html`Detach ${attached.map(r => byId(r.from).name).join(', ')} (${attached.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => attached.forEach(r => rels.splice(rels.indexOf(r), 1))],
     vms.length && ['vms', html`${vms.map(r => byId(r.from).name).join(', ')} no longer ${vms.length === 1 ? 'runs' : 'run'} on it (${vms.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => vms.forEach(r => rels.splice(rels.indexOf(r), 1))],
@@ -171,10 +173,12 @@ export function purgeModal(o){
   $('#pgCancel').onclick = closeModal;
   const ex = $('#pgExcl');
   if (ex) ex.onclick = () => {
-    if (o.status !== 'retired') retireAll([o]);
+    const was = snapshot([o, ...objs.filter(x => x.ontop === o.id)]), relsWas = [...rels];
+    const ctsBack = o.status !== 'retired' ? retireAll([o]) : () => {};
     o.status = 'retired'; o.excluded = true;
     hist(o, now(), 'Retired and excluded from Lansweeper sync by ' + who());
-    closeModal(); toast(`${o.name} is retired and excluded: Lansweeper will not add it again`); render();
+    closeModal(); render();
+    toastUndo(`${o.name} is retired and excluded: Lansweeper will not add it again`, () => { restoreSnapshot(was, 'Retire and exclude undone by ' + who()); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); ctsBack(); render(); });
   };
   $('#pgOk').onclick = () => { deleteObject(o.id); closeModal(); toast(`${o.name} deleted`); };
 }

@@ -18,11 +18,13 @@ const dev = (id, type, name, more) => ({ id, code: 'INV-' + id, type, name, stat
 const s0 = loadState(db);
 saveState(db, { ...s0, locs: ['Zürich / IT', 'Zürich / Office', 'Bern / Lager'], history: { pz: [{ t: '20.11.2026 10:00', msg: 'Taken back into stock from Finn Graf by Admin' }] },
   contacts: [{ id: 'k1', kind: 'internal', name: 'Ivo Intern' }],
-  users: [...s0.users, { id: 'p1', name: 'Finn Graf', role: 'none', active: true, source: 'manual', groups: [] }], objs: [
+  users: [...s0.users, { id: 'p1', name: 'Finn Graf', role: 'none', active: true, source: 'manual', groups: [] }, { id: 'p2', name: 'Gina Gut', role: 'none', active: true, source: 'manual', groups: [] }], objs: [
   dev('core', 'switch', 'SW-CORE', { ports: 24 }), dev('sw2', 'switch', 'SW-2OG', { ports: 24 }),
   dev('pa', 'pc', 'PC-ZH-1', { loc: 'Zürich / Office' }), dev('pb', 'pc', 'PC-BE-1', { loc: 'Bern / Lager' }), dev('pc', 'pc', 'PC-ZH-IT'),
   dev('pz', 'notebook', 'NB-PAST', { status: 'stock' }),
-], rels: [{ id: 'u1', from: 'sw2', to: 'core', kind: 'connected', port: 24, vlan: null }] });
+  dev('old', 'pc', 'PC-OLD', { status: 'retired' }), dev('pn', 'pc', 'PC-NEW', { loc: '' }),
+  dev('m1', 'pc', 'PC-MIX-1', { uid: 'p2', user: 'Gina Gut', loc: '' }), dev('m2', 'pc', 'PC-MIX-2', { loc: '' }),
+], rels: [{ id: 'u1', from: 'sw2', to: 'core', kind: 'connected', port: 24, vlan: null }, { id: 'r9', from: 'old', to: 'core', kind: 'connected', port: 7, vlan: null }] });
 const stored = check => storedBy(() => loadState(db), check);
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
@@ -43,6 +45,17 @@ try {
   await ports('sw2'); await p.waitForSelector('tr.own-up');
   assert.match(await p.textContent('tr.own-up'), /Its uplink\s*SW-CORE\s*Uplink\s*Trunk\s*on port 24 of SW-CORE/);
 
+  //    the core's port map: the link from the other switch reads Uplink, Trunk
+  await ports('core'); await p.waitForSelector('.port[data-port="24"]');
+  assert.match(await p.textContent('table.grid.mini tbody'), /24\s*SW-2OG\s*Uplink\s*Trunk/);
+  //    a port only a retired device holds: plugged in, then Undo brings the retired device's link back
+  await p.click('.port[data-port="7"]').catch(() => {});
+  await p.evaluate(async () => (await import('/js/05-new-object.js')).linkObjModal({ to: 'core', port: 7 }));
+  await p.waitForSelector('#lkQ'); await p.fill('#lkQ', 'PC-NEW'); await p.press('#lkQ', 'Enter');
+  await stored(st => st.rels.some(r => r.from === 'pn' && r.port === 7) && !st.rels.some(r => r.id === 'r9'));
+  await p.click('#toast .t-undo');
+  await stored(st => !st.rels.some(r => r.from === 'pn') && st.rels.some(r => r.id === 'r9'));
+
   // 2. plug in from a free port: the switch's room first, then its site; Find narrows; Undo takes it back
   await ports('core'); await p.click('.port[data-port="3"]'); await p.click('#assignBtn'); await p.waitForSelector('#lkQ');
   const opts = () => p.$$eval('#lkObj option', o => o.map(x => x.textContent.trim()));
@@ -60,10 +73,22 @@ try {
   await p.waitForSelector('.fb-past');
   assert.match(await p.textContent('.fb-past'), /No devices now\. Last:\s*NB-PAST\s*taken back 20\.11\.2026/);
 
+  //    a hand-out and take-back made now shows at once
+  await p.click('[data-pact="give"]'); await p.waitForSelector('[data-hsd="pz"]'); await p.check('[data-hsd="pz"]'); await p.click('#hoOk');
+  await stored(st => st.objs.find(o => o.id === 'pz').uid === 'p1');
+  await p.click('[data-pact="back"]'); await p.waitForSelector('#tbOk'); await p.click('#tbOk');
+  await p.waitForSelector('.fb-past .link');
+  await p.waitForFunction(() => /handed out/.test(document.querySelector('.fb-past')?.textContent || ''));
+
   // 4. the Table: Location, User and Status right after the model
   const heads = await p.$$eval('table.grid thead th', t => t.map(x => x.textContent.trim()).filter(Boolean));
   const at = k => heads.indexOf(k);
   assert.ok(at('Model') >= 0 && at('Location') === at('Model') + 1 && at('User') === at('Model') + 2 && at('Status') === at('Model') + 3, heads.join(' | '));
+
+  //    Set status In stock for a mix (one with a user): the take-back takes in all of them
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.person = null; c.st.bulk = new Set(['m1', 'm2']); (await import('/js/07-render.js')).view(); });
+  await p.waitForSelector('#bkAct'); await p.selectOption('#bkAct', 'status:stock'); await p.waitForSelector('#tbOk'); await p.click('#tbOk');
+  await stored(st => ['m1', 'm2'].every(id => st.objs.find(o => o.id === id).status === 'stock') && !st.objs.find(o => o.id === 'm1').uid);
 
   // 5. Data quality: no responsible is a tip, not a gap
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.person = null; c.st.tab = 'overview'; (await import('/js/07-render.js')).view(); });

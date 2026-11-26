@@ -46,7 +46,9 @@ const PICK = '__pick';
 const proposeOffice = u => {
   const sel = $('#hoLoc'), room = officeRoom(u); if (!sel) return;
   for (const o of sel.options) if (o.value !== PICK) o.textContent = o.value ? o.value + (o.value === room ? ' (their office)' : '') : (o.dataset.now || 'Where it is now');
-  const none = !sel.value || sel.value === PICK, start = sel.querySelector(`option[value="${PICK}"]`) ? PICK : '';
+  /* In a store room, Leave it there ('') is a choice: only Pick where it goes is none. A room picked by hand is kept. */
+  const start = sel.querySelector(`option[value="${PICK}"]`) ? PICK : '', none = sel.value === start;
+  sel.onchange = () => { delete sel.dataset.auto; };
   if (room && (none || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
   else if (!room && sel.dataset.auto){ sel.value = start; delete sel.dataset.auto; }
 };

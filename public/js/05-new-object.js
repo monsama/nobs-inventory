@@ -260,10 +260,12 @@ export function linkObjModal(pre = {}){
     if (why){ toast(why); return; }
     const val = pp ? portValue(t, pp) : null;
     if (portRangeError(t, val)){ portNote('lkPort', portRangeError(t, val)); return; }
+    /* For Undo, before a retired device's link on the port is freed: it comes back too. */
+    const freed = val != null ? rels.filter(r => r.to === t.id && String(r.port) === String(val)).map(r => byId(r.from)).filter(Boolean) : [];
+    const snap = snapshot([e, t, ...leave.map(r => byId(r.to)).filter(Boolean), ...freed]), relsWas = [...rels];
     if (val != null) releaseRetiredPort(t, val);
     if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('lkPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
     if (val != null && lagOfPort(t, val)){ portNote('lkPort', `Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
-    const snap = snapshot([e, t, ...leave.map(r => byId(r.to)).filter(Boolean)]), relsWas = [...rels];
     for (const r of leave){ rels.splice(rels.indexOf(r), 1); const was = byId(r.to); if (was) hist(was, now(), `${e.name} moved from here to ${t.name} by ${who()}`); }
     const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: null};
     rels.push(made);
