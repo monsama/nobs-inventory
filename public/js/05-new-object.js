@@ -212,7 +212,7 @@ export function linkObjModal(pre = {}){
      its room. Find narrows the list by name, type, room or user. */
   const site = l => String(l || '').split(' / ')[0];
   const near = o => !into ? 0 : (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
-  const sorted = list.sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
+  const sorted = list.filter(o => !swapped || o.id !== swapped.id).sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
   const label = o => `${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${atPort && o.loc ? ' · ' + o.loc : ''}${atPort && o.user ? ' · ' + o.user : ''}${where(o)}`;
   const objOptions = q => { const w = q.trim().toLowerCase(); const hits = sorted.filter(o => !w || [label(o), o.user].some(v => String(v || '').toLowerCase().includes(w)));
     return String(html`${atPort && html`<option value="">${hits.length ? `Choose a device… (${hits.length})` : 'No device matches'}</option>`}${hits.map(o => html`<option value="${o.id}">${label(o)}</option>`)}`); };
@@ -238,7 +238,11 @@ export function linkObjModal(pre = {}){
   };
   fit();
   if (ctx && !obj && [...$('#lkTo').options].some(x => x.value === ctx.id)) $('#lkTo').value = ctx.id;
-  if (into){ $('#lkTo').value = into.id; if (pre.port != null) $('#lkPort').value = String(pre.port); }
+  if (into){
+    /* A device that cannot be plugged into (retired since): said, rather than plugging into another one. */
+    if (![...$('#lkTo').options].some(x => x.value === into.id)){ closeModal(); toast(`${into.name} takes no new connections${into.status === 'retired' ? ': it is retired' : ''}.`); return; }
+    $('#lkTo').value = into.id; if (pre.port != null) $('#lkPort').value = String(pre.port);
+  }
   $('#lkTo').addEventListener('change', () => portNote('lkPort', ''));
   $('#lkPort').addEventListener('input', () => portNote('lkPort', ''));
   $('#lkObj').onchange = fit;
@@ -272,7 +276,9 @@ export function linkObjModal(pre = {}){
     /* The device replaced gives the port up (only once every check passed): it stays in the inventory. */
     if (swap && rels.includes(swap) && swap.to === t.id && String(swap.port) === String(val)){ rels.splice(rels.indexOf(swap), 1); hist(swapped, now(), `Unplugged from ${t.name} port ${swap.port}: replaced by ${e.name}, by ${who()}`); }
     for (const r of leave){ rels.splice(rels.indexOf(r), 1); const was = byId(r.to); if (was) hist(was, now(), `${e.name} moved from here to ${t.name} by ${who()}`); }
-    const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: null};
+    /* A device replacing another on the port takes its VLAN over, as a move keeps it. */
+    const took = swap && swap.to === t.id && String(swap.port) === String(val);
+    const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: took ? swap.vlan ?? null : null};
     rels.push(made);
     const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into', uplink: 'Uplink to'}[kind];
     const from = leave.length ? byId(leave[0].to) : null;

@@ -871,8 +871,11 @@ export function keepToastOnTop(leaving = false){
 /* The timer that hides the message at the bottom: a new message starts it again. */
 let toastTimer;
 /* A short message at the bottom. One that says a change was not saved is red and stays longer (a click hides it). */
+/* A message belongs to the view shown once the step that said it is done (it may open another view, as New device
+   does): changing view after that closes a plain message (07-render.js). */
+const toastView = t => { t.dataset.fresh = '1'; setTimeout(() => { t.dataset.tab = String(st.tab); delete t.dataset.fresh; }, 0); };
 export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
-  const t = $('#toast'); keepToastOnTop();
+  const t = $('#toast'); keepToastOnTop(); toastView(t);
   t.textContent = t.textContent === msg ? msg + '\u200b' : msg;
   t.classList.toggle('err', kind === 'err');
   t.onclick = () => t.classList.add('off');

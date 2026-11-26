@@ -19,7 +19,8 @@ saveState(db, { ...s0, locs: ['Zürich / IT'], history: {},
   users: [...s0.users, { id: 'p1', name: 'Finn Graf', role: 'none', active: true, source: 'manual', groups: [] }],
   contracts: [{ id: 'c1', name: 'Lease Notebooks 2023 with a long name', kind: 'lease', supplier: 'Leasing GmbH', cost: 1200.5, per: 'year', end: '2027-12-31', renew: 12, notice: 3, devices: ['nb'] }],
   objs: [dev('core', 'switch', 'SW-CORE', { ports: 24 }), dev('pa', 'pc', 'PC-A'), dev('pb', 'pc', 'PC-B'), dev('nb', 'notebook', 'NB-FINN', { uid: 'p1', user: 'Finn Graf' })],
-  rels: [{ id: 'r1', from: 'pa', to: 'core', kind: 'connected', port: 5, vlan: null }] });
+  vlans: [{ vid: 20, name: 'Office' }],
+  rels: [{ id: 'r1', from: 'pa', to: 'core', kind: 'connected', port: 5, vlan: 20 }] });
 const stored = check => storedBy(() => loadState(db), check);
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}/`;
@@ -58,13 +59,19 @@ try {
   await p.waitForSelector('[data-replace="r1"]'); await p.click('[data-replace="r1"]');
   await p.waitForSelector('#lkQ'); assert.match(await p.textContent('#mdl .mh'), /Replace PC-A on SW-CORE · 5/);
   await p.fill('#lkQ', 'PC-B'); await p.press('#lkQ', 'Enter');
-  await stored(st => st.rels.some(r => r.from === 'pb' && r.to === 'core' && r.port === 5) && !st.rels.some(r => r.id === 'r1'));
+  await stored(st => st.rels.some(r => r.from === 'pb' && r.to === 'core' && r.port === 5 && r.vlan === 20) && !st.rels.some(r => r.id === 'r1'));
   await p.click('#toast .t-undo');
   await stored(st => st.rels.some(r => r.id === 'r1' && r.port === 5) && !st.rels.some(r => r.from === 'pb'));
 
+  //    a message said while another view opens (New device opens the device) stays
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.toast('Created X'); c.st.tab = 'cards'; (await import('/js/07-render.js')).view(); });
+  await p.waitForTimeout(100);
+  assert.equal(await p.evaluate(() => document.getElementById('toast').classList.contains('off')), false);
+
   // 4. a plain message closes when the view changes
   await p.evaluate(async () => (await import('/js/01-core.js')).toast('Just a note'));
-  await go(p, 'cards');
+  await p.waitForTimeout(50);
+  await go(p, 'overview');
   assert.equal(await p.evaluate(() => document.getElementById('toast').classList.contains('off')), true);
 
   // 5. contracts on a phone: cards, nothing past the right edge, the cost on one line
@@ -75,6 +82,8 @@ try {
   const over = await m.evaluate(() => { const w = document.documentElement.clientWidth; return [...document.querySelectorAll('table.contracts td, table.contracts tr, .ct-sum *')].filter(e => e.getBoundingClientRect().right > w + 1).map(e => e.tagName + '.' + e.className + ' ' + Math.round(e.getBoundingClientRect().right) + '/' + w + ' ' + e.textContent.slice(0, 30)).concat(document.documentElement.scrollWidth > w ? ['page ' + document.documentElement.scrollWidth] : []); });
   assert.deepEqual(over, [], 'no contract cell past the right edge');
   assert.match(await m.textContent('table.contracts td[data-l="Cost"]'), /CHF 1.?200\.50/);
+  const editBtn = await m.$eval('table.contracts td.ct-acts button', e => { const r = e.getBoundingClientRect(); return r.width >= 24 && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('button') === e; });
+  assert.equal(editBtn, true, 'Edit can be seen and tapped');
   if (process.env.NI_SHOTS) await m.screenshot({ path: path.join(process.env.NI_SHOTS, 'contracts-phone.png') });
   /* The cost on one line, and each total within its tile. */
   const costLines = await m.$eval('table.contracts td[data-l="Cost"]', e => { const r = document.createRange(); r.selectNodeContents(e); return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size; });

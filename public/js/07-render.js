@@ -41,11 +41,12 @@ export function render(opts = {}){
   finally { drawing = false; }
   if (drawAgain){ const again = drawAgain; drawAgain = null; render(again); }
 }
-/* A plain message is about the view it was said in: changing view closes it. One with Undo stays its time. */
-let toastTab = null;
+/* A plain message is about the view it was said in (toast() in 01-core.js notes which): changing view closes it. One
+   with Undo, or an error, stays its time. */
 const closeToastOnViewChange = () => {
-  if (toastTab !== null && toastTab !== st.tab){ const t = document.getElementById('toast'); if (t && !t.classList.contains('off') && !t.querySelector('.t-undo') && !t.classList.contains('err')) t.classList.add('off'); }
-  toastTab = st.tab;
+  const t = document.getElementById('toast');
+  if (!t || t.classList.contains('off') || t.dataset.fresh || t.dataset.tab === undefined || t.dataset.tab === String(st.tab)) return;
+  if (!t.querySelector('.t-undo') && !t.classList.contains('err')) t.classList.add('off');
 };
 function renderNow({ save = true } = {}){
   closeToastOnViewChange();

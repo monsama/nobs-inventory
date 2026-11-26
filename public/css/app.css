@@ -2928,7 +2928,7 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
   table.grid.contracts tbody td{display:contents;border:0;padding:0}
   table.grid.contracts td.selcol{display:block;grid-column:1;grid-row:1}
   table.grid.contracts td.ct-name{display:block;grid-column:2;grid-row:1;white-space:normal;overflow:visible}
-  table.grid.contracts td.ct-acts{display:block;grid-column:3;grid-row:1}
+  table.grid.contracts td.ct-acts{display:block;grid-column:3;grid-row:1;width:auto;max-width:none;overflow:visible}
   table.grid.contracts td.ct-name, table.grid.contracts td.selcol, table.grid.contracts td.ct-acts{height:auto;min-height:0;background:transparent!important;position:static;box-shadow:none}
   table.grid.contracts td[data-l]:not(:empty){display:block;grid-column:2 / 4;text-align:left;white-space:normal;height:auto;min-height:0;line-height:1.45;background:none}
   table.grid.contracts td[data-l]:not(:empty)::before{content:attr(data-l) ": ";color:var(--muted);font-size:12px}
