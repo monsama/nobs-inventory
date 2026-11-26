@@ -67,9 +67,10 @@ function quickEdit(o, btn){
     if (to === 'stock' && (o.uid || o.user || o.hotdesk)){ close(); takeBackModal([o]); return; }
     change('Status set to ' + STATUS[to].label, 'status set to ' + STATUS[to].label, () => { o.status = to; delete o.stockAuto; }); });
   /* The description: Enter or leaving the field saves it (also when the box closes), Esc puts it back. */
-  const dsc = /** @type {HTMLInputElement} */ ($('#qeDesc')), dWas = dsc.value; let dDone = false;
+  const dsc = /** @type {HTMLInputElement} */ ($('#qeDesc')); let dWas = dsc.value;
+  /* Each save moves dWas on, so a second edit of the description saves too, with its own Undo. */
   const saveDesc = () => {
-    const to = dsc.value.trim(); if (dDone || to === dWas.trim()) return; dDone = true;
+    const to = dsc.value.trim(); if (to === dWas.trim()) return; dWas = to;
     /* Saved at once, but the box stays open and the list is not drawn again: Tab goes on to Location, and a click on
        another field or another row's pencil is not lost to a redraw. The row's second line is changed in place. */
     const snap = snapshot([o]), msg = to ? 'Description set to ' + to : 'Description removed';

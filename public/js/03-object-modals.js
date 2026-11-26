@@ -72,9 +72,13 @@ function retireTies(o){
   const plan = o.planPos && PLANS.find(p => p.id === o.planPos.plan);
   const cts = contractsOf(o);
   const resp = [o.respIn, o.respEx].filter(Boolean).map(contactOf).filter(Boolean);
+  const downs = rels.filter(r => r.to === o.id && PORT_KINDS.includes(r.kind) && byId(r.from));
   return [
     (o.uid || o.hotdesk) && ['user', html`Take it from ${o.user}`, () => { o.uid = null; o.hotdesk = false; pickHand(o, 'user'); }],
     plugs.length && ['plug', html`Unplug it from ${plugs.map(r => `${byId(r.to).name}${r.port != null ? ' port ' + portLabel(byId(r.to), r.port) : ''}`).join(', ')}, so the port is free`, () => plugs.forEach(r => rels.splice(rels.indexOf(r), 1))],
+    /* A switch (or any device with ports) retired: what is plugged into it is unplugged, so no port map or path runs
+       through a retired device. */
+    downs.length && ['downs', html`Unplug the ${downs.length === 1 ? 'device' : downs.length + ' devices'} on its ports: ${downs.map(r => byId(r.from).name).join(', ')} (${downs.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => downs.forEach(r => rels.splice(rels.indexOf(r), 1))],
     host.length && ['host', html`Take it off ${host.map(r => byId(r.to).name).join(', ')}`, () => host.forEach(r => rels.splice(rels.indexOf(r), 1))],
     attached.length && ['attached', html`Detach ${attached.map(r => byId(r.from).name).join(', ')} (${attached.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => attached.forEach(r => rels.splice(rels.indexOf(r), 1))],
     vms.length && ['vms', html`${vms.map(r => byId(r.from).name).join(', ')} no longer ${vms.length === 1 ? 'runs' : 'run'} on it (${vms.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => vms.forEach(r => rels.splice(rels.indexOf(r), 1))],
@@ -101,6 +105,13 @@ export function retireLinks(o){
   const l = linksOf(o), gone = [...l.plugs, ...l.host, ...l.attached, ...l.vms];
   for (const r of gone){ rels.splice(rels.indexOf(r), 1); }
   return gone;
+}
+/* Retired in bulk (Table, Retire… on picked devices, gone devices): all that the Retire dialog offers, ticked, is done
+   for each: the links, the user, the floor plan, contracts and responsible. Returns the Undo of the contract entries. */
+export function retireAll(list){
+  const ctsWas = COSTS.contracts.map(c => [c, [...(c.devices || [])]]);
+  for (const o of list){ retireLinks(o); for (const [, , run] of retireTies(o)) run(); }
+  return () => ctsWas.forEach(([c, d]) => { c.devices = [...new Set([...(c.devices || []), ...d])]; });
 }
 /* The Retire dialog: what the device still holds (retireTies) to clear, ticked, and an optional reason. Retiring takes it
    out of its rack, sets it retired and notes it in the history, with one Undo for all of it. */
@@ -160,7 +171,7 @@ export function purgeModal(o){
   $('#pgCancel').onclick = closeModal;
   const ex = $('#pgExcl');
   if (ex) ex.onclick = () => {
-    retireLinks(o);
+    if (o.status !== 'retired') retireAll([o]);
     o.status = 'retired'; o.excluded = true;
     hist(o, now(), 'Retired and excluded from Lansweeper sync by ' + who());
     closeModal(); toast(`${o.name} is retired and excluded: Lansweeper will not add it again`); render();
@@ -687,6 +698,11 @@ export function renderObj(o){
       if (!Number.isInteger(n) || n < 1 || n > 60){ toast('A rack is 1 to 60 U high, in whole units.'); unitsEl.value = String(rackUnits(o)); return false; }
       if (n < top){ toast(`U${top} is in use: move the devices above U${n} first.`); unitsEl.value = String(rackUnits(o)); return false; }
     }
+    /* A price that is not a number keeps the price saved: the field shows it again, nothing is saved. */
+    const priceEl = /** @type {HTMLInputElement|null} */ ($('#view').querySelector('[data-k="price"]'));
+    if (priceEl && priceEl.value.trim() !== '' && num(priceEl.value) === undefined){
+      toast('The price is a number up to 1 000 000 000, e.g. 1290 or 99.50.'); priceEl.value = o.price === undefined ? '' : String(o.price); priceEl.focus(); return false;
+    }
     const kept = [], edits = [];
     /* The device as it was, for the Undo in the toast. */
     const before = snapshot([o]);
@@ -708,7 +724,7 @@ export function renderObj(o){
       if (['ports','sfp'].includes(k)) v = +v || 0;
       /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
       /* Read as a contract's amount is (num): 1290, 1'290.50 and 1,290 mean the same everywhere. */
-      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number up to 1 000 000 000, e.g. 1290 or 99.50.'); else if (o.price !== undefined) edits.push([k, o.price, undefined]); delete o.price; return; } v = t; }
+      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') return; if (o.price !== undefined) edits.push([k, o.price, undefined]); delete o.price; return; } v = t; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
       if (k === 'units') v = +v;
       if (k === 'type' && o.type !== v && TYPES[v]){

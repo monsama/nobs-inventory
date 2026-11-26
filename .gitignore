@@ -15,3 +15,6 @@ proxy/sites/*.caddy
 .review-tmp/
 .ctmp/
 .shots-tmp/
+
+# Throwaway browser checks (deleted after use)
+tests/browser/_*.tmp.mjs

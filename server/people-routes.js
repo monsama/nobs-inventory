@@ -24,8 +24,9 @@ export function registerPeopleRoutes(app, { db, requireUser, requireAdmin, mailT
       autoBackup(db, 'before merging two people');
       let r;
       try { r = mergePeople(s, k.id, d.id, stamp(new Date())); } catch (e) { throw new HttpError(400, e.message); }
-      saveState(db, s);
+      /* Before the save: saving deletes the password and sign-ins of the person merged away, so they move first. */
       movePersonRows(db, k.id, d.id, hadLogin);
+      saveState(db, s);
       audit(db, req.user.id, `people merged: ${d.name} into ${k.name} (${r.moved} device${r.moved === 1 ? '' : 's'})`);
       res.json({ ok: true, moved: r.moved });
     } catch (e) { next(e); }
