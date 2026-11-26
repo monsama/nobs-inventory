@@ -58,6 +58,7 @@ function renderNow({ save = true } = {}){
      list of its own with its filters over it, are shown without it. */
   const noSide = NO_SIDE.includes(st.tab) || !!st.scope;
   document.body.classList.toggle('noside', noSide); placeSide();
+  { const sb = /** @type {HTMLButtonElement | null} */ (document.getElementById('sideBtn')); if (sb){ sb.disabled = noSide; sb.title = noSide ? 'No filters in this view' : 'Filters'; if (noSide) sb.setAttribute('aria-label', 'No filters in this view'); } }
   if (noSide) document.body.classList.remove('side-open');
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();

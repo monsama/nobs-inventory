@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { registeredOnly, dirLocOf, vmsOn, GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
+import { fold, registeredOnly, dirLocOf, vmsOn, GONE_FILTERS, goneFrom, typeText, REVIEW, addedTime, listCountShown, closeMoreOnPick, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, GRAPH_STALE_DAYS, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, agoText, COMPLIANCE, isAttached, markHtml, handHtml, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used, noMatchHtml } from './01-core.js';
 import { SERVER, view, viewSig } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -363,13 +363,15 @@ document.addEventListener('keydown', e => {
 /* When the search matches a person or a place, those come first as buttons. */
 export function addSearchHits(){
   const q = st.q.trim().toLowerCase(); if (!q) return;
-  const people = USERS.filter(u => [u.name, u.login, u.dept].some(v => v && v.toLowerCase().includes(q)));
-  const locs = LOCS.filter(l => l.toLowerCase().includes(q));
+  /* Accents left out or written out find them too ("muller" Müller, "zurich" Zürich), as the search at the top. */
+  const fq = fold(q), hit = v => !!v && (String(v).toLowerCase().includes(q) || fold(v).includes(fq));
+  const people = USERS.filter(u => [u.name, u.login, u.dept].some(hit));
+  const locs = LOCS.filter(hit);
   if (!people.length && !locs.length) return;
   /* Counted in one pass over the devices: a search that matches many people must not go through them once per person. */
   const count = new Map();
   for (const o of objs) if (o.user) count.set(o.user, (count.get(o.user) || 0) + 1);
-  $('#view').insertAdjacentHTML('afterbegin', html`<div class="hits">${people.map(u => html`<button class="chip info" data-person="${u.name}">${u.name} · ${count.get(u.name) || 0} devices</button>`)}${locs.map(l => html`<button class="chip ls" data-loc="${l}">${l}</button>`)}</div>`);
+  $('#view').insertAdjacentHTML('afterbegin', html`<div class="hits">${people.map(u => html`<button class="chip info" data-person="${u.name}">${u.name} · ${count.get(u.name) || 0} ${count.get(u.name) === 1 ? 'device' : 'devices'}</button>`)}${locs.map(l => html`<button class="chip ls" data-loc="${l}">${l}</button>`)}</div>`);
   $('#view').querySelectorAll('[data-person]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.person));
   $('#view').querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { st.loc = b.dataset.loc; st.q = ''; view(); });
 }

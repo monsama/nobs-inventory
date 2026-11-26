@@ -2946,9 +2946,10 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 }
 /* What is behind a device on a port: a group under it, not a chain (each is behind that device, not behind the last). */
 .path.path-behind{padding-top:0}
-/* Phone: the Filters button keeps its place, unseen, on the views without filters, so the logo and search do not move. */
+/* Phone: the Filters button stays, greyed out (disabled), on the views without filters: the logo and search do not move
+   and no gap is left. */
 @media (max-width:820px){
-  body.noside #sideBtn{display:inline-flex!important;visibility:hidden;pointer-events:none}
+  body.noside #sideBtn{display:inline-flex!important}
 }
 /* The user link in a device's key facts sits on the line of the other facts (no tap-size padding of its own). */
 .obj.otabbed .of>button.of-person{min-height:0!important;height:auto!important;line-height:inherit;border:0;background:none;vertical-align:baseline}
@@ -2975,3 +2976,16 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) button.primary:disabled{background:var(--panel2);color:var(--muted);border-color:var(--bd);opacity:1} }
 /* New contract on a phone: the cost and its period share the row without passing its edge. */
 @media (max-width:760px){ #mdl #ctCost, #mdl #ctPer{flex:1 1 0!important;width:auto!important;min-width:0} }
+/* A person with no devices: one line under the bar, not an empty table. */
+.empty-person{padding:16px var(--gutter, 16px);margin:0}
+/* With the selection bar wrapped onto two rows, the message sits above it, not on its buttons. */
+@media (min-width:761px) and (max-width:1180px){ body:has(#toolbar .pickrow) #toast{bottom:calc(136px + env(safe-area-inset-bottom, 0px))} }
+/* A port's VLAN beside its actions. */
+.port-acts .port-vlan{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.port-acts .port-vlan select{width:auto;min-width:120px}
+/* Phone: the selection bar wraps, so every action is in reach. */
+@media screen and (max-width:760px){ #toolbar .pickrow{flex-wrap:wrap;justify-content:center;row-gap:6px} body:has(#toolbar .pickrow) #toast{bottom:calc(150px + env(safe-area-inset-bottom, 0px))} }
+/* Phone: a switch's port groups wrap inside the card instead of running past its edge. */
+@media (max-width:760px){ .pgroups{flex-wrap:wrap} .chassis{max-width:100%} }
+/* Hand out's device list: a device name stays on one line (no MON-ZH- / 001). */
+.ho-list b{white-space:nowrap}

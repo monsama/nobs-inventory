@@ -614,7 +614,12 @@ const onTabClick = e => {
 };
 $('#tabsbar').addEventListener('click', onTabClick);
 $('#objbar').addEventListener('click', onTabClick);
+/* A double-click on a row opens the device with the first click: the second (its click count 2) would land on the page
+   just drawn (a panel folded, a field picked) and is let go. */
+let openedAt = 0;
+document.addEventListener('click', e => { if (e.detail > 1 && Date.now() - openedAt < 700){ e.stopPropagation(); e.preventDefault(); } }, true);
 export function openObj(id){
+  openedAt = Date.now();
   newSeen(id);
   if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); }
   /* The list it was opened from (List, Table or the map), so closing the device goes back there (a Data quality list

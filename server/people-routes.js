@@ -6,7 +6,7 @@ import { autoBackup } from './backup.js';
 import { audit } from './db.js';
 import { sendReportMail } from './digest.js';
 import { HttpError } from './errors.js';
-import { loadState, movePersonRows, saveState } from './state.js';
+import { loadState, saveState } from './state.js';
 
 /* Adds POST /api/users/merge (admins) and My devices for anyone signed in, on a device they are the user of: confirm it
    (/api/my/devices/:id/confirm) or report a problem (/report). Both are noted in its history and the log; a problem is
@@ -24,9 +24,8 @@ export function registerPeopleRoutes(app, { db, requireUser, requireAdmin, mailT
       autoBackup(db, 'before merging two people');
       let r;
       try { r = mergePeople(s, k.id, d.id, stamp(new Date())); } catch (e) { throw new HttpError(400, e.message); }
-      /* Before the save: saving deletes the password and sign-ins of the person merged away, so they move first. */
-      movePersonRows(db, k.id, d.id, hadLogin);
-      saveState(db, s);
+      /* In the save's transaction, before the docs: saving deletes the password and sign-ins of the person merged away. */
+      saveState(db, s, { merged: [{ keep: k.id, drop: d.id, hadLogin }] });
       audit(db, req.user.id, `people merged: ${d.name} into ${k.name} (${r.moved} device${r.moved === 1 ? '' : 's'})`);
       res.json({ ok: true, moved: r.moved });
     } catch (e) { next(e); }

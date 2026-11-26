@@ -1,4 +1,4 @@
-import { pickHand, listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot } from './01-core.js';
+import { pickHand, listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot, VLANS, vlanLabel } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
@@ -215,7 +215,9 @@ export function linkObjModal(pre = {}){
   const near = o => !into ? 0 : (['mobile', 'ios', 'android'].includes(o.type) ? 8 : 0) + (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
   /* Network gear and servers keep their other cables: one already on this switch is moved from its port there instead. */
   const onInto = o => into && (NET_GEAR.includes(o.type) || o.type === 'server') && rels.some(r => r.from === o.id && r.to === into.id);
-  const sorted = list.filter(o => (!swapped || o.id !== swapped.id) && !onInto(o)).sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
+  /* Nor the device this one is itself plugged into (its uplink): that would be a loop. */
+  const above = o => into && rels.some(r => r.from === into.id && r.to === o.id);
+  const sorted = list.filter(o => (!swapped || o.id !== swapped.id) && !onInto(o) && !above(o)).sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
   const label = o => `${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${atPort && o.loc ? ' · ' + o.loc : ''}${atPort && o.user ? ' · ' + o.user : ''}${where(o)}`;
   const objOptions = q => { const w = q.trim().toLowerCase(); const hits = sorted.filter(o => !w || [label(o), o.user].some(v => String(v || '').toLowerCase().includes(w)));
     return String(html`${atPort && html`<option value="">${hits.length ? `Choose a device… (${hits.length})` : 'No device matches'}</option>`}${hits.map(o => html`<option value="${o.id}">${label(o)}</option>`)}`); };
@@ -224,6 +226,7 @@ export function linkObjModal(pre = {}){
       ${atPort ? html`<label for="lkQ">Find</label><input id="lkQ" type="search" placeholder="Name, type, room or user" autocomplete="off">` : ''}<label for="lkObj">${atPort ? 'Device' : 'Object'}</label><select id="lkObj">${rawHtml(objOptions(''))}</select>
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
+      ${atPort && VLANS.length ? html`<label for="lkVlan">VLAN</label><select id="lkVlan"><option value="">None</option>${VLANS.map(v => html`<option value="${v.vid}" ${swap && swap.vlan === v.vid ? 'selected' : ''}>${vlanLabel(v.vid)}</option>`)}</select>` : ''}
     </div><p class="note" id="lkNote">${swapped ? `${swapped.name} is unplugged and stays in the inventory; the one picked takes its port and VLAN.` : 'Only the link is added; the device\'s details stay as they are.'}</p><p class="fieldnote warn" id="lkWarn" hidden></p></div>
     <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">${swapped ? 'Replace' : atPort ? 'Plug in' : 'Link'}</button></div>`, 'sm');
   /* Opened on a device's page: that device is the one to link, or, when it cannot be linked itself (a switch), the one to
@@ -293,7 +296,9 @@ export function linkObjModal(pre = {}){
     for (const r of leave){ rels.splice(rels.indexOf(r), 1); const was = byId(r.to); if (was) hist(was, now(), `${e.name} moved from here to ${t.name} by ${who()}`); }
     /* A device replacing another on the port takes its VLAN over, as a move keeps it. */
     const took = swap && swap.to === t.id && String(swap.port) === String(val);
-    const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: took ? swap.vlan ?? null : null};
+    /* The VLAN picked here (a replacement proposes the one of the device it replaces). */
+    const vEl = /** @type {HTMLSelectElement | null} */ ($('#lkVlan')), vPick = vEl && vEl.value !== '' ? Number(vEl.value) : null;
+    const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: vEl ? vPick : took ? swap.vlan ?? null : null};
     rels.push(made);
     const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into', uplink: 'Uplink to'}[kind];
     const from = leave.length ? byId(leave[0].to) : null;

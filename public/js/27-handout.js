@@ -1,7 +1,7 @@
 /* Handing devices out and taking them back, in one step each. Hand out: a person (found by name, or added on the spot),
    the device is then in use with them; an admin can print the entry sheet right after. Take back: the device is in
    stock again, with nobody. Both with Undo, and in the device's history. */
-import { $, LOCS, feedLinked, hist, markHand, now, objs, pickHand, restoreSnapshot, snapshot, st, toastUndo } from './01-core.js';
+import { fold, $, LOCS, feedLinked, hist, markHand, now, objs, pickHand, restoreSnapshot, snapshot, st, toastUndo } from './01-core.js';
 import { USERS, ensureUser, isAdmin, who } from './04-settings.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { closeModal, modal } from './19-modal.js';
@@ -20,6 +20,8 @@ function moveTo(o, loc){
   return true;
 }
 function give(list, u, loc = ''){
+  /* Done with: no longer picked, so no later bulk action reaches them out of sight. */
+  if (st.bulk) for (const o of list) st.bulk.delete(o.id);
   for (const o of list){
     const was = o.user;
     delete o.hotdesk; o.uid = u.id; o.status = 'active'; delete o.stockAuto; keepUser(o);
@@ -49,8 +51,10 @@ const proposeOffice = u => {
   /* In a store room, Leave it there ('') is a choice: only Pick where it goes is none. A room picked by hand is kept. */
   const start = sel.querySelector(`option[value="${PICK}"]`) ? PICK : '', none = sel.value === start;
   sel.onchange = () => { delete sel.dataset.auto; };
-  if (room && (none || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
-  else if (!room && sel.dataset.auto){ sel.value = start; delete sel.dataset.auto; }
+  /* Only a room still in the list (the store room the device is in is said by Leave it there instead). */
+  const listed = room && [...sel.options].some(o => o.value === room);
+  if (listed && (none || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
+  else if (!listed && sel.dataset.auto){ sel.value = start; delete sel.dataset.auto; }
 };
 /* Take back into stock: asked where they go (where they are, or a room; the room last used for this is proposed,
    kept in this browser), then done with Undo. */
@@ -106,6 +110,7 @@ export function takeBack(list, loc = ''){
   const live = list.filter(o => o.status !== 'retired');
   if (!live.length) return;
   const snap = snapshot(live), names = new Set(live.map(o => o.user).filter(Boolean));
+  if (st.bulk) for (const o of live) st.bulk.delete(o.id);
   for (const o of live){
     const had = o.user, to = loc === EACH_STORE ? storeOfSite(o) : loc;
     o.uid = null; delete o.hotdesk; o.status = 'stock'; delete o.stockAuto; keepUser(o);
@@ -118,7 +123,7 @@ export function takeBack(list, loc = ''){
 
 /* The people to choose from: active ones first, by name; the search finds by name, login or department. */
 const SHOWN = 8;
-const people = q => USERS.filter(u => (u.active !== false || q) && (!q || [u.name, u.login, u.dept].some(x => low(x).includes(q))))
+const people = q => USERS.filter(u => (u.active !== false || q) && (!q || [u.name, u.login, u.dept].some(x => low(x).includes(q) || fold(x).includes(fold(q)))))   /* "schar" finds Schär */
   .sort((a, b) => +(a.active === false) - +(b.active === false) || a.name.localeCompare(b.name));
 
 /* Hand out the devices (ids) to a person picked here. */

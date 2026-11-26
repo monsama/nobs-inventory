@@ -271,6 +271,10 @@ export function renderTable(){
   $('#tblCount').textContent = listCountShown(list.length, scopePool().length);
   const cut = st.tableAll !== viewSig() && list.length > SHOW_FIRST + 100;
   const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
+  /* A person with no devices: the bar above says so, with what they last had; no empty table with filter boxes. */
+  if (st.person && !list.length && !st.q.trim() && !objs.some(o => o.uid === st.person && o.status !== 'retired')){
+    $('#view').innerHTML = html`${isAdmin() ? html`<p class="muted empty-person">Hand out a device to them from the bar above.</p>` : ''}`; return;
+  }
   $('#view').innerHTML = html`<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
     <th data-w="52" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => html`<th data-ck="${c.k}" data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? html` data-pin="1"` : ''}>${c.label}</th>`)}</tr></thead><tbody>

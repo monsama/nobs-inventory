@@ -30,7 +30,7 @@ const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 1
 /* Accents left out or written out (fold): "zurich buro" finds Zürich / Büro, "muller" Müller. */
 const has = (q, ...vals) => { const f = fold(q); return vals.some(v => v && (String(v).toLowerCase().includes(q) || fold(v).includes(f))); };
 /* Every word typed, in any order, found in the values together: "keller anna" finds Anna Keller. */
-const hasWords = (q, ...vals) => { const text = fold(vals.filter(Boolean).join(' ')); return fold(q).split(/\s+/).filter(Boolean).every(w => text.includes(w)); };
+const hasWords = (q, ...vals) => { const raw = vals.filter(Boolean).join(' ').toLowerCase(), text = fold(raw); return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => raw.includes(w) || text.includes(fold(w))); };
 const row = (i, icon, main, sub) => html`<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${main}</span>${sub ? html`<span class="gs-sub">${sub}</span>` : ''}</li>`;
 
 /* The actions: [name, other words, for admins only, what it does]. The views of the tab bar are actions too. */

@@ -956,7 +956,9 @@ const outletWords = o => {
 };
 /* Text as a search compares it: lower case, without accents, and ä/ö/ü written ae/oe/ue the same, so "zurich",
    "zuerich" and "Zürich" are one, as are "Buero" and "Büro". */
-export const fold = (/** @type {any} */ v) => String(v ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/([aou])e/g, '$1');
+/* ae/oe/ue only in words of letters: DESKTOP-4AE2F1 and DESKTOP-4A2F1 stay two. */
+export const fold = (/** @type {any} */ v) => String(v ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[\p{L}\p{N}]+/gu, w => /^\p{L}+$/u.test(w) ? w.replace(/([aou])e/g, '$1') : w);
 /* The fields a search with accents left out (or written out) still finds: place, user, name, model. */
 const foldedMatch = (o, q) => { const f = fold(q); return f.split(/\s+/).filter(Boolean).every(w => [o.loc, o.user, o.name, o.model, o.code].some(v => v && fold(v).includes(w))); };
 /* A person's name in any order: "graf finn" is Finn Graf (every word typed in the user's name). */

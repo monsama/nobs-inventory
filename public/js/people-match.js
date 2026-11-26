@@ -79,7 +79,10 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
   }
   if (drop.active !== false && keep.active === false && keep.source !== 'ldap') { keep.active = true; delete keep.leftAt; delete keep.leftBy; }
   const aliases = new Set(keep.aliases || []);
-  for (const v of [drop.login, drop.name, ...(drop.aliases || [])]) if (v && low(v) !== low(keep.login) && low(v) !== low(keep.name)) aliases.add(String(v).slice(0, 120));
+  /* The other record's login and aliases, and its name when it is a full name (with a space) or a login Lansweeper used
+     as the name: a one-word name such as "Max" would read as a login, and find the person by someone else's account. */
+  const dropName = /\s/.test(String(drop.name || '').trim()) || lsLoginName(drop) ? drop.name : '';
+  for (const v of [drop.login, dropName, ...(drop.aliases || [])]) if (v && low(v) !== low(keep.login) && low(v) !== low(keep.name)) aliases.add(String(v).slice(0, 120));
   if (aliases.size) keep.aliases = [...aliases].slice(0, 20);
   s.users = s.users.filter(u => u !== drop);
   return { moved };
