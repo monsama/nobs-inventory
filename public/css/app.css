@@ -441,16 +441,16 @@ span.sb-ver{cursor:default}
 /* Phone-only parts of the status bar stay hidden elsewhere (.statusbar span shows every span). */
 .statusbar .ph-only{display:none}
 @media screen and (max-width:760px){.statusbar .ph-only{display:inline-flex;margin-left:auto}}
-/* Buy me a coffee: always in the top bar, a warm outline; on a narrow screen the cup only. */
-#coffeeBtn.coffee{display:inline-flex;flex:none;align-items:center;gap:6px;height:26px;min-height:0;overflow:hidden;padding:0 10px;border:1px solid color-mix(in srgb,#e8a400 55%,var(--bd));border-radius:13px;background:color-mix(in srgb,#ffdd00 12%,transparent);color:var(--fg);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap}
-#coffeeBtn.coffee:hover{background:color-mix(in srgb,#ffdd00 24%,transparent)}
+/* Buy me a coffee: a small, quiet icon in the top bar, like the bell beside it; the cup in a warm tint, the words in its
+   tooltip. */
+#coffeeBtn.coffee{display:inline-flex;flex:none;align-items:center;justify-content:center;width:26px;height:26px;min-height:0;padding:0;border:1px solid var(--bd);border-radius:var(--r-m);background:transparent;color:color-mix(in srgb,#c98a00 70%,var(--muted));text-decoration:none}
+#coffeeBtn.coffee:hover{background:var(--hover);color:#c98a00}
 #coffeeBtn.coffee .i{width:15px;height:15px}
-/* The words only where the bar has room for them; the cup alone below (never squeezed, so no text spills out). */
-@media (max-width:1000px){#coffeeBtn.coffee{padding:0;width:26px;justify-content:center}#coffeeBtn .coffee-t{display:none}}
+#coffeeBtn .coffee-t{display:none}
+@media (pointer:coarse) and (any-hover:none){#coffeeBtn.coffee{width:40px;height:40px}}
 /* On a phone the top bar has no room left (the search would shrink to a stub): the coffee goes into the account menu. */
 #coffeeMenu{display:none}
 @media screen and (max-width:760px){#coffeeBtn.coffee{display:none}#barMore #coffeeMenu{display:inline-flex;gap:8px}}
-@media (pointer:coarse) and (any-hover:none){#coffeeBtn.coffee{width:40px;height:40px;border-radius:var(--r-m)}}
 /* The device's name takes the focus when it opens (for Tab to carry on there); it is not a control, so no ring. */
 #objTitle:focus{outline:none}
 
@@ -2818,6 +2818,11 @@ table.sw-sub td,table.sw-sub th{vertical-align:middle}
 .lrow .c-name{min-width:0}
 .lrow .c-name.has-desc{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:18px 16px;row-gap:1px;align-content:center;padding:4px 0}
 .lrow .c-name.nodesc>.c-nl{grid-row:1 / -1;align-self:center}
+/* The New mark sits in the middle of a two-line row, at the end of the name column, level with the other columns; the
+   name and description keep clear of it. */
+.lrow .c-name.has-desc{position:relative}
+.lrow .c-name.has-desc:has(.mk-new)>.c-nl,.lrow .c-name.has-desc:has(.mk-new)>.c-desc{padding-right:44px}
+.lrow .c-name.has-desc .c-nl>.mk-new{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
 .lrow .c-nl{display:flex;align-items:baseline;gap:8px;min-width:0;line-height:18px}
 .lrow .c-name.has-desc>.c-nl{height:18px}
 .lrow .c-desc{font-size:12px;line-height:16px;height:16px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}

@@ -26,7 +26,9 @@ try {
     assert.equal(await p.getAttribute('#coffeeBtn', 'href'), 'https://buymeacoffee.com/monsama');
     if (name === 'desktop') {
       assert.equal(await p.isVisible('header #coffeeBtn'), true, 'coffee in the top bar');
-      assert.equal((await p.textContent('#coffeeBtn')).trim(), 'Buy me a coffee');
+      assert.equal(await p.getAttribute('#coffeeBtn', 'aria-label'), 'Buy me a coffee');
+      assert.equal(await p.isVisible('#coffeeBtn .coffee-t'), false, 'a quiet icon: the words only in its tooltip');
+      const cb = await p.locator('#coffeeBtn').boundingBox(); assert.ok(cb.width <= 28 && cb.height <= 28, 'as small as the bell');
       assert.equal(await p.isVisible('#verTxt'), false, 'the version once');
       assert.equal(await p.textContent('#verBtn'), 'v' + version);
       await p.click('#verBtn'); await p.waitForSelector('#setPane');
