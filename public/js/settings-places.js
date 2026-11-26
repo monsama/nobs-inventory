@@ -46,7 +46,7 @@ function treeHtml(){
     <div class="lc-add">
       <div class="lpanel-add"><input id="nsName" placeholder="New site, e.g. Branch office" aria-label="New site" ${ed ? '' : 'disabled'}><button id="nsAdd" ${ed ? '' : 'disabled'}>Add site</button></div>
       <p class="note lnote" id="nsMsg">A site is a town or a building.</p>
-      <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room" ${ed && SITES.length ? '' : 'disabled'}>${SITES.map(x => html`<option ${(cur.site || siteOf(cur.room)) === x ? 'selected' : ''}>${x}</option>`)}</select><input id="nlRoom" placeholder="New room, e.g. Store room" aria-label="New room" ${ed && SITES.length ? '' : 'disabled'}><button id="nlAdd" ${ed && SITES.length ? '' : 'disabled'}>Add room</button></div>
+      <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room" ${ed && SITES.length ? '' : 'disabled'}>${SITES.map(x => html`<option ${(cur.site || siteOf(cur.room)) === x ? 'selected' : ''}>${x}</option>`)}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room" ${ed && SITES.length ? '' : 'disabled'}><button id="nlAdd" ${ed && SITES.length ? '' : 'disabled'}>Add room</button></div>
       <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p>
     </div></div>`;
 }

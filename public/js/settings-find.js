@@ -18,7 +18,7 @@ const SECTIONS = [
   ['Defender for Endpoint', 'entra', 'Defender for Endpoint', 'defender antivirus security'],
   ['Fields from Intune', 'entra', 'Fields from Intune', 'intune fields imei phone'],
   ['Sites and rooms', 'locations', 'Sites and rooms', 'site room rename merge delete building town'],
-  ['Store rooms', 'locations', 'Sites and rooms', 'stock take back store'],
+  ['Store rooms', 'locations', 'Sites and rooms', 'stock take back store stock room storage lager'],
   ['Location texts from the sources', 'locations', 'Location texts from the sources', 'room mapping ad office building'],
   ['List detail', 'types', 'Look and list', 'list detail column card lines preview'],
   ['Models', 'types', 'Models', 'model names lansweeper names'],
@@ -45,6 +45,10 @@ const ELSEWHERE = [
   ['Warranty ends', 'Devices → filters on the left', 'warranty expiring ended', async () => {
     (await import('./19-modal.js')).closeModal(); st.tab = 'cards'; (await import('./07-render.js')).view();
     requestAnimationFrame(() => { const w = document.getElementById('wtyList') || document.querySelector('[data-warranty]'); if (w) w.scrollIntoView({ block: 'center' }); }); }],
+  ['Switch light / dark', 'The sun and moon button, top right', 'dark light theme mode night colours', async () => {
+    (await import('./19-modal.js')).closeModal(); const t = document.getElementById('themeBtn'); if (t) t.click(); }],
+  ['Software licences', 'Contracts & software → Software', 'licence licences license seats software', async () => {
+    (await import('./19-modal.js')).closeModal(); st.tab = 'sw'; (await import('./07-render.js')).view(); }],
   ['Change password', 'Your account (your name, top right)', 'password change my account', async () => {
     (await import('./19-modal.js')).closeModal(); (await import('./signin.js')).accountModal();
     requestAnimationFrame(() => { const c = /** @type {HTMLElement | null} */ (document.getElementById('acCur')); if (c) c.focus(); }); }],

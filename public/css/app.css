@@ -2944,3 +2944,16 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
   table.grid.contracts tfoot td{display:block;border:0;padding:0;height:auto;background:none}
   table.grid.contracts tfoot td:empty{display:none}
 }
+/* What is behind a device on a port: a group under it, not a chain (each is behind that device, not behind the last). */
+.path.path-behind{padding-top:0}
+/* Phone: the Filters button keeps its place, unseen, on the views without filters, so the logo and search do not move. */
+@media (max-width:820px){
+  body.noside #sideBtn{display:inline-flex!important;visibility:hidden;pointer-events:none}
+}
+/* The user link in a device's key facts sits on the line of the other facts (no tap-size padding of its own). */
+.obj.otabbed .of>button.of-person{min-height:0!important;height:auto!important;line-height:inherit;border:0;background:none;vertical-align:baseline}
+/* A long entry in the plug-in list ends before the list's arrow. */
+#lkObj{text-overflow:ellipsis;padding-right:28px}
+/* New contract: Devices beside its search box, not between the box and the note under it. */
+#mdl label[for="ctDevQ"]{align-self:start;display:flex;align-items:center;min-height:var(--ctl)}
+@media (pointer:coarse) and (any-hover:none){#mdl label[for="ctDevQ"]{min-height:40px}}

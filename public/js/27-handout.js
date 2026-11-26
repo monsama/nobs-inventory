@@ -123,7 +123,7 @@ export function handOutModal(ids){
     <div id="hoList" class="ho-list" role="listbox" aria-label="People"></div>
     ${locField('hoLoc', '', hereText(list))}
     ${SERVER.on && isAdmin() ? html`<label class="pchk ho-sheet"><input type="checkbox" id="hoSheet"> Then make the entry sheet</label>` : ''}
-    <p class="note" id="hoSays">The device is in use with the person from now on.</p></div>
+    <p class="note" id="hoSays">${list.length === 1 ? 'The device is' : 'The devices are'} in use with the person from now on.</p></div>
     <div class="mf"><button id="hoNo">Cancel</button><button id="hoOk" class="primary" disabled>Hand out</button></div>`, 'sm');
   const draw = () => {
     const q = low($('#hoQ').value), all = people(q), found = all.slice(0, SHOWN), exact = all.some(u => low(u.name) === q);
@@ -166,7 +166,8 @@ export function handOutModal(ids){
   const ok0 = $('#hoOk').onclick;
   $('#hoOk').onclick = e => {
     if (inStore && picked && $('#hoLoc').value === PICK){
-      $('#hoLoc').focus();
+      $('#hoLoc').classList.add('bad'); $('#hoLoc').focus();
+      $('#hoLoc').addEventListener('change', () => $('#hoLoc').classList.remove('bad'), { once: true });
       $('#hoSays').innerHTML = String(html`<span class="ho-warn">${list.length === 1 ? 'It is' : 'They are'} in the store room ${inStore}: pick where ${list.length === 1 ? 'it goes' : 'they go'}, or Leave ${list.length === 1 ? 'it' : 'them'} in the store room.</span>`);
       return;
     }

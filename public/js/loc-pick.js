@@ -16,9 +16,11 @@ export function locOptions(sel, { none = 'No location' } = {}){
   const opt = (v, label) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(label)}</option>`;
   const sites = [...SITES, ...new Set(LOCS.map(siteOf).filter(x => !SITES.includes(x)))];
   /* A room name more than one site has (Lager in Zürich and in Bern) says its site too, so the closed list tells them
-     apart; the others keep the short name, for typing its first letters. */
+     apart; with one site, the short name. The room's name comes first, for typing its first letters. */
   const twice = new Set(); { const seen = new Set(); for (const l of LOCS){ const r = roomOf(l).toLowerCase(); if (!r) continue; if (seen.has(r)) twice.add(r); seen.add(r); } }
-  const name = l => !l.includes(' / ') ? `${l} (whole site)` : twice.has(roomOf(l).toLowerCase()) ? `${roomOf(l)} (${siteOf(l)})` : roomOf(l);
+  /* With more than one site, every room says its site: the closed list shows Büro (Bern), not a Büro of either site. */
+  const many = sites.filter(x => LOCS.some(l => siteOf(l) === x)).length > 1;
+  const name = l => !l.includes(' / ') ? `${l} (whole site)` : many || twice.has(roomOf(l).toLowerCase()) ? `${roomOf(l)} (${siteOf(l)})` : roomOf(l);
   let out = none === null ? '' : opt('', none);
   if (sel && !LOCS.includes(sel)) out += `<optgroup label="Now">${opt(sel, sel)}</optgroup>`;
   for (const site of sites){
@@ -45,7 +47,7 @@ function openNewRoom(s){
   const site = SITES.includes(siteOf(s.value)) ? siteOf(s.value) : SITES[0];
   const f = document.createElement('span');
   f.className = 'locnew';
-  f.innerHTML = String(html`<select aria-label="Site of the new room">${SITES.map(x => html`<option ${x === site ? 'selected' : ''}>${x}</option>`)}</select><input aria-label="Name of the new room" placeholder="New room, e.g. Store room" maxlength="80"><button type="button" class="mini primary">Add</button><button type="button" class="mini icon ghost locnew-x" aria-label="Cancel the new room" title="Cancel (Esc)">×</button>`);
+  f.innerHTML = String(html`<select aria-label="Site of the new room">${SITES.map(x => html`<option ${x === site ? 'selected' : ''}>${x}</option>`)}</select><input aria-label="Name of the new room" placeholder="New room, e.g. Lager" maxlength="80"><button type="button" class="mini primary">Add</button><button type="button" class="mini icon ghost locnew-x" aria-label="Cancel the new room" title="Cancel (Esc)">×</button>`);
   s.hidden = true; s.after(f);
   const [site_, name, ok, cancel] = /** @type {[HTMLSelectElement, HTMLInputElement, HTMLButtonElement, HTMLButtonElement]} */ ([...f.children]);
   const close = () => { f.remove(); s.hidden = false; s.focus(); };

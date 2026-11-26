@@ -58,6 +58,8 @@ try {
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.portNo = 5; (await import('/js/07-render.js')).view(); });
   await p.waitForSelector('[data-replace="r1"]'); await p.click('[data-replace="r1"]');
   await p.waitForSelector('#lkQ'); assert.match(await p.textContent('#mdl .mh'), /Replace PC-A on SW-CORE · 5/);
+  assert.equal(await p.textContent('#lkOk'), 'Replace'); assert.equal(await p.isDisabled('#lkTo'), true);
+  assert.equal(await p.$$eval('#lkObj option', o => o.some(x => /^PC-A /.test(x.textContent))), false, 'not the device replaced');
   await p.fill('#lkQ', 'PC-B'); await p.press('#lkQ', 'Enter');
   await stored(st => st.rels.some(r => r.from === 'pb' && r.to === 'core' && r.port === 5 && r.vlan === 20) && !st.rels.some(r => r.id === 'r1'));
   await p.click('#toast .t-undo');
@@ -67,6 +69,15 @@ try {
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.toast('Created X'); c.st.tab = 'cards'; (await import('/js/07-render.js')).view(); });
   await p.waitForTimeout(100);
   assert.equal(await p.evaluate(() => document.getElementById('toast').classList.contains('off')), false);
+
+  //    the search: a name in any order finds the person's devices and Hand out to them
+  await p.fill('#search', 'graf finn'); await p.waitForSelector('#gsList li[data-i]:has-text("NB-FINN")');
+  assert.match(await p.textContent('#gsList'), /Hand out a device to Finn Graf/);
+  await p.fill('#search', ''); await p.keyboard.press('Escape');
+  //    the List's bar: Hand out and Take back, as in the Table
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'cards'; c.st.bulk = new Set(['pa']); (await import('/js/07-render.js')).view(); });
+  await p.waitForSelector('#cdGive'); await p.waitForSelector('#cdBack');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.bulk = new Set(); (await import('/js/07-render.js')).view(); });
 
   // 4. a plain message closes when the view changes
   await p.evaluate(async () => (await import('/js/01-core.js')).toast('Just a note'));
