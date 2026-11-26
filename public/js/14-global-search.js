@@ -100,9 +100,11 @@ function results(q){
     icon: ICON.contract, main: l.name, sub: `Licence · ${l.seats || 0} seat${l.seats === 1 ? '' : 's'}`,
     go: () => { st.tab = 'sw'; render(); } }))]);
   const rooms = LOCS.filter(l => has(q, l));
-  const inRoom = new Map(); for (const o of objs) if (o.loc && o.status !== 'retired') inRoom.set(o.loc, (inRoom.get(o.loc) || 0) + 1);
+  /* In use or in stock, and the retired ones apart: together the number the filters on the left show for the room. */
+  const inRoom = new Map(), retiredIn = new Map();
+  for (const o of objs) if (o.loc) (o.status === 'retired' ? retiredIn : inRoom).set(o.loc, ((o.status === 'retired' ? retiredIn : inRoom).get(o.loc) || 0) + 1);
   if (rooms.length) out.push(['Rooms', rooms.length, rooms.slice(0, MAX.other).map(l => ({
-    icon: ICON.room, main: l.replace(' / ', ' · '), sub: `${inRoom.get(l) || 0} ${inRoom.get(l) === 1 ? 'device' : 'devices'}`,
+    icon: ICON.room, main: l.replace(' / ', ' · '), sub: `${inRoom.get(l) || 0} ${inRoom.get(l) === 1 ? 'device' : 'devices'}${retiredIn.get(l) ? ` · ${retiredIn.get(l)} retired` : ''}`,
     go: () => { st.loc = l; st.q = ''; st.person = null; if (!['cards', 'table', 'map', 'plans'].includes(st.tab)) st.tab = 'cards'; render(); } }))]);
   /* Saved views, by name: a hit shows the list as saved. */
   const savedViews = (Array.isArray(st.savedViews) ? st.savedViews : []).filter(v => has(q, v.name));

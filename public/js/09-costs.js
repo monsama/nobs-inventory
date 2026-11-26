@@ -224,7 +224,7 @@ export function deviceContractsPanel(o){
   if (!COSTS.contracts.length) return '';
   const list = contractsOf(o);
   return String(html`<div class="panelbox"><div class="hdr">Contracts <span class="cnt">${list.length || 'none'}</span></div>
-    <div class="relist">${list.length ? list.map(c => html`<div class="relrow"><span class="k">${CONTRACT_KINDS[c.kind]}</span><span class="t"><button class="link" data-contract="${c.id}">${c.name}</button>${c.supplier ? html` <span class="muted">${c.supplier}</span>` : ''}</span>${contractChip(c)}</div>`)
+    <div class="relist">${list.length ? list.map(c => html`<div class="relrow ct-rel"><span class="k">${CONTRACT_KINDS[c.kind]}</span><span class="t"><button class="link" data-contract="${c.id}">${c.name}</button>${c.supplier ? html` <span class="muted">${c.supplier}</span>` : ''}</span>${contractChip(c)}</div>`)
       : html`<div class="chain"><span class="muted">No contract covers this device.</span></div>`}</div>
     ${isAdmin() ? html`<div class="addrel"><select id="ctPick" aria-label="Contract" style="flex:1"><option value="">New contract…</option>${COSTS.contracts.filter(c => !list.includes(c)).map(c => html`<option value="${c.id}">${c.name}</option>`)}</select><button id="ctAddDev">Add</button></div>` : ''}</div>`);
 }

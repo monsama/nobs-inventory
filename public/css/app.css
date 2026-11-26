@@ -2957,3 +2957,14 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 /* New contract: Devices beside its search box, not between the box and the note under it. */
 #mdl label[for="ctDevQ"]{align-self:start;display:flex;align-items:center;min-height:var(--ctl)}
 @media (pointer:coarse) and (any-hover:none){#mdl label[for="ctDevQ"]{min-height:40px}}
+/* A device's contracts: the name and supplier keep their room; a long status (Notice passed · renews …) goes under them. */
+.relrow.ct-rel{flex-wrap:wrap;row-gap:2px}
+.relrow.ct-rel .t{flex:1 1 220px}
+.relrow.ct-rel .t .link{white-space:normal;text-align:left}
+.relrow.ct-rel>.chip{margin-left:auto;max-width:100%}
+/* Contracts on a phone: New contract beside the search, two rows of tools instead of three. */
+@media (max-width:760px){
+  #toolbar:has(#ctNew) > .grow{display:none}
+  #toolbar:has(#ctNew) > .vsearch{flex:1 1 0;min-width:0;order:5}
+  #toolbar > #ctNew{order:6;flex:none}
+}
