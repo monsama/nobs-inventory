@@ -1409,7 +1409,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--accentbtn)}
 .datefield .df-cal{position:absolute;right:1px;top:1px;bottom:1px;height:auto;width:30px;min-height:0;padding:0;border:0;background:transparent;color:var(--muted)}
 .datefield .df-cal:hover:not(:disabled){color:var(--fg)}
 .datefield .df-native{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
-input.bad{border-color:var(--danger);outline-color:var(--danger)}
+:is(input,select).bad{border-color:var(--danger);outline-color:var(--danger)}
 .timefield{width:72px;text-align:center}
 /* On a phone what is tapped often is at least 36px high: review buttons, filter chips, a source mark's hit area, contact links. */
 @media (max-width:760px){.fsrc::before{content:"";position:absolute;inset:-8px}.cn-way{display:inline-flex;align-items:center;gap:4px;min-height:36px}}
@@ -2883,7 +2883,7 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 .cmp-val{white-space:normal;min-width:0;height:auto;padding-top:5px;padding-bottom:5px}.cmp-v{flex:1 1 auto}
 @media (max-width:760px){.cmp-head .mini{flex:1 1 100%}.cmp-val{width:100%}}
 /* A message over an open dialog sits at its top, off its buttons. */
-#mdl #toast{bottom:auto;top:12px}
+#mdl #toast, body:has(#toolbar .pickrow) #mdl #toast{bottom:auto;top:12px}
 /* Sign in: the error line keeps its place, so the dialog does not move when it shows. */
 #lgErr{min-height:1.5em}
 .ac-pwrow{display:flex;justify-content:flex-start}
@@ -2957,3 +2957,21 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 /* New contract: Devices beside its search box, not between the box and the note under it. */
 #mdl label[for="ctDevQ"]{align-self:start;display:flex;align-items:center;min-height:var(--ctl)}
 @media (pointer:coarse) and (any-hover:none){#mdl label[for="ctDevQ"]{min-height:40px}}
+/* A device's contracts: the name and supplier keep their room; a long status (Notice passed · renews …) goes under them. */
+.relrow.ct-rel{flex-wrap:wrap;row-gap:2px}
+.relrow.ct-rel .t{flex:1 1 220px}
+.relrow.ct-rel .t .link{white-space:normal;text-align:left}
+.relrow.ct-rel>.chip{margin-left:auto;max-width:100%}
+/* Contracts on a phone: New contract beside the search, two rows of tools instead of three. */
+@media (max-width:760px){
+  #toolbar:has(#ctNew) > .grow{display:none}
+  #toolbar:has(#ctNew) > .vsearch{flex:1 1 0;min-width:150px;order:5}
+  #toolbar > #ctNew{order:6;flex:none}
+}
+/* The floating selection bar on a narrow desktop: it wraps onto a second row rather than hiding Clear selection. */
+@media (min-width:761px) and (max-width:1180px){ #toolbar .pickrow{flex-wrap:wrap;justify-content:center;row-gap:6px;width:max-content;max-width:calc(100vw - 48px)} }
+/* A primary button that cannot be pressed yet reads as such in the dark too: grey, not a dimmed blue. */
+:root[data-theme="dark"] button.primary:disabled{background:var(--panel2);color:var(--muted);border-color:var(--bd);opacity:1}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) button.primary:disabled{background:var(--panel2);color:var(--muted);border-color:var(--bd);opacity:1} }
+/* New contract on a phone: the cost and its period share the row without passing its edge. */
+@media (max-width:760px){ #mdl #ctCost, #mdl #ctPer{flex:1 1 0!important;width:auto!important;min-width:0} }

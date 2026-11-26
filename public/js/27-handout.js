@@ -68,17 +68,22 @@ export function takeBackModal(list){
   /* First choice: leave them where they are, naming that room. Then the store rooms (Settings → Locations), then the rest. */
   const here = [...new Set(live.map(o => o.loc || ''))];
   const stay = here.length === 1 ? (here[0] ? `Leave it where it is (${here[0]})` : 'Leave it where it is (no room)') : 'Leave each where it is';
-  const stores = [...new Set(Object.values(st.stockRooms || {}))].filter(l => LOCS.includes(l)).sort();
+  /* The store rooms of the devices' own sites first. */
+  const own = new Set(live.map(storeOfSite).filter(Boolean));
+  const stores = [...new Set(Object.values(st.stockRooms || {}))].filter(l => LOCS.includes(l)).sort((a, b) => +own.has(b) - +own.has(a) || a.localeCompare(b));
+  /* Devices of several sites, each with a store room: each goes to its own, proposed. */
+  const eachStore = sites.size > 1 && live.every(o => storeOfSite(o));
   const others = LOCS.filter(l => !stores.includes(l));
   const opt = l => html`<option value="${l}">${l}</option>`;
   modal(html`<div class="mh">Take back ${live.length === 1 ? live[0].name : `${live.length} devices`}</div><div class="mb">
-    <label for="tbLoc" class="ho-l">Where</label><select id="tbLoc"><option value="">${stay}</option>${stores.length
+    <label for="tbLoc" class="ho-l">Where</label><select id="tbLoc"><option value="">${stay}</option>${eachStore ? html`<option value="${EACH_STORE}">Each to its site's store room</option>` : ''}${stores.length
       ? html`<optgroup label="Store rooms">${stores.map(opt)}</optgroup><optgroup label="Other rooms">${others.map(opt)}</optgroup>` : LOCS.map(opt)}</select>
     ${site && !store && isAdmin() ? html`<label class="pchk tb-store" id="tbStoreRow" hidden><input type="checkbox" id="tbStore" checked> Make it the store room of ${site}: proposed here from now on</label>
       <p class="note muted" id="tbNoStore">${site} has no store room yet: pick the room where devices in stock are kept.</p>` : ''}
     <p class="note">${live.length === 1 ? 'It is' : 'They are'} in stock from now on, with nobody.</p></div>
     <div class="mf"><button id="tbNo">Cancel</button><button id="tbOk" class="primary">Take back</button></div>`, 'sm');
-  if (last && LOCS.includes(last)) $('#tbLoc').value = last;
+  if (eachStore) $('#tbLoc').value = EACH_STORE;
+  else if (last && LOCS.includes(last)) $('#tbLoc').value = last;
   /* A site without a store room: a room of that site picked here can become its store room (Settings → Locations). */
   const fitStore = () => { const row = $('#tbStoreRow'); if (!row) return; const l = $('#tbLoc').value, ok = !!l && l.startsWith(site + ' / '); row.hidden = !ok; $('#tbNoStore').hidden = ok; };
   $('#tbLoc').addEventListener('change', fitStore); fitStore();
@@ -87,22 +92,25 @@ export function takeBackModal(list){
     const loc = locPicked('tbLoc');
     const row = $('#tbStoreRow');
     if (row && !row.hidden && $('#tbStore').checked && loc){ st.stockRooms = { ...(st.stockRooms || {}), [site]: loc }; queueServerSave(); }
-    try { if (loc) localStorage.setItem(STOCK_ROOM, loc); } catch { /* not kept: proposed again next time */ }
+    try { if (loc && loc !== EACH_STORE) localStorage.setItem(STOCK_ROOM, loc); } catch { /* not kept: proposed again next time */ }
     closeModal(); takeBack(live, loc);
   };
   $('#tbOk').focus();
 }
 /* Takes the devices back into stock: no person, status stock, moved to loc when one is given, with a history line
    each. Saves, draws the page again and offers Undo. */
+/* loc: one room for all, or EACH_STORE: each to the store room of its own site (Settings → Locations), else where it is. */
+export const EACH_STORE = '__eachstore';
+const storeOfSite = o => { const sr = st.stockRooms || {}, r = sr[String(o.loc || '').split(' / ')[0]]; return r && LOCS.includes(r) ? r : ''; };
 export function takeBack(list, loc = ''){
   const live = list.filter(o => o.status !== 'retired');
   if (!live.length) return;
   const snap = snapshot(live), names = new Set(live.map(o => o.user).filter(Boolean));
   for (const o of live){
-    const had = o.user;
+    const had = o.user, to = loc === EACH_STORE ? storeOfSite(o) : loc;
     o.uid = null; delete o.hotdesk; o.status = 'stock'; delete o.stockAuto; keepUser(o);
-    const moved = moveTo(o, loc);
-    hist(o, now(), `Taken back into stock${had ? ` from ${had}` : ''}${moved ? `, to ${loc}` : ''} by ${who()}`);
+    const moved = moveTo(o, to);
+    hist(o, now(), `Taken back into stock${had ? ` from ${had}` : ''}${moved ? `, to ${to}` : ''} by ${who()}`);
   }
   queueServerSave(); render();
   toastUndo(`${live.length === 1 ? live[0].name : `${live.length} devices`} back in stock${names.size === 1 ? ` from ${[...names][0]}` : ''}`, () => { restoreSnapshot(snap, 'Taking back undone'); queueServerSave(); render(); });
@@ -162,13 +170,15 @@ export function handOutModal(ids){
     o0.textContent = o0.dataset.now = rooms.size > 1 ? `Leave them in their store rooms (${rooms.size})` : `Leave ${list.length > 1 ? 'them' : 'it'} in the store room (${inStore})`;
     const pick = document.createElement('option'); pick.value = PICK; pick.disabled = true; pick.textContent = `Pick where ${list.length === 1 ? 'it goes' : 'they go'}`;
     sel.prepend(pick); sel.value = PICK;
+    /* Leave it in the store room says it: the same room again in the list would only repeat it. */
+    if (rooms.size === 1) for (const op of [...sel.options]) if (op.value === inStore) op.remove();
   }
   const ok0 = $('#hoOk').onclick;
   $('#hoOk').onclick = e => {
     if (inStore && picked && $('#hoLoc').value === PICK){
       $('#hoLoc').classList.add('bad'); $('#hoLoc').focus();
       $('#hoLoc').addEventListener('change', () => $('#hoLoc').classList.remove('bad'), { once: true });
-      $('#hoSays').innerHTML = String(html`<span class="ho-warn">${list.length === 1 ? 'It is' : 'They are'} in the store room ${inStore}: pick where ${list.length === 1 ? 'it goes' : 'they go'}, or Leave ${list.length === 1 ? 'it' : 'them'} in the store room.</span>`);
+      $('#hoSays').innerHTML = String(html`<span class="ho-warn">${list.length === 1 ? 'It is' : 'They are'} in ${new Set(list.map(o => o.loc)).size > 1 ? 'their store rooms' : `the store room ${inStore}`}: pick where ${list.length === 1 ? 'it goes' : 'they go'}, or Leave ${list.length === 1 ? 'it' : 'them'} in the store room.</span>`);
       return;
     }
     ok0.call($('#hoOk'), e);

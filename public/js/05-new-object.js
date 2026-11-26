@@ -203,7 +203,7 @@ export function linkObjModal(pre = {}){
   const list = linkCandidates().concat(objs.filter(o => o.status !== 'retired' && o.type === 'server' && o.kind === 'vm')).filter(o => linkOf(o))
     .filter(o => !into || (o.id !== into.id && linkOf(o).port && linkOf(o).ok(into)));
   if (!list.length){ toast(into ? 'No device here can be plugged in yet: use New device… instead.' : 'There is nothing to link yet. Create a device first.'); return; }
-  const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + p.name : ''; };
+  const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); if (!p) return ''; const pr = rels.find(r => r.from === o.id && r.to === p.id); return ' · now on ' + p.name + (pr && pr.port != null ? ' port ' + pfxOf(p) + pr.port : ''); };
   /* From a free port the dialog says which port, and no device is chosen for the person: they pick it. */
   const atPort = into && pre.port != null;
   /* Replace: the device on the port now (its link) gives the port up to the one picked, in the same step, with one Undo. */
@@ -213,7 +213,9 @@ export function linkObjModal(pre = {}){
   const site = l => String(l || '').split(' / ')[0];
   /* Phones and tablets are seldom on a switch port: last. */
   const near = o => !into ? 0 : (['mobile', 'ios', 'android'].includes(o.type) ? 8 : 0) + (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
-  const sorted = list.filter(o => !swapped || o.id !== swapped.id).sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
+  /* Network gear and servers keep their other cables: one already on this switch is moved from its port there instead. */
+  const onInto = o => into && (NET_GEAR.includes(o.type) || o.type === 'server') && rels.some(r => r.from === o.id && r.to === into.id);
+  const sorted = list.filter(o => (!swapped || o.id !== swapped.id) && !onInto(o)).sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
   const label = o => `${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${atPort && o.loc ? ' · ' + o.loc : ''}${atPort && o.user ? ' · ' + o.user : ''}${where(o)}`;
   const objOptions = q => { const w = q.trim().toLowerCase(); const hits = sorted.filter(o => !w || [label(o), o.user].some(v => String(v || '').toLowerCase().includes(w)));
     return String(html`${atPort && html`<option value="">${hits.length ? `Choose a device… (${hits.length})` : 'No device matches'}</option>`}${hits.map(o => html`<option value="${o.id}">${label(o)}</option>`)}`); };
@@ -269,12 +271,13 @@ export function linkObjModal(pre = {}){
     if (!$('#lkObj').value){ $('#lkObj').focus(); toast('Choose the device to plug in.'); return; }
     const e = byId($('#lkObj').value), link = linkOf(e), t = byId($('#lkTo').value), pp = link.port ? $('#lkPort').value.trim() : '';
     if (!t){ toast('There is nothing it can be linked to yet.'); return; }
-    if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already linked to ${t.name}.`); return; }
     /* Linking moves the device: a monitor or VM has one host, and a device plugged in once (not network gear or a server
        with several cables) leaves its old port. */
     const kind = link.kind === 'connected' ? linkKind(e, t) : link.kind;
     const moving = rels.filter(r => r.from === e.id && (HOST_KINDS.includes(link.kind) ? HOST_KINDS.includes(r.kind) : r.kind === kind && r.lag == null && !NET_GEAR.includes(e.type) && e.type !== 'server'));
     const leave = moving.length === 1 || HOST_KINDS.includes(link.kind) ? moving : [];
+    /* Already on it: fine when that link is the one that moves (another port of the same switch); else said. */
+    if (rels.some(r => r.from === e.id && r.to === t.id && !leave.includes(r))){ toast(`${e.name} is already linked to ${t.name}${hasPorts(t) ? ': move it to another port from its port there' : ''}.`); return; }
     const why = relationProblem(kind, e, t, rels.filter(r => !leave.includes(r)));
     if (why){ toast(why); return; }
     const val = pp ? portValue(t, pp) : null;

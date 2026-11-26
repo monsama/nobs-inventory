@@ -954,7 +954,14 @@ const outletWords = o => {
   }
   return o.type === 'patch' ? Object.values(o.outlets || {}).map(x => x && x.name) : OUTLET_Q.get(o.id) || [];
 };
-export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
+/* Text as a search compares it: lower case, without accents, and ä/ö/ü written ae/oe/ue the same, so "zurich",
+   "zuerich" and "Zürich" are one, as are "Buero" and "Büro". */
+export const fold = (/** @type {any} */ v) => String(v ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/([aou])e/g, '$1');
+/* The fields a search with accents left out (or written out) still finds: place, user, name, model. */
+const foldedMatch = (o, q) => { const f = fold(q); return f.split(/\s+/).filter(Boolean).every(w => [o.loc, o.user, o.name, o.model, o.code].some(v => v && fold(v).includes(w))); };
+/* A person's name in any order: "graf finn" is Finn Graf (every word typed in the user's name). */
+const userInAnyOrder = (o, q) => /\s/.test(q) && !!o.user && q.split(/\s+/).filter(Boolean).every(w => String(o.user).toLowerCase().includes(w));
+export const matchesQ = (o, q) => !q || userInAnyOrder(o, q) || foldedMatch(o, q) || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.newWeek || st.type || (st.type === 'server' && st.srvKind) || st.loc || st.status || st.warranty || st.seen || st.gone || st.where || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
 /* Why a device waits (15-review.js waitReason), set there: Pending devices is filtered by it. */

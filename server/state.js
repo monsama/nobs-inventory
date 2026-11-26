@@ -833,6 +833,12 @@ export function applyChanges(db, body, guard = () => {}) {
     } else if (c.kind === 'user') {
       const v2 = { ...v, id: c.id };
       const i = s.users.findIndex(u => String(u.id) === c.id);
+      /* Switched on or off here by an admin: the admin's doing from now on, so no sync turns it back (Entra's entraOff,
+         false meaning an admin's; the directory's syncOff). */
+      if (i >= 0 && (s.users[i].active !== false) !== (v2.active !== false)) {
+        delete v2.syncOff;
+        if (v2.active === false && v2.source === 'entra') v2.entraOff = false; else delete v2.entraOff;
+      }
       if (i >= 0) s.users[i] = v2; else s.users.push(v2);
     } else if (c.kind === 'type') s.types[c.id] = v;
     else if (c.kind === 'history') {

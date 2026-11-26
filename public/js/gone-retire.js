@@ -19,7 +19,7 @@ export function retireGoneModal(list, opts = {}){
   const sign = new Map(list.map(o => [o.id, whereSignOf(o)]));
   const on = o => !!opts.picked || !!st.gone || sign.get(o.id) === 'gone';
   const n = list.length;
-  modal(html`<div class="mh">Retire ${n === 1 ? 'this device' : 'devices'}?</div>
+  modal(html`<div class="mh">Retire ${n === 1 ? 'this device' : `${n} devices`}?</div>
     <div class="mb"><p class="note">They stay in the inventory for the record, with their history. Each is taken out of its rack and its connections are given up, so nothing looks in use that is not. One Undo brings it all back.</p>
       <div class="gr-tools"><button type="button" class="link" data-grall="1">Tick all</button><button type="button" class="link" data-grall="0">Tick none</button></div>
       <ul class="gr-list gr-pick">${list.map(o => html`<li><label><input type="checkbox" data-grid="${o.id}" ${on(o) ? 'checked' : ''}><b class="mono">${o.name}</b> <span class="muted">${o.code || ''}${sign.get(o.id) ? ` · ${whereLabel(sign.get(o.id), whereCtx())}` : ''}</span></label></li>`)}</ul>

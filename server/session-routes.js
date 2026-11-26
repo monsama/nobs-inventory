@@ -200,7 +200,14 @@ export function registerSessionRoutes(app, ctx) {
       const first = clean(req.body?.first), last = clean(req.body?.last), dept = clean(req.body?.dept);
       if (!first && !last) throw new HttpError(400, 'Give a first or last name.');
       /* A directory user's name and department come from the directory (the next sync would undo them here). */
-      if (u.source !== 'ldap') { Object.assign(u, { first, last, name: [first, last].filter(Boolean).join(' '), dept }); delete u.deptFrom; }
+      if (u.source !== 'ldap') {
+        /* Not another person's login or alias: the syncs find people by those, and the name would take their devices. */
+        const name = [first, last].filter(Boolean).join(' '), k = name.toLowerCase();
+        const taken = db.prepare("SELECT data FROM docs WHERE kind = 'user' AND id != ?").all(u.id).map(r => JSON.parse(r.data))
+          .some(o => [o.login, o.entra && o.entra.upn, ...(o.aliases || [])].some(v => v && String(v).toLowerCase().replace(/^.*\\/, '') === k.replace(/^.*\\/, '')));
+        if (taken) throw new HttpError(400, 'That is the sign-in name of another person. Give your own name.');
+        Object.assign(u, { first, last, name, dept }); delete u.deptFrom;
+      }
       saveUserDoc(u); bumpUser(u.id);
       audit(db, u.id, 'changed own details');
       res.json({ ok: true, me: me(u) });
