@@ -3,7 +3,6 @@ import { handOutModal } from './27-handout.js';
 import { setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { evEl, scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, STATUS, byId, filtered, objs, hist, now, rels, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
-import { retireLinks } from './03-object-modals.js';
 import { render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
@@ -160,12 +159,16 @@ export function bindTableBulk(n){
   const bulkStatus = v => {
     /* Take back: the same dialog as on a device or a person (where they go, with the store room proposed). */
     if (v === '__back'){ takeBackModal([...st.bulk].map(byId).filter(Boolean)); return; }
+    /* Retired: the Retire dialog, which also gives up the user, contract, floor-plan spot and responsible. Into stock
+       with somebody: the take-back, as on the device page, so no device in stock still has a user. */
+    if (v === 'retired'){ retirePicked(); return; }
+    const withUser = [...st.bulk].map(byId).filter(o => o && (o.uid || o.user || o.hotdesk));
+    if (v === 'stock' && withUser.length){ takeBackModal(withUser); return; }
     const to = v;
-    /* Retired in bulk gives up what the Retire dialog would (its rack place, ports, host, attachments, VMs): the units and
-       ports are free, nothing looks in use that is not. Undo brings it all back. */
+    /* Any other status: set on each, with one Undo. */
     const list = [...st.bulk].map(byId).filter(Boolean);
     const snap = snapshot([...list, ...objs.filter(x => list.some(o => x.ontop === o.id))]), relsWas = [...rels];
-    list.forEach(o => { if (to === 'retired' && o.status !== 'retired') retireLinks(o); o.status = to; delete o.stockAuto; hist(o, now(), 'Status set to ' + STATUS[to].label + ' (bulk)'); });
+    list.forEach(o => { o.status = to; delete o.stockAuto; hist(o, now(), 'Status set to ' + STATUS[to].label + ' (bulk)'); });
     toastUndo(n + ' set to ' + STATUS[to].label, () => { restoreSnapshot(snap, 'Bulk status undone'); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); render(); }); renderTable(); render(); };
   /* Internal or external responsible for every selected device; each device that changes gets a history line. */
   const bulkResp = v => {
@@ -199,6 +202,9 @@ export function moveDevices(ids, to, after = () => {}){
   }
   const n = list.length, one = c => `${c} ${c === 1 ? 'device' : 'devices'}`;
   toastUndo(moved === n ? `${one(n)} moved to ${to}` : `${one(moved)} moved to ${to}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); });
+  /* Moved out of the list shown (a room or site picked on the left): no longer picked, so Retire… or Delete… never acts
+     on devices out of sight. */
+  if (st.bulk && st.bulk.size){ const shown = new Set(filtered().map(o => o.id)); for (const id of [...st.bulk]) if (!shown.has(id)) st.bulk.delete(id); }
   after(); render();
 }
 /* Move to room…: the rooms grouped by site, New room… last (admins), as everywhere a location is picked. Move stays

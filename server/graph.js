@@ -306,11 +306,22 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
     /* By any login of the person, without a domain (CORP\amuster is amuster). */
     const u = (p.entra && byId.get(p.entra.id)) || [p.login, ...(p.aliases || [])].filter(Boolean).map(a => bySam.get(loginCore(a)) || byUpn.get(loginCore(a))).find(Boolean) || null;
     if (u && !taken.has(u.id)) {
+      /* Switched off by Entra before (marked, or from before the mark: inactive while Entra said disabled). */
+      const entraOff = !!p.entraOff || (p.active === false && !!p.entra && p.entra.enabled === false);
       taken.add(u.id); p.entra = ref(u); counts.inEntra++;
       /* Title, phones, office, manager and e-mail: Entra's, unless the directory gave them (it is where Entra got them). */
       if (!p.profile || p.profile.from === 'entra') { const pr = profileOfEntra(u); if (pr) p.profile = pr; else delete p.profile; }
       const name = clean(u.displayName).slice(0, 120), dept = clean(u.department).slice(0, 120);
-      if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; const on = u.accountEnabled !== false; if (p.active !== false && !on) { p.leftAt = now.toISOString(); delete p.leftBy; } else if (on) { delete p.leftAt; delete p.leftBy; } p.active = on; }
+      if (p.source === 'entra') {
+        if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept;
+        /* Disabled in Entra: switched off here, marked as Entra's doing. Enabled again: back on only when Entra switched it
+           off; a person an admin switched off stays off, whatever Entra says. */
+        const on = u.accountEnabled !== false;
+        if (!on && p.active !== false) { p.active = false; p.entraOff = true; p.leftAt = now.toISOString(); delete p.leftBy; }
+        else if (!on && entraOff) p.entraOff = true;
+        else if (on && entraOff) { p.active = true; delete p.entraOff; delete p.leftAt; delete p.leftBy; }
+        else if (on) delete p.entraOff;
+      }
       else {
         if (p.source === 'lansweeper' && name && low(p.name) === low(p.login)) p.name = name;
         /* Anyone else without a department (from the directory, Lansweeper or typed) gets Entra's, noted as Entra's, so it

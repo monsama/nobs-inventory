@@ -359,6 +359,7 @@ function checkStateRules(s, size = true, newRels = null) {
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.leftAt !== undefined && (typeof u.leftAt !== 'string' || u.leftAt.length > 40 || !Date.parse(u.leftAt))) bad('When a person left must be a date.');
     if (u.leftBy !== undefined && typeof u.leftBy !== 'boolean') bad('When a person left must be a date.');
+    if (u.entraOff !== undefined && typeof u.entraOff !== 'boolean') bad('Switched off by Entra is yes or no.');
     if (u.own !== undefined && typeof u.own !== 'boolean') bad('Own devices only is yes or no.');
     if (u.roleBy !== undefined && (typeof u.roleBy !== 'string' || u.roleBy.length > 300)) bad('The group a role came from is a name.');
     if (u.entraGroupsAt !== undefined && (typeof u.entraGroupsAt !== 'string' || !Date.parse(u.entraGroupsAt))) bad('When the Entra groups were read is a date.');
@@ -673,12 +674,13 @@ export function saveState(db, s, { restore = false } = {}) {
   /* The counters only go up, so a save that leaves one out cannot make a new code or id repeat an old one. */
   for (const k of ['codeN', 'seq', 'rseq']) s[k] = Math.max(Number(s[k]) || 0, Number(settingOf(db, k)) || 0);
   for (const id of Object.keys(s.history || {})) if (Array.isArray(s.history[id]) && s.history[id].length > HISTORY_KEEP) s.history[id] = s.history[id].slice(0, HISTORY_KEEP);
+  /* People a sync merged (people-match.js): their entry sheets and sign-in follow them, as for a merge made by hand.
+     Moved before the docs are written: writing them deletes the password and sign-ins of the person merged away. */
+  for (const m of s[MERGED] || []) movePersonRows(db, m.keep, m.drop, m.hadLogin);
   writeDocs(db, s);
-  /* People a sync merged (people-match.js): their entry sheets and sign-in follow them, as for a merge made by hand. */
   /* Each written to the log by name, so a merge a sync made can be found and, if wrong, undone from a backup. */
   const SOURCE = { ldap: 'AD', entra: 'Entra', lansweeper: 'Lansweeper', manual: 'by hand' };
   for (const m of s[MERGED] || []) {
-    movePersonRows(db, m.keep, m.drop, m.hadLogin);
     audit(db, null, `people merged by a sync: ${m.dropName} (${SOURCE[m.dropSource] || m.dropSource}) into ${m.keepName} (${SOURCE[m.keepSource] || m.keepSource}), same login`);
   }
   delete s[MERGED];

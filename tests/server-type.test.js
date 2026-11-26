@@ -26,13 +26,15 @@ test('Intune: a Windows server is a server, a Windows client a PC', () => {
 
 test('devices typed PC before become servers on start, unless a person chose the type', () => {
   const s = { history: { c: [{ t: '1', msg: 'Type changed from Server to PC by admin' }] }, objs: [
-    { id: 'a', type: 'pc', model: 'Hewlett-Packard ProLiant DL380 Gen9' },
-    { id: 'b', type: 'other', os: 'Windows Server 2016 Standard' },
-    { id: 'c', type: 'pc', model: 'Dell PowerEdge R640' },
-    { id: 'd', type: 'pc', model: 'HP ProDesk 600', os: 'Windows 11' },
+    { id: 'a', type: 'pc', model: 'Hewlett-Packard ProLiant DL380 Gen9', feed: { assetType: 'Windows' } },
+    { id: 'b', type: 'other', os: 'Windows Server 2016 Standard', graph: { id: 'g' } },
+    { id: 'c', type: 'pc', model: 'Dell PowerEdge R640', feed: {} },
+    { id: 'd', type: 'pc', model: 'HP ProDesk 600', os: 'Windows 11', ad: {} },
+    /* Added by hand, as a PC: the type chosen in New device stays. */
+    { id: 'e', type: 'pc', model: 'HP ProLiant DL360 Gen10' },
   ] };
   migrateState(s);
-  assert.deepEqual(s.objs.map(o => o.type), ['server', 'server', 'pc', 'pc']);
+  assert.deepEqual(s.objs.map(o => o.type), ['server', 'server', 'pc', 'pc', 'pc']);
   assert.match(s.history.a[0].msg, /Type changed from PC to Server by the type rules: its model is a server's \(Hewlett-Packard ProLiant DL380 Gen9\)/);
 });
 
@@ -48,8 +50,8 @@ test('a type rules message with " by " in a model is not a person\'s choice; a p
 test('the start-up retyping leaves a type mapping of Settings and a device moved away from Server alone', () => {
   const s = { typeMap: { Windows: 'pc' }, history: { b: [{ t: '1', msg: 'Type changed from Server to PC by the type rules (Ana)' }] }, objs: [
     { id: 'a', type: 'pc', model: 'HP ProLiant DL380 Gen9', feed: { sys: 'Lansweeper', ref: '1', assetType: 'Windows' } },
-    { id: 'b', type: 'pc', model: 'Dell PowerEdge R640' },
-    { id: 'c', type: 'pc', model: 'Dell PowerEdge R640' },
+    { id: 'b', type: 'pc', model: 'Dell PowerEdge R640', graph: { id: 'g1' } },
+    { id: 'c', type: 'pc', model: 'Dell PowerEdge R640', graph: { id: 'g2' } },
   ] };
   migrateState(s); migrateState(s);
   assert.deepEqual(s.objs.map(o => o.type), ['pc', 'pc', 'server']);

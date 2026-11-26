@@ -28,6 +28,7 @@ const SECTIONS = [
   ['Factory reset', 'backups', 'Factory reset', 'start over wipe everything'],
   ['Move to a new server', 'backups', 'Move to a new server', 'migrate restore rebuild new server move'],
   ['Weekly e-mail', 'mail', 'Weekly e-mail', 'digest smtp mail server'],
+  ['Currency', 'company', 'Company', 'currency money chf eur usd prices costs'],
   ['Health', 'maintenance', 'Health', 'status checks disk certificate inventory size'],
   ['Device fields and their sources', 'sources', 'Device fields', 'which source fills which field policy'],
   ['Where a device\'s location comes from', 'locations', 'Location texts from the sources', 'location source order priority ad lansweeper entra office switch off'],

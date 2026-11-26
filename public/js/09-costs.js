@@ -137,7 +137,7 @@ const contactsLine = c => { const list = contactsOfContract(c); return list.leng
    (account manager, support line) from Contacts. */
 export function contractModal(c, preset = []){
   const isNew = !c;
-  const cur = c || { id: newId('c'), name: '', kind: 'maintenance', per: 'year', renew: 12, notice: 3, devices: [...preset] };
+  const cur = c || { id: newId('c'), name: '', kind: 'maintenance', per: 'year', renew: 0, notice: 3, devices: [...preset] };
   const picked = new Set(cur.devices || []);
   const opt = (map, v) => Object.entries(map).map(([k, l]) => html`<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`);
   modal(html`<div class="mh">${isNew ? 'New contract' : cur.name}</div>
@@ -157,11 +157,11 @@ export function contractModal(c, preset = []){
       <label for="ctNote">Note</label><textarea id="ctNote" rows="2" maxlength="1000">${cur.note || ''}</textarea>
     </div></details><p class="note" id="ctErr" role="status"></p></div>
     <div class="mf">${isNew ? '' : html`<button id="ctDel" class="danger-text">Delete</button>`}<div class="grow"></div><button id="ctCancel">Cancel</button><button id="ctOk" class="primary">Save</button></div>`, 'wide');
-  /* The devices covered come first, then those that match the search, at most 60. */
+  /* The devices covered come first, then those that match the search (not retired), at most 60. */
   const devs = () => {
     const q = $('#ctDevQ').value.trim().toLowerCase();
     const mine = objs.filter(o => picked.has(o.id));
-    const more = q ? objs.filter(o => !picked.has(o.id) && [o.name, o.code, o.serial, o.model, o.user].some(v => String(v || '').toLowerCase().includes(q))).slice(0, 60) : [];
+    const more = q ? objs.filter(o => !picked.has(o.id) && o.status !== 'retired' && [o.name, o.code, o.serial, o.model, o.user].some(v => String(v || '').toLowerCase().includes(q))).slice(0, 60) : [];
     /* The matches can all be taken at once; the count of devices covered stays in view. */
     const bar = q && more.length ? html`<div class="ct-devbar"><span class="muted">${more.length === 60 ? 'First 60' : more.length} found · ${picked.size} covered</span><button type="button" id="ctAddAll">Add ${more.length === 1 ? 'it' : `all ${more.length}`}</button></div>` : '';
     const shown = [...mine, ...more];

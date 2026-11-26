@@ -3,7 +3,7 @@
    reason is proposed (where they are gone from) and can be changed, each is taken out of its rack and its links are given up as in bulk, each gets a history
    line naming who, and one Undo brings all of it back. */
 import { $, $$, GONE_FILTERS, whereCtx, whereSignOf, hist, now, objs, rels, restoreSnapshot, snapshot, st, toast, toastUndo } from './01-core.js';
-import { retireLinks } from './03-object-modals.js';
+import { retireAll } from './03-object-modals.js';
 import { who } from './04-settings.js';
 import { render } from './07-render.js';
 import { closeModal, modal } from './19-modal.js';
@@ -36,9 +36,10 @@ export function retireGoneModal(list, opts = {}){
     list = sel;
     const why = /** @type {HTMLInputElement} */ ($('#grWhy')).value.trim();
     const snap = snapshot([...list, ...objs.filter(x => list.some(o => x.ontop === o.id))]), relsWas = [...rels];
-    for (const o of list){ retireLinks(o); o.status = 'retired'; hist(o, now(), 'Retired by ' + who() + (why ? ': ' + why : '')); }
+    const ctsBack = retireAll(list);
+    for (const o of list){ o.status = 'retired'; hist(o, now(), 'Retired by ' + who() + (why ? ': ' + why : '')); }
     closeModal(); if (opts.after) opts.after();
-    toastUndo(`${n} ${n === 1 ? 'device' : 'devices'} retired`, () => { restoreSnapshot(snap, 'Retirement undone by ' + who()); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); render(); });
+    toastUndo(`${n} ${n === 1 ? 'device' : 'devices'} retired`, () => { restoreSnapshot(snap, 'Retirement undone by ' + who()); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); ctsBack(); render(); });
     render();
   };
 }
@@ -60,9 +61,10 @@ export async function deleteManyModal(list, after){
   $('#dmOk').onclick = () => { closeModal(); for (const o of list) deleteObject(o.id, { quiet: true }); if (after) after(); render(); toast(`${n} ${n === 1 ? 'device' : 'devices'} deleted`); };
   const ex = $('#dmExcl'); if (ex) ex.onclick = () => {
     const snap = snapshot([...ls, ...objs.filter(x => ls.some(o => x.ontop === o.id))]), relsWas = [...rels];
-    for (const o of ls){ if (o.status !== 'retired') retireLinks(o); o.status = 'retired'; o.excluded = true; hist(o, now(), 'Retired and excluded from Lansweeper sync by ' + who()); }
+    const ctsBack = retireAll(ls.filter(o => o.status !== 'retired'));
+    for (const o of ls){ o.status = 'retired'; o.excluded = true; hist(o, now(), 'Retired and excluded from Lansweeper sync by ' + who()); }
     closeModal(); if (after) after();
-    toastUndo(`${ls.length} retired and excluded: Lansweeper will not add ${ls.length === 1 ? 'it' : 'them'} again`, () => { restoreSnapshot(snap, 'Retire and exclude undone by ' + who()); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); render(); });
+    toastUndo(`${ls.length} retired and excluded: Lansweeper will not add ${ls.length === 1 ? 'it' : 'them'} again`, () => { restoreSnapshot(snap, 'Retire and exclude undone by ' + who()); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); ctsBack(); render(); });
     render();
   };
 }
