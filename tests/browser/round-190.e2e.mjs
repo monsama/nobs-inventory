@@ -16,7 +16,7 @@ const dev = (id, type, name, more) => ({ id, code: 'INV-' + id, type, name, stat
 const s0 = loadState(db);
 saveState(db, { ...s0, locs: ['Zürich / IT'], history: {}, vlans: [{ vid: 20, name: 'Office' }, { vid: 30, name: 'Voice' }],
   users: [...s0.users, { id: 'p1', name: 'Mia Graf', role: 'none', active: true, source: 'manual', groups: [] }],
-  objs: [dev('core', 'switch', 'SW-CORE', { ports: 24 }), dev('pa', 'pc', 'PC-A')], rels: [] });
+  objs: [dev('core', 'switch', 'SW-CORE', { ports: 24 }), dev('pa', 'pc', 'PC-A'), dev('h1', 'pc', 'DESKTOP-4AE2F1'), dev('h2', 'pc', 'DESKTOP-4A2F1')], rels: [] });
 const stored = check => storedBy(() => loadState(db), check);
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}/`;
@@ -34,6 +34,12 @@ try {
   await p.waitForSelector('#lkVlan'); await p.selectOption('#lkVlan', '30');
   await p.fill('#lkQ', 'PC-A'); await p.press('#lkQ', 'Enter');
   await stored(st => st.rels.some(r => r.from === 'pa' && r.port === 4 && r.vlan === 30));
+
+  //    a search for a hostname finds that one, not one that differs by an "e" (the ae/oe/ue rule is for words)
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.q = 'desktop-4ae2f1'; c.st.tab = 'cards'; (await import('/js/07-render.js')).view(); });
+  await p.waitForSelector('#cards .lrow[data-open="h1"]');
+  assert.equal(await p.locator('#cards .lrow').count(), 1);
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.q = ''; (await import('/js/07-render.js')).view(); });
 
   // 2. a person with no devices: one line, no table
   await p.evaluate(async () => (await import('/js/04-settings.js')).showDevicesOf('p1'));

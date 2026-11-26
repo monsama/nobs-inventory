@@ -2978,3 +2978,5 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 @media (max-width:760px){ #mdl #ctCost, #mdl #ctPer{flex:1 1 0!important;width:auto!important;min-width:0} }
 /* A person with no devices: one line under the bar, not an empty table. */
 .empty-person{padding:16px var(--gutter, 16px);margin:0}
+/* With the selection bar wrapped onto two rows, the message sits above it, not on its buttons. */
+@media (min-width:761px) and (max-width:1180px){ body:has(#toolbar .pickrow) #toast{bottom:calc(136px + env(safe-area-inset-bottom, 0px))} }

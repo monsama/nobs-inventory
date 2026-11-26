@@ -49,8 +49,10 @@ const proposeOffice = u => {
   /* In a store room, Leave it there ('') is a choice: only Pick where it goes is none. A room picked by hand is kept. */
   const start = sel.querySelector(`option[value="${PICK}"]`) ? PICK : '', none = sel.value === start;
   sel.onchange = () => { delete sel.dataset.auto; };
-  if (room && (none || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
-  else if (!room && sel.dataset.auto){ sel.value = start; delete sel.dataset.auto; }
+  /* Only a room still in the list (the store room the device is in is said by Leave it there instead). */
+  const listed = room && [...sel.options].some(o => o.value === room);
+  if (listed && (none || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
+  else if (!listed && sel.dataset.auto){ sel.value = start; delete sel.dataset.auto; }
 };
 /* Take back into stock: asked where they go (where they are, or a room; the room last used for this is proposed,
    kept in this browser), then done with Undo. */
