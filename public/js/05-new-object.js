@@ -1,4 +1,4 @@
-import { listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot } from './01-core.js';
+import { pickHand, listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
@@ -160,6 +160,7 @@ export function newObjModal(pre={}){
     if (o.type === 'rack'){ const u = +$('#nUnits').value; if (Number.isInteger(u) && u >= 1 && u <= 60) o.units = u; }
     o.status = $('#nStatus').value || 'active';
     if ($('#nUser').value) o.uid = $('#nUser').value;
+    pickHand(o, 'type');   /* the type chosen here: the type rules leave it alone, also once a sync matched it */
     objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who() + (o.uid ? `, for ${o.user}` : ''));
     const up = $('#nUp').value;
     /* The port is saved as it was checked above: a patch panel's port as P04, so it shows on the panel and cannot be taken twice. */
@@ -181,7 +182,7 @@ export function newObjModal(pre={}){
         }
         if (!placed) toast('No free U in ' + rackOf(c.rack).name + '. Copied without a rack position.');
       }
-      hist(o, now(), 'Duplicated from ' + c.code);
+      pickHand(o, 'type'); hist(o, now(), 'Duplicated from ' + c.code);
     }
     closeModal(); toast('Created ' + name); flushSave(); openObj(o.id);
   };

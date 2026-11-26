@@ -145,11 +145,10 @@ export function migrateState(s) {
   const TYPE_LABEL = { pc: 'PC', notebook: 'Notebook', other: 'Other' };
   for (const o of s.objs || []) {
     if (!o || !TYPE_LABEL[o.type] || typeSetByHand(s, o)) continue;
-    /* Only devices a source brought: one a person added by hand (or copied) got the type they chose in New device, also
-       once a sync matched it later. */
+    /* Only devices a source brought: one a person added by hand, copied or imported got the type they chose, also once a
+       sync matched it later (marked so since 0.9.188; before, by its history). */
     if (!o.feed && !o.graph && !o.ad) continue;
-    const firstLine = String((((s.history || {})[o.id] || []).slice(-1)[0] || {}).msg || '');
-    if (/^(Created manually|Duplicated from) /.test(firstLine)) continue;
+    if (((s.history || {})[o.id] || []).some(h => /^(Created manually|Duplicated from|Imported from CSV)\b/.test(String(h && h.msg || '')))) continue;
     /* Not over a type mapping of Settings for its Lansweeper type, nor once anything (a person, the rules, a mapping)
        moved it away from Server: so this never fights a choice, at any start. */
     const lsType = String((o.feed && o.feed.assetType) || '').toLowerCase();
