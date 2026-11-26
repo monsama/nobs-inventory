@@ -1,3 +1,4 @@
+import { exactKeys } from '../public/js/people-match.js';
 import { purgeOrphanImages, imageType, cleanImage, ensureImagesTable, PHOTO_TYPES } from './device-images.js';
 import { storeBackup, collectParts } from './backup-store.js';
 import { openSheet, sealSheet } from './sheets.js';
@@ -123,19 +124,13 @@ export function restoreBackup(db, data, sheetKey = null, { photosFrom = null } =
      never with old sign-ins: an admin switches them on again, and a directory user is switched on by the next LDAP sync
      when still in the group. A login now used by another account is not taken twice. */
   const users = new Map(cur.users.map(u => [String(u.id), u]));
-  const logins = new Set(cur.users.map(u => String(u.login || '').toLowerCase()).filter(Boolean));
+  const logins = new Set(cur.users.map(u => String(u.login || '').toLowerCase()).filter(Boolean)), restored = new Set();
   for (const u of b.users) {
     if (users.has(String(u.id))) continue;
     const login = String(u.login || '').toLowerCase();
     if (login && logins.has(login)) continue;
     if (login) logins.add(login);
-    /* People without a login (device owners from Lansweeper) are not accounts: they come back as they were, but without
-       a role when Microsoft sign-in could find them (an Entra ID or an e-mail address), so a backup file cannot bring in
-       someone who signs in that way. */
-    const ssoable = !!(u.entra || (u.profile && u.profile.mail));
-    const back = login ? { ...u, active: false } : ssoable && u.role && u.role !== 'none' ? { ...u, role: 'none' } : u;
-    if (login && u.source === 'ldap' && u.active !== false) back.syncOff = true;
-    users.set(String(u.id), back);
+    users.set(String(u.id), { ...u }); restored.add(String(u.id));
   }
   s.users = [...users.values()];
   /* Every setting is put back as it was, and one the backup does not have goes back to how a new server starts. The
@@ -154,6 +149,14 @@ export function restoreBackup(db, data, sheetKey = null, { photosFrom = null } =
   s.rseq = Math.max(cur.rseq || 0, st.rseq || 0);
   delete s.revs; delete s.empty;
   migrateState(s);
+  /* After the start-up changes (which can give a record a login): a person the backup brings back who could sign in
+     comes back switched off when they have a login; one Microsoft sign-in could find (an Entra ID, an e-mail address,
+     an alias that reads as a login) loses their role. A backup file cannot bring in someone who signs in. */
+  for (const u of s.users) {
+    if (!restored.has(String(u.id))) continue;
+    if (u.login) { if (u.source === 'ldap' && u.active !== false) u.syncOff = true; u.active = false; }
+    else if ((u.entra || (u.profile && u.profile.mail) || exactKeys(u).size) && u.role && u.role !== 'none') u.role = 'none';
+  }
   saveState(db, s, { restore: true });
   /* The backup's device photos replace those here; one without photos (from before 0.9.75) leaves them as they are. Either
      way photos of devices the restored inventory does not have go. */

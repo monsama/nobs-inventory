@@ -137,11 +137,14 @@ function applyDepartments(s, records) {
   /* Lookups instead of a pass over every person and device per record; kept up to date as people are added. */
   const byLogin = new Map(), byName = new Map(), byUser = new Map();
   /* Names and logins a merge left as aliases find the person too, so a merged person is not made again. */
-  /* By name only a person with no login (named by a full name, or a Lansweeper record from before logins): someone who
-     signs in cannot take another's devices by naming themself after that person's login. */
-  const indexPerson = u => { if (u.login && !byLogin.has(loginCore(u.login))) byLogin.set(loginCore(u.login), u); if (!u.login && !byName.has(low(u.name))) byName.set(low(u.name), u);
+  /* byName: everyone, for a record that names its user by a full name. byLsName: a Lansweeper record from before logins,
+     whose name is the login; the only one a login finds by name, so nobody gets another's devices by naming themself
+     after a login. */
+  const byLsName = new Map();
+  const indexPerson = u => { if (u.login && !byLogin.has(loginCore(u.login))) byLogin.set(loginCore(u.login), u); if (!byName.has(low(u.name))) byName.set(low(u.name), u);
+    if (u.source === 'lansweeper' && !u.login && !byLsName.has(low(u.name))) byLsName.set(low(u.name), u);
     if (u.entra && u.entra.upn && !byLogin.has(loginCore(u.entra.upn))) byLogin.set(loginCore(u.entra.upn), u);
-    for (const a of u.aliases || []) { if (!byLogin.has(loginCore(a))) byLogin.set(loginCore(a), u); if (!u.login && !byName.has(low(a))) byName.set(low(a), u); } };
+    for (const a of u.aliases || []) { if (!byLogin.has(loginCore(a))) byLogin.set(loginCore(a), u); if (!byName.has(low(a))) byName.set(low(a), u); } };
   s.users.forEach(indexPerson);
   for (const o of s.objs) if (o.user) { const k = low(o.user); byUser.set(k, [...(byUser.get(k) || []), o]); }
   for (const r of records) {
@@ -150,7 +153,7 @@ function applyDepartments(s, records) {
     /* A user that comes with a full name is a login; one without, that is not a login (a full name, as a report file
        may give it), is a name, as before. */
     const isLogin = !!r.userName || LOGIN_RE.test(r.user);
-    let p = byLogin.get(login) || byName.get(login);
+    let p = byLogin.get(isLogin ? loginCore(r.user) : login) || (isLogin ? byLsName.get(login) || byLsName.get(loginCore(r.user)) : byName.get(login));
     if (!p && named) {
       p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: isLogin ? r.user : '', name: r.userName || r.user, dept: '', role: 'none', groups: [], source: 'lansweeper', active: true };
       s.users.push(p); indexPerson(p); n++;
