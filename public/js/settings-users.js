@@ -390,7 +390,8 @@ export function showDevicesOf(nameOrId){
   /* Every other filter goes (the Table's column filters too), so the person's devices are all there. */
   resetFilters();
   st.scope = null; st.rvSrc = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set();
-  if (u){ st.person = u.id; st.q = ''; st.live = true; st.tab = 'table'; }
+  /* On a phone the List: a Table of a person's devices would show two columns and scroll sideways. */
+  if (u){ st.person = u.id; st.q = ''; st.live = true; st.tab = innerWidth <= 760 ? 'cards' : 'table'; }
   else { st.person = null; st.q = String(nameOrId || ''); st.tab = 'cards'; st.cardsGroup = 'none'; }
   render();
 }

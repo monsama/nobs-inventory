@@ -215,7 +215,9 @@ export function linkObjModal(pre = {}){
   const near = o => !into ? 0 : (['mobile', 'ios', 'android'].includes(o.type) ? 8 : 0) + (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
   /* Network gear and servers keep their other cables: one already on this switch is moved from its port there instead. */
   const onInto = o => into && (NET_GEAR.includes(o.type) || o.type === 'server') && rels.some(r => r.from === o.id && r.to === into.id);
-  const sorted = list.filter(o => (!swapped || o.id !== swapped.id) && !onInto(o)).sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
+  /* Nor the device this one is itself plugged into (its uplink): that would be a loop. */
+  const above = o => into && rels.some(r => r.from === into.id && r.to === o.id);
+  const sorted = list.filter(o => (!swapped || o.id !== swapped.id) && !onInto(o) && !above(o)).sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
   const label = o => `${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${atPort && o.loc ? ' · ' + o.loc : ''}${atPort && o.user ? ' · ' + o.user : ''}${where(o)}`;
   const objOptions = q => { const w = q.trim().toLowerCase(); const hits = sorted.filter(o => !w || [label(o), o.user].some(v => String(v || '').toLowerCase().includes(w)));
     return String(html`${atPort && html`<option value="">${hits.length ? `Choose a device… (${hits.length})` : 'No device matches'}</option>`}${hits.map(o => html`<option value="${o.id}">${label(o)}</option>`)}`); };

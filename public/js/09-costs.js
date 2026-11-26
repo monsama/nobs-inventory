@@ -1,7 +1,7 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
 import { dateBad, dateFieldHtml, dateValue } from './datefield.js';
-import { deleteButton, toastUndo, editButton, $, CONTACTS, COSTS, byId, contactOf, dayText, esc, objs, st, tico, toast, noMatchHtml, oncePerDraw, perDrawOf } from './01-core.js';
+import { fold, deleteButton, toastUndo, editButton, $, CONTACTS, COSTS, byId, contactOf, dayText, esc, objs, st, tico, toast, noMatchHtml, oncePerDraw, perDrawOf } from './01-core.js';
 import { contactLabel } from './contacts.js';
 import { contactCompanies, contactModal } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
@@ -164,11 +164,14 @@ export function contractModal(c, preset = []){
   const devs = () => {
     const q = $('#ctDevQ').value.trim().toLowerCase();
     const mine = objs.filter(o => picked.has(o.id));
-    const more = q ? objs.filter(o => !picked.has(o.id) && o.status !== 'retired' && [o.name, o.code, o.serial, o.model, o.user].some(v => String(v || '').toLowerCase().includes(q))).slice(0, 60) : [];
+    /* Every word in the name, code, serial, model, user or room, accents left out or not: "lenovo bern". */
+    const words = q.split(/\s+/).filter(Boolean);
+    const more = q ? objs.filter(o => !picked.has(o.id) && o.status !== 'retired' && (() => { const t = [o.name, o.code, o.serial, o.model, o.user, o.loc].filter(Boolean).join(' '), raw = t.toLowerCase(), f = fold(t); return words.every(w => raw.includes(w) || f.includes(fold(w))); })()).slice(0, 60) : [];
     /* The matches can all be taken at once; the count of devices covered stays in view. */
     const bar = q && more.length ? html`<div class="ct-devbar"><span class="muted">${more.length === 60 ? 'First 60' : more.length} found · ${picked.size} covered</span><button type="button" id="ctAddAll">Add ${more.length === 1 ? 'it' : `all ${more.length}`}</button></div>` : '';
     const shown = [...mine, ...more];
-    $('#ctDevs').innerHTML = bar || shown.length ? html`${bar}${shown.map(o => html`<label class="pchk">${rawHtml(tico(o.type, 'tico sm'))}<input type="checkbox" data-ctdev="${o.id}" ${picked.has(o.id) ? 'checked' : ''}> <b>${o.name}</b> <span class="muted">${[o.code, o.model].filter(Boolean).join(' · ')}</span></label>`)}`
+    const none = q && !more.length ? html`<p class="note">No device matches “${q}”.</p>` : '';
+    $('#ctDevs').innerHTML = bar || shown.length ? html`${none}${bar}${shown.map(o => html`<label class="pchk">${rawHtml(tico(o.type, 'tico sm'))}<input type="checkbox" data-ctdev="${o.id}" ${picked.has(o.id) ? 'checked' : ''}> <b>${o.name}</b> <span class="muted">${[o.code, o.model].filter(Boolean).join(' · ')}</span></label>`)}`
       : html`<p class="note">${q ? 'No device matches.' : 'No devices yet. Find them by name, code, serial number, model or user.'}</p>`;
     $('#ctDevs').querySelectorAll('[data-ctdev]').forEach(x => x.onchange = () => { if (x.checked) picked.add(x.dataset.ctdev); else picked.delete(x.dataset.ctdev); });
     const all = $('#ctAddAll'); if (all) all.onclick = () => { more.forEach(o => picked.add(o.id)); $('#ctDevQ').value = ''; devs(); $('#ctDevQ').focus(); };
@@ -193,7 +196,8 @@ export function contractModal(c, preset = []){
     peopleList(); $('#ctAddContact').focus();
   };
   /* Enter in the device search takes what it found (not Save): the one match, or all of them. */
-  $('#ctDevQ').addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const all = $('#ctAddAll'); if (all) all.click(); });
+  /* Enter takes a single match; with several, Add all says how many it takes. */
+  $('#ctDevQ').addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const all = $('#ctAddAll'); if (all && /^Add it$/.test(all.textContent.trim())) all.click(); else if (all) all.focus(); });
   $('#ctCancel').onclick = closeModal;
   /* Contracts are an admin's: anyone else sees one, read only. */
   if (!isAdmin()) { $('#mdl').querySelectorAll('input, select, textarea, button').forEach(el => { if (el.id !== 'ctCancel' && !el.closest('.mh')) el.disabled = true; }); const ok = $('#ctOk'); if (ok) ok.hidden = true; const del = $('#ctDel'); if (del) del.hidden = true; $('#ctCancel').textContent = 'Close'; }

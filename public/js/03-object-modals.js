@@ -70,7 +70,8 @@ function newPersonModal(o){
 function retireTies(o){
   const { plugs, host, attached, vms } = linksOf(o);
   const plan = o.planPos && PLANS.find(p => p.id === o.planPos.plan);
-  const cts = contractsOf(o);
+  /* A lease is kept: the device goes back to the lessor, so the contract still has to name it. */
+  const cts = contractsOf(o).filter(c => c.kind !== 'lease');
   const resp = [o.respIn, o.respEx].filter(Boolean).map(contactOf).filter(Boolean);
   /* Patch cords from a panel too: no path runs through a retired device. */
   const downs = rels.filter(r => r.to === o.id && (PORT_KINDS.includes(r.kind) || r.kind === 'patched') && byId(r.from));

@@ -2980,3 +2980,12 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 .empty-person{padding:16px var(--gutter, 16px);margin:0}
 /* With the selection bar wrapped onto two rows, the message sits above it, not on its buttons. */
 @media (min-width:761px) and (max-width:1180px){ body:has(#toolbar .pickrow) #toast{bottom:calc(136px + env(safe-area-inset-bottom, 0px))} }
+/* A port's VLAN beside its actions. */
+.port-acts .port-vlan{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.port-acts .port-vlan select{width:auto;min-width:120px}
+/* Phone: the selection bar wraps, so every action is in reach. */
+@media screen and (max-width:760px){ #toolbar .pickrow{flex-wrap:wrap;justify-content:center;row-gap:6px} body:has(#toolbar .pickrow) #toast{bottom:calc(150px + env(safe-area-inset-bottom, 0px))} }
+/* Phone: a switch's port groups wrap inside the card instead of running past its edge. */
+@media (max-width:760px){ .pgroups{flex-wrap:wrap} .chassis{max-width:100%} }
+/* Hand out's device list: a device name stays on one line (no MON-ZH- / 001). */
+.ho-list b{white-space:nowrap}

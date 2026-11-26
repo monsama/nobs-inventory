@@ -172,14 +172,14 @@ try {
   await core(async () => (await import('/js/02-views.js')).openObj('nb1'));
   await p.click('.menu > .menu-btn'); await p.click('#delBtn');
   await p.waitForSelector('.rt-ties');
-  assert.equal(await p.locator('.rt-ties input:checked').count(), 6, 'user, port, attached monitor, plan, contract, responsible');
+  assert.equal(await p.locator('.rt-ties input:checked').count(), 5, 'user, port, attached monitor, plan, responsible: the lease keeps the device (it goes back to the lessor)');
   await p.fill('#rtWhy', 'broken screen');
   await p.click('#rtOk');
   await until(p, async () => (await import('/js/01-core.js')).byId('nb1').status === 'retired');
   const gone = await obj('nb1');
   assert.ok(!gone.uid && !gone.planPos && !gone.respEx, 'user, plan and responsible taken off');
   assert.equal(await core(async () => (await import('/js/01-core.js')).rels.filter(r => r.from === 'nb1' || r.to === 'nb1').length), 0);
-  assert.deepEqual(await core(async () => (await import('/js/01-core.js')).COSTS.contracts[0].devices), []);
+  assert.deepEqual(await core(async () => (await import('/js/01-core.js')).COSTS.contracts[0].devices), ['nb1'], 'the lease still names it');
   assert.match(await core(async () => (await import('/js/01-core.js')).HISTORY.nb1[0].msg), /Retired by .*: broken screen/);
   await p.click('#toast .t-undo');
   await until(p, async () => (await import('/js/01-core.js')).byId('nb1').status === 'active');

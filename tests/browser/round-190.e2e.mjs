@@ -34,6 +34,20 @@ try {
   await p.waitForSelector('#lkVlan'); await p.selectOption('#lkVlan', '30');
   await p.fill('#lkQ', 'PC-A'); await p.press('#lkQ', 'Enter');
   await stored(st => st.rels.some(r => r.from === 'pa' && r.port === 4 && r.vlan === 30));
+  //    and changed on the port, with Undo
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.portsDevice = 'core'; c.st.portNo = 4; c.st.tab = 'net'; (await import('/js/07-render.js')).view(); });
+  await p.waitForSelector('[data-portvlan]'); await p.selectOption('[data-portvlan]', '20');
+  await stored(st => st.rels.some(r => r.from === 'pa' && r.vlan === 20));
+  await p.click('#toast .t-undo');
+  await stored(st => st.rels.some(r => r.from === 'pa' && r.vlan === 30));
+  //    handed out from a selection: no longer selected
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'cards'; c.st.bulk = new Set(['h1']); (await import('/js/07-render.js')).view(); });
+  await p.waitForSelector('#cdGive'); await p.click('#cdGive');
+  await p.waitForSelector('#hoQ'); await p.fill('#hoQ', 'Mia'); await p.press('#hoQ', 'Enter'); await p.click('#hoOk');
+  await stored(st => st.objs.find(o => o.id === 'h1').uid === 'p1');
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).st.bulk.size), 0);
+  await p.click('#toast .t-undo');
+  await stored(st => !st.objs.find(o => o.id === 'h1').uid);
 
   //    a search for a hostname finds that one, not one that differs by an "e" (the ae/oe/ue rule is for words)
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.q = 'desktop-4ae2f1'; c.st.tab = 'cards'; (await import('/js/07-render.js')).view(); });
