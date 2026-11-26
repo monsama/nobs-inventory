@@ -30,11 +30,13 @@ test('devices typed PC before become servers on start, unless a person chose the
     { id: 'b', type: 'other', os: 'Windows Server 2016 Standard', graph: { id: 'g' } },
     { id: 'c', type: 'pc', model: 'Dell PowerEdge R640', feed: {} },
     { id: 'd', type: 'pc', model: 'HP ProDesk 600', os: 'Windows 11', ad: {} },
-    /* Added by hand, as a PC: the type chosen in New device stays. */
+    /* Added by hand, as a PC: the type chosen in New device stays, also once Intune matched it. */
     { id: 'e', type: 'pc', model: 'HP ProLiant DL360 Gen10' },
+    { id: 'f', type: 'pc', model: 'Lenovo ThinkSystem ST50', os: 'Windows Server 2022', graph: { id: 'g9' } },
   ] };
+  s.history.f = [{ t: '2', msg: 'Linked to Intune' }, { t: '1', msg: 'Created manually by Admin' }];
   migrateState(s);
-  assert.deepEqual(s.objs.map(o => o.type), ['server', 'server', 'pc', 'pc', 'pc']);
+  assert.deepEqual(s.objs.map(o => o.type), ['server', 'server', 'pc', 'pc', 'pc', 'pc']);
   assert.match(s.history.a[0].msg, /Type changed from PC to Server by the type rules: its model is a server's \(Hewlett-Packard ProLiant DL380 Gen9\)/);
 });
 
