@@ -199,6 +199,30 @@ export function registerStateRoutes(app, ctx) {
     } catch (e) { next(e); }
   });
 
+  /* The devices last handed out to a person or taken back from them, newest first (at most 5), from the History: shown
+     to an admin on a person with no devices now. Only devices the admin may see. */
+  app.get('/api/people/:id/past', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const u = db.prepare("SELECT data FROM docs WHERE kind = 'user' AND id = ?").get(String(req.params.id));
+      if (!u) throw new HttpError(404, 'No such person.');
+      const name = String(JSON.parse(u.data).name || '');
+      /* The name, then what follows it in the line (27-handout.js): "Finn" is not "Finn Graf". */
+      const said = [`Handed out to ${name}`, `Taken back into stock from ${name}`];
+      const time = t => { const m = /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/.exec(t || ''); return m ? Date.UTC(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]) : 0; };
+      const sc = scopeOf(req.user), past = [];
+      for (const row of db.prepare("SELECT id, data FROM docs WHERE kind = 'history'").all()) {
+        const hits = JSON.parse(row.data).filter(e => e && said.some(w => [' by ', ' (was ', ', to '].some(end => String(e.msg || '').startsWith(w + end))));
+        if (!hits.length) continue;
+        const o = db.prepare("SELECT data FROM docs WHERE kind = 'object' AND id = ?").get(row.id);
+        const obj = o && JSON.parse(o.data);
+        if (!obj || !inScope(obj, sc)) continue;
+        for (const e of hits) past.push({ id: row.id, name: obj.name, t: e.t, back: e.msg.startsWith('Taken back') });
+      }
+      past.sort((a, b) => time(b.t) - time(a.t));
+      res.set('Cache-Control', 'no-store').json({ past: past.slice(0, 5) });
+    } catch (e) { next(e); }
+  });
+
   /* The whole inventory replaced in one save (the page itself saves only its changes, below). It must keep the admin
      asking and at least one active admin. */
   app.put('/api/state', requireUser, requireAdmin, (req, res, next) => {

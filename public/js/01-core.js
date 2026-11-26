@@ -638,12 +638,17 @@ export const intuneOwnerOf = o => {
   if (!g || g.gone || !g.owner) return null;
   return PEOPLE_LIST.find(p => p.active !== false && isOwner(p, g)) || null;
 };
+/* Checks that are a tip, not a gap: listed in Data quality, but left out of its score (a responsible is optional). */
+export const QUALITY_TIPS = ['noresp'];
+/* A device Data quality counts as not complete: a check that is no tip finds something. */
+export const qualityGap = (/** @type {any} */ o) => Object.entries(QUALITY).some(([k, q]) => !QUALITY_TIPS.includes(k) && q[2](o));
 /** @type {Record<string, [string, string, (o: any) => boolean]>} */
 export const QUALITY = {
   /* Devices only registered in Entra (most often personal) are no company assets: left out of the asset checks. */
   noloc: ['No location', 'Where it is is not recorded', o => !o.loc && !registeredOnly(o)],
   noresp: ['No responsible', 'No internal responsible, though there are internal contacts', o => !o.respIn && !registeredOnly(o) && CONTACTS.list.some(c => c.kind === 'internal')],
   noserial: ['No serial number', 'A physical device without its serial number', o => !o.serial && o.kind !== 'vm' && !['vm', 'rack', 'patch'].includes(o.type) && !registeredOnly(o)],
+  nomodel: ['No model', 'A physical device without its model', o => !String(o.model || '').trim() && o.kind !== 'vm' && !['vm', 'rack', 'patch'].includes(o.type) && !registeredOnly(o)],
   nouser: ['No user', 'A computer or phone in use that nobody is assigned to', o => PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk && !registeredOnly(o)],
   unseen: ['Not seen for 90 days', 'No source has seen it for over 90 days: is it still there?', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
   unconfirmed: ['Not confirmed on site for 12 months', 'Not found in an inventory check, or confirmed on its page, for over a year', o => { if (registeredOnly(o) || !(st.stocktakes || []).some(t => t.finished)) return false; const d = daysSinceVerified(o); return d === null || d > STOCKTAKE_DAYS; }],

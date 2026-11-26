@@ -37,12 +37,25 @@ const SECTIONS = [
   ['Where are they? (not seen, not scanned)', 'sources', 'Gone devices', 'where are they not seen not scanned months'],
 ];
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
+/* What admins look for in Settings that is kept elsewhere: [name, where, other words, go]. */
+const ELSEWHERE = [
+  ['Lifetimes and replacement prices', 'Overview → Replacement plan', 'lifetime lifecycle years replacement price warranty due plan', async () => {
+    (await import('./19-modal.js')).closeModal(); st.tab = 'overview'; (await import('./07-render.js')).view();
+    requestAnimationFrame(() => { const b = /** @type {HTMLElement | null} */ (document.getElementById('ovLife')); if (b) b.click(); }); }],
+  ['Warranty ends', 'Devices → filters on the left', 'warranty expiring ended', async () => {
+    (await import('./19-modal.js')).closeModal(); st.tab = 'cards'; (await import('./07-render.js')).view();
+    requestAnimationFrame(() => { const w = document.getElementById('wtyList') || document.querySelector('[data-warranty]'); if (w) w.scrollIntoView({ block: 'center' }); }); }],
+  ['Change password', 'Your account (your name, top right)', 'password change my account', async () => {
+    (await import('./19-modal.js')).closeModal(); (await import('./signin.js')).accountModal();
+    requestAnimationFrame(() => { const c = /** @type {HTMLElement | null} */ (document.getElementById('acCur')); if (c) c.focus(); }); }],
+];
 
 /* Settings hits for text q (lower case): the sections first, then the pages. Each is { label, path, go }. */
 export function settingHits(q){
   const secs = SECTIONS.filter(([l, , h, w]) => has(q, l, h, w)).map(([l, k, h]) => ({ label: l, path: 'Settings → ' + (SET_PATH[k] || pageName(k)), go: () => openSetting(k, h) }));
   const pages = SET_TABS.filter(([k, l]) => has(q, l, SET_PATH[k], SET_WORDS[k]) && !secs.some(s => s.label === l)).map(([k, l]) => ({ label: l, path: 'Settings → ' + (SET_PATH[k] || l), go: () => openSetting(k) }));
-  return [...secs, ...pages];
+  const other = ELSEWHERE.filter(([l, , w]) => has(q, l, w)).map(([label, path, , go]) => ({ label, path, go }));
+  return [...secs, ...pages, ...other];
 }
 const pageName = k => (SET_TABS.find(([x]) => x === k) || [k, k])[1];
 

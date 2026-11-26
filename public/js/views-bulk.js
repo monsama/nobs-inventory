@@ -162,8 +162,9 @@ export function bindTableBulk(n){
     /* Retired: the Retire dialog, which also gives up the user, contract, floor-plan spot and responsible. Into stock
        with somebody: the take-back, as on the device page, so no device in stock still has a user. */
     if (v === 'retired'){ retirePicked(); return; }
-    const withUser = [...st.bulk].map(byId).filter(o => o && (o.uid || o.user || o.hotdesk));
-    if (v === 'stock' && withUser.length){ takeBackModal(withUser); return; }
+    /* In stock, some with a user: the take-back for all picked (it takes those without a user in as well). */
+    const picked = [...st.bulk].map(byId).filter(Boolean);
+    if (v === 'stock' && picked.some(o => o.uid || o.user || o.hotdesk)){ takeBackModal(picked); return; }
     const to = v;
     /* Any other status: set on each, with one Undo. */
     const list = [...st.bulk].map(byId).filter(Boolean);
@@ -216,8 +217,8 @@ export function moveModal(ids, after){
   /* The list is drawn again after the move: the focus goes back to what opened the dialog, in its new copy. */
   const back = document.activeElement && document.activeElement.id;
   modal(html`<div class="mh">Move ${n} ${n === 1 ? 'device' : 'devices'}</div>
-    <div class="mb"><div class="form"><label for="mvLoc">To room</label><select id="mvLoc" class="locpick">${rawHtml(locOptions(now_, { none: 'Pick a room' }))}</select></div>
-    <p class="note">${here.length === 1 ? (here[0] ? `Now all in ${here[0]}.` : 'None of them has a location yet.') : `Now in ${here.length} places.`} The next sync does not move them back.</p></div>
+    <div class="mb"><div class="form" style="padding:0"><label for="mvLoc">To room</label><select id="mvLoc" class="locpick">${rawHtml(locOptions(now_, { none: 'Pick a room' }))}</select></div>
+    <p class="note">${here.length === 1 ? (here[0] ? `They are in ${here[0]} now.` : 'None of them has a location yet.') : `They are in ${here.length} places now.`} The next sync does not move them back.</p></div>
     <div class="mf"><button id="mvCancel">Cancel</button><button id="mvOk" class="primary" disabled>Move</button></div>`, 'sm');
   const sel = /** @type {HTMLSelectElement} */ ($('#mvLoc')), ok = /** @type {HTMLButtonElement} */ ($('#mvOk'));
   const sync = () => { ok.disabled = !sel.value || sel.value === now_; };

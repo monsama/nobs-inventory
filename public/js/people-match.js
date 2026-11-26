@@ -62,7 +62,13 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
   if (!keep.entra && drop.entra) keep.entra = drop.entra;
   if (!keep.login && drop.login) keep.login = drop.login;
   const ROLE = { admin: 2, viewer: 1, none: 0 };
-  if ((ROLE[drop.role] ?? 0) > (ROLE[keep.role] ?? 0)) keep.role = drop.role;
+  /* A merge never widens what the person sees: the role taken from the other record comes with its sites and Own
+     devices only; with the same role, the narrower of the two. */
+  const scope = u => ({ sites: Array.isArray(u.sites) && u.sites.length ? u.sites : null, own: u.own === true });
+  const setScope = ({ sites, own }) => { if (sites) keep.sites = [...sites]; else delete keep.sites; if (own) keep.own = true; else delete keep.own; };
+  const rk = ROLE[keep.role] ?? 0, rd = ROLE[drop.role] ?? 0;
+  if (rd > rk) { keep.role = drop.role; setScope(scope(drop)); }
+  else if (rd === rk && rd > 0) { const a = scope(keep), b = scope(drop); setScope({ sites: a.sites || b.sites, own: a.own || b.own }); }
   if (drop.active !== false && keep.active === false && keep.source !== 'ldap') { keep.active = true; delete keep.leftAt; delete keep.leftBy; }
   const aliases = new Set(keep.aliases || []);
   for (const v of [drop.login, drop.name, ...(drop.aliases || [])]) if (v && low(v) !== low(keep.login) && low(v) !== low(keep.name)) aliases.add(String(v).slice(0, 120));

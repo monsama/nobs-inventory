@@ -28,6 +28,10 @@ test('Entra: disabled switches off, enabled again switches back on; a person an 
   applyGraphPeople(old, [user('cem', true)], 'match', NOW);
   assert.equal(old.users[0].active, true);
   assert.throws(() => checkState({ ...s, users: [{ ...ana, entraOff: 'yes' }] }), /Switched off by Entra/);
+  /* An admin switched off a person Entra still had on; Entra then disables, then enables the account: still off. */
+  const adm = { objs: [], rels: [], types: {}, history: {}, locs: [], users: [person('dan', { active: false })] };
+  for (const en of [true, false, false, true]) applyGraphPeople(adm, [user('dan', en)], 'match', NOW);
+  assert.deepEqual([adm.users[0].active, adm.users[0].entraOff], [false, false]);
 });
 
 test('merging by hand: the password of the one merged away goes to the kept one, who had none', async () => {

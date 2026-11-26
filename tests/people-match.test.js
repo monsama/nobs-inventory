@@ -35,6 +35,18 @@ test('duplicates: by login across domains, e-mail or UPN; by name only when no l
   assert.equal(duplicateGroups([P('a', 'Eva Roth'), P('b', 'Roth, Eva', { source: 'lansweeper' })])[0].why, 'name');
 });
 
+test('a merge never widens what the person sees: the role comes with its sites and Own devices', () => {
+  const two = (keep, drop) => { const s = { objs: [], history: {}, users: [{ id: 'k', name: 'Ana', source: 'ldap', role: 'none', ...keep }, { id: 'd', name: 'ana', source: 'entra', ...drop }] }; mergePeople(s, 'k', 'd'); return s.users[0]; };
+  const a = two({}, { role: 'viewer', sites: ['Bern'] });
+  assert.deepEqual([a.role, a.sites, a.own], ['viewer', ['Bern'], undefined]);
+  const b = two({}, { role: 'viewer', own: true });
+  assert.deepEqual([b.role, b.own], ['viewer', true]);
+  const c = two({ role: 'viewer' }, { role: 'viewer', sites: ['Bern'], own: true });
+  assert.deepEqual([c.sites, c.own], [['Bern'], true], 'the same role: the narrower');
+  const d = two({ role: 'admin' }, { role: 'viewer', sites: ['Bern'] });
+  assert.deepEqual([d.role, d.sites], ['admin', undefined], 'an admin stays an admin');
+});
+
 test('a merge moves devices, keeps what the kept one lacks, and the other names as aliases', () => {
   const s = { users: [P('l1', 'Anna Muster', { source: 'ldap', login: 'amuster' }), P('s1', 'Muster Anna', { source: 'lansweeper', login: 'anna.m', dept: 'Sales', role: 'viewer' })],
     objs: [{ id: 'o1', uid: 's1', user: 'Muster Anna' }, { id: 'o2', uid: 'l1' }], history: {} };

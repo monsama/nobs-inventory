@@ -68,7 +68,7 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
   if (due.length) out.push({ id: 'maint-due', sev: 'warn', title: `Maintenance due within ${MAINT_SOON_DAYS} days`, text: names(due, task), fp: fingerprint(due.map(taskKey)),
     go: due.length === 1 ? { device: due[0].o.id } : { overview: 'ovMaint' } });
   for (const { c, st } of a.contracts) out.push({ id: `contract-${c.id}`, sev: st.state === 'late' ? 'bad' : 'warn',
-    title: st.state === 'late' ? `Notice date passed: ${c.name}` : `Contract notice due: ${c.name}`,
+    title: st.state === 'late' ? `Notice date passed: ${c.name}` : c.renew > 0 ? `Contract notice due: ${c.name}` : `Contract ending: ${c.name}`,
     text: st.state === 'late' ? `It renews on ${dateText(st.end)}` : st.noticeBy ? `Give notice by ${dateText(st.noticeBy)}` : `It ends on ${dateText(st.end)}`,
     fp: `${st.state}|${st.noticeBy || st.end}`, go: { tab: 'contracts' } });
   for (const o of a.reported) out.push({ id: `reported-${o.id}`, sev: 'warn', title: `Problem reported: ${o.name}`, text: `${o.reported.text}${o.reported.by ? ` (${o.reported.by})` : ''}`,

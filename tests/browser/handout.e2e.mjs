@@ -78,10 +78,13 @@ try {
   await p.click('#handOutBtn'); await p.waitForSelector('#hoQ');
   await p.fill('#hoQ', 'Max Neu'); await p.waitForSelector('[data-honew]');
   await p.press('#hoQ', 'Enter'); await p.press('#hoQ', 'Enter');
-  // it is in the store room and no room is picked: where it goes is asked for once; Hand out again leaves it there
+  // it is in the store room and no room is picked: Where starts at "Pick where it goes", and asks; leaving it there is a choice
+  assert.equal(await p.inputValue('#hoLoc'), '__pick');
   await p.waitForSelector('#hoSays .ho-warn');
   assert.equal(stored('n2').uid, undefined, 'handed out before saying it stays listed in the store room');
-  await p.click('#hoOk');
+  await p.click('#hoOk'); await p.waitForTimeout(150);
+  assert.equal(stored('n2').uid, undefined, 'Hand out again does not pass by the question');
+  await p.selectOption('#hoLoc', ''); await p.click('#hoOk');
   await eventually(() => { const st = loadState(db), u = st.users.find(x => x.name === 'Max Neu'); return u && stored('n2').uid === u.id && stored('n2').status === 'active'; });
 
   // from her view: a device from the stock, then everything back

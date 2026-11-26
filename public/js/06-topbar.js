@@ -1,4 +1,4 @@
-import { QUALITY, TYPES, evEl, $$, $, COSTS, REVIEW, UNDO, leftFilters, objs, rels, st } from './01-core.js';
+import { qualityGap, TYPES, evEl, $$, $, COSTS, REVIEW, UNDO, leftFilters, objs, rels, st } from './01-core.js';
 import { newObjModal } from './05-new-object.js';
 import { isAdmin, me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render.js';
@@ -81,7 +81,7 @@ function goNotice(g){
 $('#bellPop').addEventListener('toggle', e => {
   const slot = /** @type {HTMLElement} */ (e.target).querySelector('[data-bellq]');
   if (!slot || /** @type {any} */ (e).newState !== 'open') return;
-  const n = objs.filter(o => o.status !== 'retired' && Object.values(QUALITY).some(q => q[2](o))).length;
+  const n = objs.filter(o => o.status !== 'retired' && qualityGap(o)).length;
   slot.innerHTML = n ? String(html` <button type="button" class="link" data-bellqgo>Data quality: ${n} ${n === 1 ? 'device' : 'devices'} to complete</button>`) : '';
 });
 $('#bellPop').addEventListener('click', e => {

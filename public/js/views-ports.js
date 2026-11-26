@@ -1,8 +1,8 @@
 /* A switch's ports: setup, front panel, groups and the port map (split out of 02-views.js, which re-exports it). */
-import { portRangeError, seenChip, lagLinkOf, hasPorts, vlanLabel, $, STATUS, TYPES, byId, isUplink, isAttached, reachesPort, objs, pfxOf, rels, st, tico, toast, used } from './01-core.js';
+import { portRangeError, seenChip, lagLinkOf, hasPorts, vlanLabel, $, STATUS, TYPES, byId, isUplink, isAttached, reachesPort, objs, pfxOf, rels, st, tico, toast, used, hist, now, snapshot, restoreSnapshot, toastUndo } from './01-core.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
-import { isAdmin } from './04-settings.js';
+import { isAdmin, who } from './04-settings.js';
 import { openObj } from './02-views.js';
 import { html, rawHtml } from './html.js';
 import { viaOf } from './cabling.js';
@@ -38,7 +38,7 @@ export function renderPorts(){
   const first = ['switch', 'patch', 'router', 'firewall'].map(t => devs.find(o => o.type === t)).find(Boolean);
   const sw = byId(st.portsDevice) || devs.find(o => o.id === last) || first || devs[0];
   try { localStorage.setItem('ni-ports-device', sw.id); } catch { /* not kept */ }
-  $('#toolbar').innerHTML = html`<select id="portsDevice" aria-label="Device whose ports are shown">${devs.map(s => html`<option value="${s.id}">${s.name}${s.loc ? ' · ' + s.loc.split(' / ')[0] : ''}</option>`)}</select>
+  $('#toolbar').innerHTML = html`<select id="portsDevice" aria-label="Device whose ports are shown">${devs.map(s => html`<option value="${s.id}">${s.name}${s.loc ? ' · ' + s.loc.split(' / ')[0] : ''}${s.status === 'retired' ? ' · retired' : ''}</option>`)}</select>
     <span class="muted hide-n">${[sw.model, sw.ip].filter(Boolean).join(' · ')}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
   $('#portsDevice').value = sw.id;
   /* A port picked on another device, or one no longer there after the count was lowered, is not this device's: no port
@@ -68,10 +68,16 @@ export function renderPorts(){
     if (!lsDiff.has(+pl.port)) lsDiff.set(+pl.port, []);
     lsDiff.get(+pl.port).push(o);
   }
+  /* A link between two pieces of network gear (switch, router, firewall) is an uplink, also when it was made as a plain
+     connection (by hand, or by Lansweeper's switch scan). */
+  const GEAR = ['switch', 'router', 'firewall'];
+  const upish = r => !!r && (isUplink(r.kind) || (r.kind === 'connected' && GEAR.includes(sw.type) && GEAR.includes((byId(r.from === sw.id ? r.to : r.from) || {}).type)));
+  /* The uplinks of this device itself (to the switch or router above it): listed in the port map too. */
+  const ownUps = rels.filter(r => r.from === sw.id && r.fromLag == null && (isUplink(r.kind) || upish(r)) && byId(r.to));   /* a LAG has its own row */
   const portBtn = p => {
     const inc = onPort(p), lu = lagUse(p);
     const dev = inc[0] ? byId(inc[0].from) : lu ? lu.d : null;
-    const isUp = (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
+    const isUp = upish(inc[0]) || (lu && upish(lu.r));
     const poe = dev && (dev.type === 'sip');
     /* No description of its own: the description of the device plugged in, if it has one. */
     const note = (sw.portNotes || {})[p] || (dev && dev.purpose) || '';
@@ -107,7 +113,8 @@ export function renderPorts(){
   /* A LAG link is a row of its own, named by the LAG, with the device on the other end. */
   rels.forEach(r => {
     if (r.lag != null && r.to === sw.id) rows.push({p: 'LAG ' + r.lag, d: byId(r.from), r, sub: flat(behind(byId(r.from)))});
-    if (r.fromLag != null && r.from === sw.id) rows.push({p: 'LAG ' + r.fromLag, d: byId(r.to), r, sub: flat(behind(byId(r.to)))});
+    /* Its own LAG up to another device: that device is above it, so nothing of it is behind this one. */
+    if (r.fromLag != null && r.from === sw.id) rows.push({p: 'LAG ' + r.fromLag, d: byId(r.to), r, sub: upish(r) ? [] : flat(behind(byId(r.to)))});
   });
   const portDetail = st.portNo != null ? rows.filter(x => x.p === st.portNo) : [];
   const selLag = st.portNo != null ? lagUse(st.portNo) : null;
@@ -117,7 +124,7 @@ export function renderPorts(){
   const portInfo = x => {
     const d = x.d, note = (sw.portNotes || {})[st.portNo];
     const rows = [['Type', TYPES[d.type] ? TYPES[d.type].label : d.type], ['Model', d.model], ['IP address', d.ip], ['MAC address', d.mac], ['User', d.user],
-      ['Description', d.purpose], ['Location', d.loc], ['Link', isUplink(x.r.kind) ? 'Uplink / trunk' : 'Device'], ['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')],
+      ['Description', d.purpose], ['Location', d.loc], ['Link', upish(x.r) ? 'Uplink / trunk' : 'Device'], ['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (upish(x.r) ? 'Trunk' : '')],
       ['Port description', note || ''], ['Status', d.status !== 'active' && STATUS[d.status] ? STATUS[d.status].label : '']].filter(([, v]) => v);
     return html`<dl class="kv portinfo">${rows.map(([k, v]) => html`<dt>${k}</dt><dd${/IP|MAC/.test(k) ? html` class="mono"` : ''}>${v}</dd>`)}${seenChip(d) ? html`<dt>Last seen</dt><dd>${rawHtml(seenChip(d))}</dd>` : ''}</dl>`;
   };
@@ -129,13 +136,15 @@ export function renderPorts(){
       <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? html`<span>Ports ${(sw.ports || 0)+1}-${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}${lsDiff.size ? html`<span><i style="box-shadow:inset 0 0 0 2px var(--warn)"></i>Lansweeper sees otherwise</span>` : ''}</div>
     </div>
     ${lsDiff.size ? html`<div class="panelbox lsdiff-box"><div class="hdr">Lansweeper sees otherwise <span class="cnt">${[...lsDiff.values()].flat().length}</span></div><p class="note" style="padding:8px 12px 0">The switch scan sees these devices on a port of ${sw.name} where the inventory does not have them (set by hand elsewhere). Open one: Sources → Switch port takes Lansweeper's.</p><div class="relist">${[...lsDiff].sort((a, b) => a[0] - b[0]).map(([p, list]) => list.map(o => html`<div class="relrow"><span class="k">Port ${pfxOf(sw) + p}</span><span class="t">${rawHtml(tico(o.type, 'tico sm'))}<a class="link" data-open="${o.id}" data-open-tab="sources" title="Open ${o.name} on Sources, where Use Lansweeper's takes this port">${o.name}</a></span></div>`))}</div></div>` : ''}
-    ${st.portNo != null ? html`<div class="panelbox"><div class="hdr">Port ${pfxOf(sw) + st.portNo}</div>${lsDiff.get(st.portNo) ? html`<p class="fieldnote warn" style="margin:8px 12px 0">Lansweeper sees ${lsDiff.get(st.portNo).map((o, i) => html`${i ? ', ' : ''}<a class="link" data-open="${o.id}" data-open-tab="sources">${o.name}</a>`)} here: the inventory has ${lsDiff.get(st.portNo).length === 1 ? 'it' : 'them'} elsewhere.</p>` : ''}<div class="addrel port-desc" data-edit><label class="muted" for="pnDesc">Description</label><input id="pnDesc" maxlength="120" value="${(sw.portNotes || {})[st.portNo] || ''}" placeholder="${portDetail[0] && portDetail[0].d.purpose ? `From the device: ${portDetail[0].d.purpose}` : 'What is on this port, e.g. Printer, 3rd floor'}" aria-label="Description of this port" style="flex:1"></div>${portDetail.length ? portDetail.map(x => html`<div class="path">${[{o:x.d}, ...(x.via && x.via.device ? [{o:x.via.device}] : []), ...x.sub.map(s => ({o:s.d}))].map((n, i) => html`${i ? (x.via && i === 1 ? html`<span class="edge">${x.via.port}${x.via.outlet ? ' · ' + x.via.outlet.name : ''}</span>` : edge) : ''}<button class="node" data-open="${n.o.id}">${rawHtml(tico(n.o.type,'tico sm'))}${n.o.name}</button>`)}</div>${x.via ? html`<p class="note via-note">${viaHtml(x.via)}</p>` : ''}${portInfo(x.via && x.via.device ? {...x, d: x.via.device} : x)}`) : html`<div class="path">${selLag ? html`<span class="muted">Part of the LAG ${selLag.g.name}, linked to</span> <button class="node" data-open="${selLag.d.id}">${rawHtml(tico(selLag.d.type,'tico sm'))}${selLag.d.name}</button>` : selGroup && selGroup.lag ? html`<span class="muted">Part of the LAG ${selGroup.name}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : html`<span class="muted">Port is free.</span>${isAdmin() ? html`<button id="assignBtn" class="primary">Plug in a device…</button><button id="assignNewBtn">New device…</button>` : ''}`}</div>`}</div>` : ''}
+    ${st.portNo != null ? html`<div class="panelbox"><div class="hdr">Port ${pfxOf(sw) + st.portNo}</div>${lsDiff.get(st.portNo) ? html`<p class="fieldnote warn" style="margin:8px 12px 0">Lansweeper sees ${lsDiff.get(st.portNo).map((o, i) => html`${i ? ', ' : ''}<a class="link" data-open="${o.id}" data-open-tab="sources">${o.name}</a>`)} here: the inventory has ${lsDiff.get(st.portNo).length === 1 ? 'it' : 'them'} elsewhere.</p>` : ''}<div class="addrel port-desc" data-edit><label class="muted" for="pnDesc">Description</label><input id="pnDesc" maxlength="120" value="${(sw.portNotes || {})[st.portNo] || ''}" placeholder="${portDetail[0] && portDetail[0].d.purpose ? `From the device: ${portDetail[0].d.purpose}` : 'What is on this port, e.g. Printer, 3rd floor'}" aria-label="Description of this port" style="flex:1"></div>${portDetail.length ? portDetail.map(x => html`<div class="path">${[{o:x.d}, ...(x.via && x.via.device ? [{o:x.via.device}] : []), ...x.sub.map(s => ({o:s.d}))].map((n, i) => html`${i ? (x.via && i === 1 ? html`<span class="edge">${x.via.port}${x.via.outlet ? ' · ' + x.via.outlet.name : ''}</span>` : edge) : ''}<button class="node" data-open="${n.o.id}">${rawHtml(tico(n.o.type,'tico sm'))}${n.o.name}</button>`)}</div>${x.via ? html`<p class="note via-note">${viaHtml(x.via)}</p>` : ''}${portInfo(x.via && x.via.device ? {...x, d: x.via.device} : x)}${isAdmin() && !x.via && typeof x.p === 'number' ? html`<div class="port-acts"><button type="button" data-unplug="${x.r.id}" title="Take the link away, with Undo: ${x.d.name} stays in the inventory">Unplug ${x.d.name}</button></div>` : ''}`) : html`<div class="path">${selLag ? html`<span class="muted">Part of the LAG ${selLag.g.name}, linked to</span> <button class="node" data-open="${selLag.d.id}">${rawHtml(tico(selLag.d.type,'tico sm'))}${selLag.d.name}</button>` : selGroup && selGroup.lag ? html`<span class="muted">Part of the LAG ${selGroup.name}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : html`<span class="muted">Port is free.</span>${isAdmin() && sw.status !== 'retired' ? html`<button id="assignBtn" class="primary">Plug in a device…</button><button id="assignNewBtn">New device…</button>` : sw.status === 'retired' ? html`<span class="muted">${sw.name} is retired: nothing is plugged into it any more.</span>` : ''}`}</div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
       <div class="relist">${groups0.length ? groups0.map((g, i) => html`<div class="relrow"><span class="k">${g.name}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${pfxOf(sw) + g.from}${g.from === g.to ? '' : '-' + pfxOf(sw) + g.to}${g.kind ? ` · ${g.kind}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${g.name}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${g.name}">×</button></div>`) : html`<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>`}</div>
       <div class="addrel" data-edit>${pgEditing ? html`<span class="muted">Edit ${pgEditing.name}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${pgEditing ? pgEditing.name : ''}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${pgEditing ? pgEditing.kind || '' : ''}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? html`<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>` : html`<button id="pgAdd">Add group</button>`}</div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => html`<tr><td class="n">${typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p}</td><td class="n">${x.via ? viaHtml(x.via) : html`<a class="link" data-open="${x.d.id}">${x.d.name}</a>`}</td><td>${isUplink(x.r.kind) ? 'Uplink' : x.via ? (x.via.device ? TYPES[x.via.device.type].short : 'Patch') : TYPES[x.d.type].short}</td><td>${x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')}</td>
+      ${rows.map(x => html`<tr><td class="n">${typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p}</td><td class="n">${x.via ? viaHtml(x.via) : html`<a class="link" data-open="${x.d.id}">${x.d.name}</a>`}</td><td>${upish(x.r) ? 'Uplink' : x.via ? (x.via.device ? TYPES[x.via.device.type].short : 'Patch') : TYPES[x.d.type].short}</td><td>${x.r.vlan ? vlanLabel(x.r.vlan) : (upish(x.r) ? 'Trunk' : '')}</td>
         <td>${x.sub.map((s, i) => html`${i ? ', ' : ''}<a class="link mono" data-open="${s.d.id}">${s.d.name}</a>`)}</td></tr>`)}
+      ${!rows.length && !ownUps.length ? html`<tr><td colspan="5" class="muted">Nothing plugged in yet.</td></tr>` : ''}
+      ${ownUps.map(r => { const t = byId(r.to); return html`<tr class="own-up"><td class="n muted">Its uplink</td><td class="n"><a class="link" data-open="${t.id}">${t.name}</a></td><td>Uplink</td><td>${r.vlan ? vlanLabel(r.vlan) : 'Trunk'}</td><td class="muted">${r.port != null ? `on port ${pfxOf(t) + r.port} of ${t.name}` : `to ${t.name}`}</td></tr>`; })}
     </tbody></table></div></div>`;
   /* The setup is done once, so it comes last; a device without ports yet has only it. */
   const setup = html`
@@ -195,6 +204,14 @@ export function renderPorts(){
     queueServerSave(); toast('Description saved'); render();
   };
   /* A free port: plug in a device the inventory has, or create one already plugged in. */
+  /* Unplug from the port panel: the link goes, with Undo; the device stays. */
+  document.querySelectorAll('[data-unplug]').forEach(b => { /** @type {HTMLElement} */ (b).onclick = () => {
+    const r = rels.find(x => x.id === /** @type {HTMLElement} */ (b).dataset.unplug); if (!r) return;
+    const d = byId(r.from), was = snapshot([d, sw]), at = rels.indexOf(r);
+    rels.splice(at, 1); hist(d, now(), `Unplugged from ${sw.name} port ${pfxOf(sw) + r.port} by ${who()}`);
+    queueServerSave(); render();
+    toastUndo(`${d.name}: unplugged from ${sw.name} port ${pfxOf(sw) + r.port}`, () => { if (!rels.includes(r)) rels.splice(Math.min(at, rels.length), 0, r); restoreSnapshot(was, 'Unplug undone by ' + who()); render(); });
+  }; });
   const ab = $('#assignBtn'); if (ab) ab.onclick = () => { if (!portRangeError(sw, st.portNo)) linkObjModal({to: sw.id, port: st.portNo}); };
   const an = $('#assignNewBtn'); if (an) an.onclick = () => { if (!portRangeError(sw, st.portNo)) newObjModal({sw: sw.id, port: st.portNo}); };
 }
