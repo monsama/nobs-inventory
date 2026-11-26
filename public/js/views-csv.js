@@ -4,7 +4,7 @@ import { DELIMITER_NAME, DEVICE_FIELDS, guessDeviceMapping, planDeviceImport, re
 import { decodeText } from './contacts-import.js';
 import { parseDay } from './datefield.js';
 import { num } from './09-costs.js';
-import { typeText, $$, HISTORY, markHand, restoreSnapshot, snapshot, toastUndo, $, LOCS, O, STATUS, TYPES, hist, now, objs, toast } from './01-core.js';
+import { pickHand, typeText, $$, HISTORY, markHand, restoreSnapshot, snapshot, toastUndo, $, LOCS, O, STATUS, TYPES, hist, now, objs, toast } from './01-core.js';
 import { render } from './07-render.js';
 import { bindUser } from './04-settings.js';
 import { closeModal, modal } from './19-modal.js';
@@ -148,6 +148,7 @@ function importPlan(plan, dup){
     const { name, type, ...rest } = p.v;
     const o = O(type, name, rest);
     if (type === 'switch') Object.assign(o, {ports: 24, sfp: 4, pfx: '1/'});
+    pickHand(o, 'type');   /* the type the file gave: the type rules leave it alone */
     objs.push(o); bindUser(o); hist(o, now(), 'Imported from CSV'); added.push(o);
   }
   closeModal(); render();

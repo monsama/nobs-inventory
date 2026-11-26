@@ -67,7 +67,7 @@ export function bindScopeActs(list){
 export function pickBar(list){
   const n = (st.bulk || new Set()).size;
   /* The picked devices' actions on a row of their own, always in one order: count, the Pending devices actions, Resolve, the rest. */
-  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdMove" title="Put them all in one room; the next sync does not move them back">Move to room…</button><button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button><button id="cdRetire" title="Retire them: kept for the record, with their history; one Undo">Retire…</button><button id="cdDelete" class="danger-text" title="Delete them for good">Delete…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
+  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdGive" title="Give them to one person">Hand out…</button><button id="cdBack" title="Into stock, nobody assigned (where they go is asked)">Take back…</button><button id="cdMove" title="Put them all in one room; the next sync does not move them back">Move to room…</button><button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button><button id="cdRetire" title="Retire them: kept for the record, with their history; one Undo">Retire…</button><button id="cdDelete" class="danger-text" title="Delete them for good">Delete…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
     : scopeActs(list, true);
 }
 /* The picked devices that are still among those shown (the inventory, or Pending devices): a pick does not reach across. */
@@ -75,6 +75,8 @@ export const pickedInPool = () => { const ids = new Set(scopePool().map(o => o.i
 export function bindPickBar(){
   const o = $('#cdOpen'); if (o) o.onclick = () => openObjs([...st.bulk]);
   const e = $('#cdEdit'); if (e) e.onclick = () => bulkEditModal([...st.bulk]);
+  const gv = $('#cdGive'); if (gv) gv.onclick = () => handOutModal([...st.bulk]);
+  const bk = $('#cdBack'); if (bk) bk.onclick = () => takeBackModal([...st.bulk].map(byId).filter(Boolean));
   const mv = $('#cdMove'); if (mv) mv.onclick = () => moveModal([...st.bulk], () => keepScroll(renderCards));
   const t = $('#cdTable'); if (t) t.onclick = () => { st.tab = 'table'; view(); };
   const c = $('#cdClear'); if (c) c.onclick = () => { st.bulk.clear(); keepScroll(renderCards); };

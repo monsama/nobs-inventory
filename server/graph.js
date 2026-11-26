@@ -333,7 +333,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
     } else if (p.entra && !p.entra.gone) {
       p.entra = { ...p.entra, gone: at }; counts.gone++;
       /* Someone added from Entra and deleted there has left, as one disabled there has. */
-      if (p.source === 'entra' && p.active !== false) { p.active = false; p.leftAt = now.toISOString(); delete p.leftBy; }
+      if (p.source === 'entra' && p.active !== false) { p.active = false; p.entraOff = true; p.leftAt = now.toISOString(); delete p.leftBy; }
     }
   }
   if (mode === 'add') {

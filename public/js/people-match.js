@@ -68,7 +68,12 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
   const setScope = ({ sites, own }) => { if (sites) keep.sites = [...sites]; else delete keep.sites; if (own) keep.own = true; else delete keep.own; };
   const rk = ROLE[keep.role] ?? 0, rd = ROLE[drop.role] ?? 0;
   if (rd > rk) { keep.role = drop.role; setScope(scope(drop)); }
-  else if (rd === rk && rd > 0) { const a = scope(keep), b = scope(drop); setScope({ sites: a.sites || b.sites, own: a.own || b.own }); }
+  else if (rd === rk && rd > 0) {
+    /* Both limited to sites: only those both may see; none in common leaves Own devices, the narrowest (an empty list
+       would mean every site). */
+    const a = scope(keep), b = scope(drop), both = a.sites && b.sites ? a.sites.filter(x => b.sites.includes(x)) : null;
+    setScope(both && !both.length ? { sites: null, own: true } : { sites: both || a.sites || b.sites, own: a.own || b.own });
+  }
   if (drop.active !== false && keep.active === false && keep.source !== 'ldap') { keep.active = true; delete keep.leftAt; delete keep.leftBy; }
   const aliases = new Set(keep.aliases || []);
   for (const v of [drop.login, drop.name, ...(drop.aliases || [])]) if (v && low(v) !== low(keep.login) && low(v) !== low(keep.name)) aliases.add(String(v).slice(0, 120));

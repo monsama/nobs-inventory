@@ -12,7 +12,7 @@ import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
-import { typeText, dayText, agoText, lastSeenOf, sourcesOf, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
+import { evEl, typeText, dayText, agoText, lastSeenOf, sourcesOf, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { goneAllWith } from './gone.js';
 import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, used, registeredOnly, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
@@ -115,6 +115,11 @@ export function retireAll(list){
   for (const o of list){ retireLinks(o); for (const [, , run] of retireTies(o)) run(); }
   return () => ctsWas.forEach(([c, d]) => { c.devices = [...new Set([...(c.devices || []), ...d])]; });
 }
+/* The user in a device's key facts opens their devices (the person's view in the Table). */
+document.addEventListener('click', e => {
+  const b = /** @type {HTMLElement | null} */ (evEl(e).closest && evEl(e).closest('[data-showperson]')); if (!b) return;
+  e.preventDefault(); import('./settings-users.js').then(m => m.showDevicesOf(String(b.dataset.showperson)));
+});
 /* The Retire dialog: what the device still holds (retireTies) to clear, ticked, and an optional reason. Retiring takes it
    out of its rack, sets it retired and notes it in the history, with one Undo for all of it. */
 export function retireModal(o){
@@ -350,7 +355,7 @@ export function renderObj(o){
   if (st.objTabFor !== o.id){ st.objTab = 'details'; st.objTabFor = o.id; }
   const tab = TABS.some(t => t[0] === st.objTab) ? st.objTab : 'details';
   $('#view').innerHTML = html`${rawHtml(reviewBanner(o))}${twinBanner(o)}${retiredBar}<div class="obj otabbed${o.status === 'retired' ? ' is-retired' : ''}" data-otab="${tab}">
-    <div class="ofacts" aria-label="Key facts">${facts.map(([k, v, t]) => html`<span class="of"><small>${k}</small><span title="${t || v}">${v || '-'}</span></span>`)}</div>
+    <div class="ofacts" aria-label="Key facts">${facts.map(([k, v, t]) => html`<span class="of"><small>${k}</small>${k === 'User' && o.uid && o.user ? html`<button type="button" class="link of-person" data-showperson="${o.uid}" title="${o.user}'s devices">${v}</button>` : html`<span title="${t || v}">${v || '-'}</span>`}</span>`)}</div>
     <div class="otabs"><div class="otablist" role="tablist" aria-label="Parts of the device page">${TABS.map(([k, l, n]) => html`<button type="button" role="tab" class="otab${tab === k ? ' on' : ''}" data-otabgo="${k}" aria-selected="${String(tab === k)}" tabindex="${tab === k ? '0' : '-1'}">${l}${n ? html` <span class="cnt">${n}</span>` : ''}</button>`)}</div>${portsBtn}</div>
     <section class="opane ogrid" data-pane="details"><div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row)}

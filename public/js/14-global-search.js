@@ -58,14 +58,14 @@ function actions(q){
   /* A view this person may not open (a viewer limited to their own devices) is not offered. */
   const list = ACTIONS.filter(([l, w, a, go]) => (admin || !a) && (!TAB_OF.has(go) || tabAllowed(TAB_OF.get(go))) && has(q, l, w)).map(([l, , , go]) => ({ label: l, sub: '', go }));
   /* Handing out to a person found by name. */
-  if (admin && q.length > 1) for (const u of USERS.filter(x => x.active !== false && has(q, x.name)).slice(0, 2)) list.push({ label: `Hand out a device to ${u.name}…`, sub: u.dept || '', go: () => handOutToModal(u) });
+  if (admin && q.length > 1) for (const u of USERS.filter(x => x.active !== false && hasWords(q, x.name)).slice(0, 2)) list.push({ label: `Hand out a device to ${u.name}…`, sub: u.dept || '', go: () => handOutToModal(u) });
   return list;
 }
 /* Every kind of thing the search knows, each with what to show and where it opens. */
 function results(q){
   const out = [];
   /* Devices first, those in use before retired ones; the code, name, addresses, serial, user and IDs are searched. */
-  const devs = objs.filter(o => o.type !== 'rack' || has(q, o.name, o.code, o.serial, o.model, o.asset)).filter(o => matchesQ(o, q))
+  const devs = objs.filter(o => o.type !== 'rack' || has(q, o.name, o.code, o.serial, o.model, o.asset)).filter(o => matchesQ(o, q) || (/\s/.test(q) && hasWords(q, o.user)))   /* "huber carla" finds Carla Huber's devices */
     .sort((a, b) => +(a.status === 'retired') - +(b.status === 'retired') || a.name.localeCompare(b.name));
   if (devs.length) out.push(['Devices', devs.length, devs.slice(0, MAX.dev).map(o => ({
     icon: rawHtml(tico(o.type, 'tico sm')), main: o.name,
@@ -110,7 +110,7 @@ function results(q){
     icon: ICON.view, main: v.name, sub: 'Saved view',
     go: () => restoreView(v) }))]);
   /* Settings, for an admin: a page or a section in one, found by its name or a word for what it holds. */
-  const sets = isAdmin() ? settingHits(q) : [];
+  const sets = isAdmin() ? settingHits(q).filter(h => !acts.some(a => a.label === h.label)) : [];   /* once, as an action */
   if (sets.length) out.push(['Settings', sets.length, sets.slice(0, MAX.other).map(h => ({ icon: ICON.setting, main: h.label, sub: h.path, go: h.go }))]);
   return out;
 }

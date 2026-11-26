@@ -41,7 +41,15 @@ export function render(opts = {}){
   finally { drawing = false; }
   if (drawAgain){ const again = drawAgain; drawAgain = null; render(again); }
 }
+/* A plain message is about the view it was said in (toast() in 01-core.js notes which): changing view closes it. One
+   with Undo, or an error, stays its time. */
+const closeToastOnViewChange = () => {
+  const t = document.getElementById('toast');
+  if (!t || t.classList.contains('off') || t.dataset.fresh || t.dataset.tab === undefined || t.dataset.tab === String(st.tab)) return;
+  if (!t.querySelector('.t-undo') && !t.classList.contains('err')) t.classList.add('off');
+};
 function renderNow({ save = true } = {}){
+  closeToastOnViewChange();
   /* Pending devices is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */
   if (!tabAllowed(st.tab)) st.tab = ownOnly() ? 'mine' : 'cards';

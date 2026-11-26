@@ -41,7 +41,7 @@ const CHECK = () => {
   for (const [k, list] of Object.entries(groups)) if (list.length > 1 && new Set(list.map(x => x.join(','))).size > 1) out.push('tables "' + k.slice(0, 40) + '" differ: ' + [...new Set(list.map(x => x.join(',')))].slice(0, 3).join(' / '));
   // B. table rows: one-line cell contents centred on one line
   for (const tr of root.querySelectorAll('tbody tr')) {
-    if (tr.closest('table.stack') && innerWidth <= 760) continue;   // stacked into cards on a phone, on purpose
+    if (tr.closest('table.stack, table.contracts') && innerWidth <= 760) continue;   // stacked into cards on a phone, on purpose
     if (!vis(tr)) continue;
     const cs = [...tr.children].filter(vis).map(td => [td, center(td)]).filter(([, c]) => c !== null);
     if (cs.length < 2) continue;

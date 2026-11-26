@@ -125,10 +125,10 @@ export function renderOverview(){
     [mtLate.length, 'bad', 'Maintenance overdue', mtLate.slice(0, 3).map(x => `${x.o.name}: ${x.m.what}`).join(', ') + (mtLate.length > 3 ? '…' : ''), 'data-ovmt="late"'],
     [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
     [wSoon, 'warn', 'Warranty ends soon', `devices in use, within ${WARRANTY_SOON_DAYS} days`, 'data-ovw="soon"'],
-    [ctLate.length, 'bad', 'Contract notice date passed', few(ctLate), 'data-ovtab="contracts"'],
-    [ctSoon.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${few(ctSoon)}`, 'data-ovtab="contracts"'],
+    [ctLate.length, 'bad', 'Contract notice date passed', few(ctLate), 'data-ovtab="contracts" data-ovdue="1"'],
+    [ctSoon.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${few(ctSoon)}`, 'data-ovtab="contracts" data-ovdue="1"'],
     /* A contract that does not renew has no notice to give: it ends, which is worth knowing as such. */
-    [ctEnds.length, 'warn', 'Contract ending', `within ${NOTICE_SOON_DAYS} days: ${few(ctEnds)}`, 'data-ovtab="contracts"'],
+    [ctEnds.length, 'warn', 'Contract ending', `within ${NOTICE_SOON_DAYS} days: ${few(ctEnds)}`, 'data-ovtab="contracts" data-ovdue="1"'],
     [over.length, 'bad', 'Licences over-used', over.slice(0, 3).map(l => l.name).join(', ') + (over.length > 3 ? '…' : ''), 'data-ovtab="sw"'],
     [missing.ids.length, missing.gone ? 'bad' : 'warn', 'Where are they?', missing.parts.join(' · '), 'data-ovmissing="1"'],
     ...(SYNC.graph ? ['noncompliant', 'unencrypted', 'secureboot'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
@@ -226,7 +226,8 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
   v.querySelectorAll('[data-ovcert]').forEach(b => b.onclick = () => { st.setTab = 'maintenance'; openSettings(); });
-  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.q = ''; st.tab = b.dataset.ovtab; view(); });
+  /* A contract line opens Contracts with only those that need someone now (Only due). */
+  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.q = ''; st.tab = b.dataset.ovtab; if (b.dataset.ovdue) st.ctDue = true; view(); });
 }
 
 /* Replacement planning (public/js/lifecycle.js): the devices due each year from now, with what replacing them costs. */

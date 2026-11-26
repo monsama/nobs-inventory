@@ -1,4 +1,4 @@
-import { listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot } from './01-core.js';
+import { pickHand, listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
@@ -160,6 +160,7 @@ export function newObjModal(pre={}){
     if (o.type === 'rack'){ const u = +$('#nUnits').value; if (Number.isInteger(u) && u >= 1 && u <= 60) o.units = u; }
     o.status = $('#nStatus').value || 'active';
     if ($('#nUser').value) o.uid = $('#nUser').value;
+    pickHand(o, 'type');   /* the type chosen here: the type rules leave it alone, also once a sync matched it */
     objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who() + (o.uid ? `, for ${o.user}` : ''));
     const up = $('#nUp').value;
     /* The port is saved as it was checked above: a patch panel's port as P04, so it shows on the panel and cannot be taken twice. */
@@ -181,7 +182,7 @@ export function newObjModal(pre={}){
         }
         if (!placed) toast('No free U in ' + rackOf(c.rack).name + '. Copied without a rack position.');
       }
-      hist(o, now(), 'Duplicated from ' + c.code);
+      pickHand(o, 'type'); hist(o, now(), 'Duplicated from ' + c.code);
     }
     closeModal(); toast('Created ' + name); flushSave(); openObj(o.id);
   };
@@ -205,21 +206,24 @@ export function linkObjModal(pre = {}){
   const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + p.name : ''; };
   /* From a free port the dialog says which port, and no device is chosen for the person: they pick it. */
   const atPort = into && pre.port != null;
+  /* Replace: the device on the port now (its link) gives the port up to the one picked, in the same step, with one Undo. */
+  const swap = pre.replace ? rels.find(r => r.id === pre.replace) || null : null, swapped = swap ? byId(swap.from) : null;
   /* From a port: the devices not plugged in anywhere first, then those in the switch's room, then its site; each with
      its room. Find narrows the list by name, type, room or user. */
   const site = l => String(l || '').split(' / ')[0];
-  const near = o => !into ? 0 : (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
-  const sorted = list.sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
+  /* Phones and tablets are seldom on a switch port: last. */
+  const near = o => !into ? 0 : (['mobile', 'ios', 'android'].includes(o.type) ? 8 : 0) + (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
+  const sorted = list.filter(o => !swapped || o.id !== swapped.id).sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
   const label = o => `${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${atPort && o.loc ? ' · ' + o.loc : ''}${atPort && o.user ? ' · ' + o.user : ''}${where(o)}`;
   const objOptions = q => { const w = q.trim().toLowerCase(); const hits = sorted.filter(o => !w || [label(o), o.user].some(v => String(v || '').toLowerCase().includes(w)));
     return String(html`${atPort && html`<option value="">${hits.length ? `Choose a device… (${hits.length})` : 'No device matches'}</option>`}${hits.map(o => html`<option value="${o.id}">${label(o)}</option>`)}`); };
-  modal(html`<div class="mh">${atPort ? `Plug into ${into.name} · ${pfxOf(into) + pre.port}` : 'Link device'}</div>
+  modal(html`<div class="mh">${swapped ? `Replace ${swapped.name} on ${into.name} · ${pfxOf(into) + pre.port}` : atPort ? `Plug into ${into.name} · ${pfxOf(into) + pre.port}` : 'Link device'}</div>
     <div class="mb"><div class="form" style="padding:0">
       ${atPort ? html`<label for="lkQ">Find</label><input id="lkQ" type="search" placeholder="Name, type, room or user" autocomplete="off">` : ''}<label for="lkObj">${atPort ? 'Device' : 'Object'}</label><select id="lkObj">${rawHtml(objOptions(''))}</select>
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
-    </div><p class="note" id="lkNote">Only the link is added; the device's details stay as they are.</p></div>
-    <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">${atPort ? 'Plug in' : 'Link'}</button></div>`, 'sm');
+    </div><p class="note" id="lkNote">${swapped ? `${swapped.name} is unplugged and stays in the inventory; the one picked takes its port and VLAN.` : 'Only the link is added; the device\'s details stay as they are.'}</p><p class="fieldnote warn" id="lkWarn" hidden></p></div>
+    <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">${swapped ? 'Replace' : atPort ? 'Plug in' : 'Link'}</button></div>`, 'sm');
   /* Opened on a device's page: that device is the one to link, or, when it cannot be linked itself (a switch), the one to
      link to. */
   const ctx = byId(st.tab), obj = pre.obj || (ctx && list.some(o => o.id === ctx.id) ? ctx.id : null);
@@ -232,10 +236,25 @@ export function linkObjModal(pre = {}){
     if ([...$('#lkTo').options].some(x => x.value === keep)) $('#lkTo').value = keep;
     $('#lkPort').hidden = $('#lkPort').closest('.combo').hidden = $('label[for="lkPort"]').hidden = !link.port;
     portNote('lkPort', '');
+    /* From a port: said when the device picked is in another site, or keeps a cable elsewhere (network gear and servers
+       can have several; any other device leaves its old port). */
+    const w = $('#lkWarn'), picked = byId($('#lkObj').value);
+    if (w){
+      const other = picked && into && picked.loc && into.loc && site(picked.loc) !== site(into.loc) ? `${picked.name} is in ${site(picked.loc)}, ${into.name} in ${site(into.loc)}.` : '';
+      const stays = picked && into && (NET_GEAR.includes(picked.type) || picked.type === 'server') ? rels.filter(r => r.from === picked.id && r.to !== into.id && ['connected', 'uplink'].includes(r.kind) && byId(r.to)) : [];
+      const kept = stays.length ? ` It stays plugged into ${stays.map(r => byId(r.to).name + (r.port != null ? ' port ' + pfxOf(byId(r.to)) + r.port : '')).join(', ')} too: unplug it there if it moved.` : '';
+      w.textContent = (other + kept).trim(); w.hidden = !w.textContent;
+    }
   };
   fit();
   if (ctx && !obj && [...$('#lkTo').options].some(x => x.value === ctx.id)) $('#lkTo').value = ctx.id;
-  if (into){ $('#lkTo').value = into.id; if (pre.port != null) $('#lkPort').value = String(pre.port); }
+  if (into){
+    /* A device that cannot be plugged into (retired since): said, rather than plugging into another one. */
+    if (![...$('#lkTo').options].some(x => x.value === into.id)){ closeModal(); toast(`${into.name} takes no new connections${into.status === 'retired' ? ': it is retired' : ''}.`); return; }
+    $('#lkTo').value = into.id; if (pre.port != null) $('#lkPort').value = String(pre.port);
+    /* Replace is about this port: the switch and port are fixed. */
+    if (swapped){ /** @type {HTMLSelectElement} */ ($('#lkTo')).disabled = true; /** @type {HTMLInputElement} */ ($('#lkPort')).disabled = true; }
+  }
   $('#lkTo').addEventListener('change', () => portNote('lkPort', ''));
   $('#lkPort').addEventListener('input', () => portNote('lkPort', ''));
   $('#lkObj').onchange = fit;
@@ -262,18 +281,22 @@ export function linkObjModal(pre = {}){
     if (portRangeError(t, val)){ portNote('lkPort', portRangeError(t, val)); return; }
     /* For Undo, before a retired device's link on the port is freed: it comes back too. */
     const freed = val != null ? rels.filter(r => r.to === t.id && String(r.port) === String(val)).map(r => byId(r.from)).filter(Boolean) : [];
-    const snap = snapshot([e, t, ...leave.map(r => byId(r.to)).filter(Boolean), ...freed]), relsWas = [...rels];
-    if (val != null) releaseRetiredPort(t, val);
-    if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('lkPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
+    const snap = snapshot([e, t, ...leave.map(r => byId(r.to)).filter(Boolean), ...freed, ...(swapped ? [swapped] : [])]), relsWas = [...rels];
+    if (val != null && !swap) releaseRetiredPort(t, val);
+    if (val != null && rels.some(r => !(r === swap && swap.to === t.id && String(swap.port) === String(val)) && r.to === t.id && String(r.port) === String(val))){ portNote('lkPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
     if (val != null && lagOfPort(t, val)){ portNote('lkPort', `Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
+    /* The device replaced gives the port up (only once every check passed): it stays in the inventory. */
+    if (swap && rels.includes(swap) && swap.to === t.id && String(swap.port) === String(val)){ rels.splice(rels.indexOf(swap), 1); hist(swapped, now(), `Unplugged from ${t.name} port ${swap.port}: replaced by ${e.name}, by ${who()}`); }
     for (const r of leave){ rels.splice(rels.indexOf(r), 1); const was = byId(r.to); if (was) hist(was, now(), `${e.name} moved from here to ${t.name} by ${who()}`); }
-    const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: null};
+    /* A device replacing another on the port takes its VLAN over, as a move keeps it. */
+    const took = swap && swap.to === t.id && String(swap.port) === String(val);
+    const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: took ? swap.vlan ?? null : null};
     rels.push(made);
     const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into', uplink: 'Uplink to'}[kind];
     const from = leave.length ? byId(leave[0].to) : null;
     hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''}${from ? ' (before: ' + from.name + ')' : ''} by ${who()}`);
     closeModal(); render();
     /* One Undo: the link goes, and the one it replaced comes back. */
-    toastUndo(`${e.name}: ${verb.toLowerCase()} ${t.name}${val != null ? ' port ' + pfxOf(t) + val : ''}`, () => { const i = rels.indexOf(made); if (i >= 0) rels.splice(i, 1); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); restoreSnapshot(snap, 'Link undone by ' + who()); render(); });
+    toastUndo(took ? `${swapped.name} replaced by ${e.name} on ${t.name} port ${pfxOf(t) + val}` : `${e.name}: ${verb.toLowerCase()} ${t.name}${val != null ? ' port ' + pfxOf(t) + val : ''}`, () => { const i = rels.indexOf(made); if (i >= 0) rels.splice(i, 1); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); restoreSnapshot(snap, 'Link undone by ' + who()); render(); });
   };
 }

@@ -51,7 +51,7 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
   await p.waitForSelector('select.locpick[data-k="loc"]');
   assert.equal(await p.inputValue('select.locpick[data-k="loc"]'), 'Main / Shop');
-  assert.ok((await p.$$eval('select.locpick[data-k="loc"] optgroup[label="Annex"] option', o => o.map(x => x.textContent))).includes('Lab'));
+  assert.ok((await p.$$eval('select.locpick[data-k="loc"] optgroup[label="Annex"] option', o => o.map(x => x.textContent))).includes('Lab (Annex)'));
 
   // a room picked, then New room… cancelled: the list keeps the room just picked (it is not put back on the next save)
   await p.selectOption('select.locpick[data-k="loc"]', 'Annex / Hall');
