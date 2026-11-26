@@ -38,6 +38,7 @@ const SECTIONS = [
 ];
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
 /* What admins look for in Settings that is kept elsewhere: [name, where, other words, go]. */
+/** @type {Array<[string, string, string, () => void, string?]>} */
 const ELSEWHERE = [
   ['Lifetimes and replacement prices', 'Overview → Replacement plan', 'lifetime lifecycle years replacement price warranty due plan', async () => {
     (await import('./19-modal.js')).closeModal(); st.tab = 'overview'; (await import('./07-render.js')).view();
@@ -48,17 +49,18 @@ const ELSEWHERE = [
   ['Switch light / dark', 'The sun and moon button, top right', 'dark light theme mode night colours', async () => {
     (await import('./19-modal.js')).closeModal(); const t = document.getElementById('themeBtn'); if (t) t.click(); }],
   ['Software licences', 'Contracts & software → Software', 'licence licences license seats software', async () => {
-    (await import('./19-modal.js')).closeModal(); st.tab = 'sw'; (await import('./07-render.js')).view(); }],
+    (await import('./19-modal.js')).closeModal(); st.tab = 'sw'; (await import('./07-render.js')).view(); }, 'sw'],
   ['Change password', 'Your account (your name, top right)', 'password change my account', async () => {
     (await import('./19-modal.js')).closeModal(); (await import('./signin.js')).accountModal();
     requestAnimationFrame(() => { const c = /** @type {HTMLElement | null} */ (document.getElementById('acCur')); if (c) c.focus(); }); }],
 ];
 
 /* Settings hits for text q (lower case): the sections first, then the pages. Each is { label, path, go }. */
+/** @param {string} q @returns {{label: string, path: string, go: () => void, tab?: string}[]} */
 export function settingHits(q){
   const secs = SECTIONS.filter(([l, , h, w]) => has(q, l, h, w)).map(([l, k, h]) => ({ label: l, path: 'Settings → ' + (SET_PATH[k] || pageName(k)), go: () => openSetting(k, h) }));
   const pages = SET_TABS.filter(([k, l]) => has(q, l, SET_PATH[k], SET_WORDS[k]) && !secs.some(s => s.label === l)).map(([k, l]) => ({ label: l, path: 'Settings → ' + (SET_PATH[k] || l), go: () => openSetting(k) }));
-  const other = ELSEWHERE.filter(([l, , w]) => has(q, l, w)).map(([label, path, , go]) => ({ label, path, go }));
+  const other = ELSEWHERE.filter(([l, , w]) => has(q, l, w)).map(([label, path, , go, tab]) => ({ label, path, go, ...(tab ? { tab } : {}) }));
   return [...secs, ...pages, ...other];
 }
 const pageName = k => (SET_TABS.find(([x]) => x === k) || [k, k])[1];

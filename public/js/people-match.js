@@ -67,8 +67,11 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
   const scope = u => ({ sites: Array.isArray(u.sites) && u.sites.length ? u.sites : null, own: u.own === true });
   const setScope = ({ sites, own }) => { if (sites) keep.sites = [...sites]; else delete keep.sites; if (own) keep.own = true; else delete keep.own; };
   const rk = ROLE[keep.role] ?? 0, rd = ROLE[drop.role] ?? 0;
-  if (rd > rk) { keep.role = drop.role; setScope(scope(drop)); }
+  /* Where the role came from goes with it (roleBy: the group rule that gave it), so leaving the group still takes it
+     away; with the same role on both, a role given by hand wins. */
+  if (rd > rk) { keep.role = drop.role; setScope(scope(drop)); if (drop.roleBy) keep.roleBy = drop.roleBy; else delete keep.roleBy; }
   else if (rd === rk && rd > 0) {
+    if (!(keep.roleBy && drop.roleBy)) delete keep.roleBy;
     /* Both limited to sites: only those both may see; none in common leaves Own devices, the narrowest (an empty list
        would mean every site). */
     const a = scope(keep), b = scope(drop), both = a.sites && b.sites ? a.sites.filter(x => b.sites.includes(x)) : null;

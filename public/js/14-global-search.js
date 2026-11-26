@@ -2,7 +2,7 @@
    It finds devices (racks too), actions (New device, Back up now, the views), people, contacts, contracts, rooms, saved
    views and settings, and lists them under the field, grouped; a hit opens where it
    lives. On a list (Cards, Table, Relationships) it filters that list too as one types. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
-import { typeText, $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, matchesQ, objs, st, tico } from './01-core.js';
+import { fold, typeText, $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, matchesQ, objs, st, tico } from './01-core.js';
 import { USERS, isAdmin } from './04-settings.js';
 import { settingHits, openSetting } from './settings-find.js';
 import { newObjModal } from './05-new-object.js';
@@ -27,9 +27,10 @@ const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 1
   contract: ico('M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6'), view: ico('M4 5h16M7 12h10M10 19h4'), room: ico('M3 11l9-7 9 7v10H3zM9 21v-6h6v6'),
   action: ico('M13 3 4 14h7l-1 7 9-11h-7z'),
   setting: ico('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12h2M3 12h2M12 3v2M12 19v2M17 7l1.4-1.4M5.6 18.4 7 17M17 17l1.4 1.4M5.6 5.6 7 7') };
-const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
+/* Accents left out or written out (fold): "zurich buro" finds Zürich / Büro, "muller" Müller. */
+const has = (q, ...vals) => { const f = fold(q); return vals.some(v => v && (String(v).toLowerCase().includes(q) || fold(v).includes(f))); };
 /* Every word typed, in any order, found in the values together: "keller anna" finds Anna Keller. */
-const hasWords = (q, ...vals) => { const text = vals.filter(Boolean).join(' ').toLowerCase(); return q.split(/\s+/).filter(Boolean).every(w => text.includes(w)); };
+const hasWords = (q, ...vals) => { const text = fold(vals.filter(Boolean).join(' ')); return fold(q).split(/\s+/).filter(Boolean).every(w => text.includes(w)); };
 const row = (i, icon, main, sub) => html`<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${main}</span>${sub ? html`<span class="gs-sub">${sub}</span>` : ''}</li>`;
 
 /* The actions: [name, other words, for admins only, what it does]. The views of the tab bar are actions too. */
@@ -65,7 +66,7 @@ function actions(q){
 function results(q){
   const out = [];
   /* Devices first, those in use before retired ones; the code, name, addresses, serial, user and IDs are searched. */
-  const devs = objs.filter(o => o.type !== 'rack' || has(q, o.name, o.code, o.serial, o.model, o.asset)).filter(o => matchesQ(o, q) || (/\s/.test(q) && hasWords(q, o.user)))   /* "huber carla" finds Carla Huber's devices */
+  const devs = objs.filter(o => o.type !== 'rack' || has(q, o.name, o.code, o.serial, o.model, o.asset)).filter(o => matchesQ(o, q))   /* "huber carla" finds Carla Huber's devices too (matchesQ), as the list does */
     .sort((a, b) => +(a.status === 'retired') - +(b.status === 'retired') || a.name.localeCompare(b.name));
   if (devs.length) out.push(['Devices', devs.length, devs.slice(0, MAX.dev).map(o => ({
     icon: rawHtml(tico(o.type, 'tico sm')), main: o.name,
@@ -99,7 +100,7 @@ function results(q){
   if (lics.length) out.push(['Licences', lics.length, lics.slice(0, MAX.other).map(l => ({
     icon: ICON.contract, main: l.name, sub: `Licence · ${l.seats || 0} seat${l.seats === 1 ? '' : 's'}`,
     go: () => { st.tab = 'sw'; render(); } }))]);
-  const rooms = LOCS.filter(l => has(q, l));
+  const rooms = LOCS.filter(l => has(q, l) || hasWords(q, l));
   /* In use or in stock, and the retired ones apart: together the number the filters on the left show for the room. */
   const inRoom = new Map(), retiredIn = new Map();
   for (const o of objs) if (o.loc) (o.status === 'retired' ? retiredIn : inRoom).set(o.loc, ((o.status === 'retired' ? retiredIn : inRoom).get(o.loc) || 0) + 1);
@@ -112,8 +113,14 @@ function results(q){
     icon: ICON.view, main: v.name, sub: 'Saved view',
     go: () => restoreView(v) }))]);
   /* Settings, for an admin: a page or a section in one, found by its name or a word for what it holds. */
-  const sets = isAdmin() ? settingHits(q).filter(h => !acts.some(a => a.label === h.label)) : [];   /* once, as an action */
+  /* Once: a hit an action already gives (by its name, or the view it opens) is left out. */
+  const sets = isAdmin() ? settingHits(q).filter(h => !acts.some(a => a.label === h.label || (h.tab && TAB_OF.get(a.go) === h.tab))) : [];
   if (sets.length) out.push(['Settings', sets.length, sets.slice(0, MAX.other).map(h => ({ icon: ICON.setting, main: h.label, sub: h.path, go: h.go }))]);
+  /* A name typed ("anna"): the person first, so Enter opens them, not one of their devices. */
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  const named = people.some(u => words.every(w => fold(u.name).split(/[\s,.-]+/).some(p => p.startsWith(w))));
+  const pi = out.findIndex(g => g[0] === 'People');
+  if (named && pi > 0) out.unshift(...out.splice(pi, 1));
   return out;
 }
 
