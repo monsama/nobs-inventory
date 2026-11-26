@@ -210,7 +210,7 @@ export function linkObjModal(pre = {}){
   const site = l => String(l || '').split(' / ')[0];
   const near = o => !into ? 0 : (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
   const sorted = list.sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
-  const label = o => `${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${atPort && o.loc ? ' · ' + o.loc : ''}${where(o)}`;
+  const label = o => `${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${atPort && o.loc ? ' · ' + o.loc : ''}${atPort && o.user ? ' · ' + o.user : ''}${where(o)}`;
   const objOptions = q => { const w = q.trim().toLowerCase(); const hits = sorted.filter(o => !w || [label(o), o.user].some(v => String(v || '').toLowerCase().includes(w)));
     return String(html`${atPort && html`<option value="">${hits.length ? `Choose a device… (${hits.length})` : 'No device matches'}</option>`}${hits.map(o => html`<option value="${o.id}">${label(o)}</option>`)}`); };
   modal(html`<div class="mh">${atPort ? `Plug into ${into.name} · ${pfxOf(into) + pre.port}` : 'Link device'}</div>
@@ -274,6 +274,6 @@ export function linkObjModal(pre = {}){
     hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''}${from ? ' (before: ' + from.name + ')' : ''} by ${who()}`);
     closeModal(); render();
     /* One Undo: the link goes, and the one it replaced comes back. */
-    toastUndo(`${e.name}: ${verb.toLowerCase()} ${t.name}`, () => { const i = rels.indexOf(made); if (i >= 0) rels.splice(i, 1); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); restoreSnapshot(snap, 'Link undone by ' + who()); render(); });
+    toastUndo(`${e.name}: ${verb.toLowerCase()} ${t.name}${val != null ? ' port ' + pfxOf(t) + val : ''}`, () => { const i = rels.indexOf(made); if (i >= 0) rels.splice(i, 1); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); restoreSnapshot(snap, 'Link undone by ' + who()); render(); });
   };
 }

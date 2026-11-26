@@ -86,7 +86,7 @@ export function renderContracts(){
   const live = all.filter(c => runningNow(c));
   const year = live.reduce((t, c) => t + yearlyCost(c), 0);
   const due = contractsDue().length, late = contractsLate().length;
-  $('#toolbar').innerHTML = html`<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${all.length ? viewSearchHtml('Contract, supplier, number or device', 'Search the contracts') : ''}${all.length ? rawHtml(listViewsMenuHtml('contracts')) : ''}${due || late ? html`<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${String(!!st.ctDue)}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
+  $('#toolbar').innerHTML = html`<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${all.length ? viewSearchHtml('Contract, supplier, number or device', 'Search the contracts') : ''}${all.length ? rawHtml(listViewsMenuHtml('contracts')) : ''}${due || late ? html`<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${String(!!st.ctDue)}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due or ending within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
     ${isAdmin() ? html`<button id="ctNew" class="primary">New contract</button>` : ''}`;
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   if (!all.length){
@@ -147,16 +147,19 @@ export function contractModal(c, preset = []){
       <label for="ctSupplier">Supplier</label>${rawHtml(comboHtml(String(html`<input id="ctSupplier" data-combo="supplier" maxlength="120" value="${cur.supplier || ''}" placeholder="Type or pick a company">`), 'ctSupplier'))}
       <label for="ctCost">Cost (${COSTS.currency || 'CHF'})</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
       <label for="ctEnd">Ends</label>${rawHtml(dateFieldHtml('id="ctEnd"', cur.end || ''))}
-      <label for="ctNotice">Notice period</label><div class="ctlrow"><input id="ctNotice" type="number" min="0" max="36" value="${cur.notice ?? 0}" style="flex:none;width:90px"><span class="unit">months before the end</span></div>
+      <label for="ctRenew">Renews by itself</label><div class="ctlrow"><select id="ctRenew"><option value="0">No, it ends</option>${[1, 3, 6, 12, 24, 36].map(m => html`<option value="${m}" ${cur.renew === m ? 'selected' : ''}>Every ${m === 1 ? 'month' : m === 12 ? 'year' : m === 24 ? '2 years' : m === 36 ? '3 years' : m + ' months'}</option>`)}</select></div>
+      <label for="ctNotice" class="ct-notice">Notice period</label><div class="ctlrow ct-notice"><input id="ctNotice" type="number" min="0" max="36" value="${cur.notice ?? 0}" style="flex:none;width:90px"><span class="unit">months before the end</span></div>
       <label for="ctDevQ">Devices</label><div><input id="ctDevQ" type="search" placeholder="Find a device to add…" aria-label="Find a device" style="width:100%"><div class="ct-devs" id="ctDevs"></div></div>
     </div><details class="nmore" id="ctMore" ${cur.ref || cur.start || (cur.contacts || []).length || cur.note ? 'open' : ''}><summary>More details <span class="muted">contract number, start, renewal, contacts, note</span></summary><div class="form" style="padding:0">
       <label for="ctRef">Contract no.</label><input id="ctRef" class="mono" maxlength="60" value="${cur.ref || ''}">
       <label for="ctStart">Starts</label>${rawHtml(dateFieldHtml('id="ctStart"', cur.start || ''))}
-      <label for="ctRenew">Renews by itself</label><div class="ctlrow"><select id="ctRenew"><option value="0">No, it ends</option>${[1, 3, 6, 12, 24, 36].map(m => html`<option value="${m}" ${cur.renew === m ? 'selected' : ''}>Every ${m === 1 ? 'month' : m === 12 ? 'year' : m === 24 ? '2 years' : m === 36 ? '3 years' : m + ' months'}</option>`)}</select></div>
       <label for="ctAddContact">Contacts</label><div><div class="ct-people" id="ctPeople"></div><select id="ctAddContact" aria-label="Add a contact from Contacts"></select></div>
       <label for="ctNote">Note</label><textarea id="ctNote" rows="2" maxlength="1000">${cur.note || ''}</textarea>
     </div></details><p class="note" id="ctErr" role="status"></p></div>
     <div class="mf">${isNew ? '' : html`<button id="ctDel" class="danger-text">Delete</button>`}<div class="grow"></div><button id="ctCancel">Cancel</button><button id="ctOk" class="primary">Save</button></div>`, 'wide');
+  /* A notice period only means something for a contract that renews by itself: shown then only. */
+  const noticeShown = () => document.querySelectorAll('#mdl .ct-notice').forEach(el => { /** @type {HTMLElement} */ (el).hidden = !(+$('#ctRenew').value > 0); });
+  noticeShown(); $('#ctRenew').addEventListener('change', noticeShown);
   /* The devices covered come first, then those that match the search (not retired), at most 60. */
   const devs = () => {
     const q = $('#ctDevQ').value.trim().toLowerCase();

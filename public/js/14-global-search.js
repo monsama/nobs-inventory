@@ -28,6 +28,8 @@ const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 1
   action: ico('M13 3 4 14h7l-1 7 9-11h-7z'),
   setting: ico('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12h2M3 12h2M12 3v2M12 19v2M17 7l1.4-1.4M5.6 18.4 7 17M17 17l1.4 1.4M5.6 5.6 7 7') };
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
+/* Every word typed, in any order, found in the values together: "keller anna" finds Anna Keller. */
+const hasWords = (q, ...vals) => { const text = vals.filter(Boolean).join(' ').toLowerCase(); return q.split(/\s+/).filter(Boolean).every(w => text.includes(w)); };
 const row = (i, icon, main, sub) => html`<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${main}</span>${sub ? html`<span class="gs-sub">${sub}</span>` : ''}</li>`;
 
 /* The actions: [name, other words, for admins only, what it does]. The views of the tab bar are actions too. */
@@ -45,6 +47,7 @@ const ACTIONS = [
   ['Go to Floor plans', 'plan map building floor', false, goTab('plans')],
   ['Go to Ports', 'switch ports patch network', false, goTab('net')],
   ['Go to Racks', 'rack cabinet units', false, goTab('rack')],
+  ['Switch light / dark', 'dark mode light mode theme colours night', false, () => { const t = document.getElementById('themeBtn'); if (t) t.click(); }],
   ['Go to Software', 'software installed licences programs', false, goTab('sw')],
   ['Go to Contracts', 'contracts warranty support costs', false, goTab('contracts')],
   ['Go to Contacts', 'contacts partners supplier', false, goTab('contacts')],
@@ -73,7 +76,7 @@ function results(q){
   if (waiting.length) out.push(['Pending devices', waiting.length, waiting.slice(0, MAX.other).map(o => ({
     icon: rawHtml(tico(o.type, 'tico sm')), main: o.name, sub: ['Pending', REVIEW_SRC[o.review.src], o.ip].filter(Boolean).join(' · '),
     go: () => openObj(o.id) }))]);
-  const people = USERS.filter(u => has(q, u.name, u.login, u.dept));
+  const people = USERS.filter(u => hasWords(q, u.name, u.login, u.dept));
   const owned = new Map(); for (const o of objs) if (o.user && o.status !== 'retired') owned.set(o.user, (owned.get(o.user) || 0) + 1);
   if (people.length) out.push(['People', people.length, people.slice(0, MAX.other).map(u => ({
     icon: ICON.person, main: u.name,
@@ -91,6 +94,11 @@ function results(q){
   if (contracts.length) out.push(['Contracts', contracts.length, contracts.slice(0, MAX.other).map(c => ({
     icon: ICON.contract, main: c.name, sub: [c.supplier, c.ref].filter(Boolean).join(' · '),
     go: () => { st.q = c.name; st.ctDue = false; st.tab = 'contracts'; render(); } }))]);
+  /* Licences by name, shown in Software, where their use is counted. */
+  const lics = (COSTS.licences || []).filter(l => has(q, l.name));
+  if (lics.length) out.push(['Licences', lics.length, lics.slice(0, MAX.other).map(l => ({
+    icon: ICON.contract, main: l.name, sub: `Licence · ${l.seats || 0} seat${l.seats === 1 ? '' : 's'}`,
+    go: () => { st.tab = 'sw'; render(); } }))]);
   const rooms = LOCS.filter(l => has(q, l));
   const inRoom = new Map(); for (const o of objs) if (o.loc && o.status !== 'retired') inRoom.set(o.loc, (inRoom.get(o.loc) || 0) + 1);
   if (rooms.length) out.push(['Rooms', rooms.length, rooms.slice(0, MAX.other).map(l => ({

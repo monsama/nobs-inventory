@@ -136,7 +136,10 @@ export function retireModal(o){
     o.status = 'retired';
     hist(o, now(), 'Retired by ' + who() + (why ? ': ' + why : '') + (done.length ? ' · ' + done.map(([, l]) => new DOMParser().parseFromString(String(l), 'text/html').body.textContent.replace(/, so the port is free| \(.*\)$/g, '')).join('; ') : ''));
     closeModal();
-    toastUndo(o.name + ' is retired' + (done.length ? ` (${done.length} link${done.length === 1 ? '' : 's'} cleared)` : ''), () => {
+    /* What was cleared, counted as it is: the links taken away, and the other ties (user, plan, contracts, responsible). */
+    const links = relsWas.length - rels.length, others = done.filter(([k]) => !['plug', 'host', 'attached', 'vms', 'downs'].includes(k)).length;
+    const said = [links && `${links} link${links === 1 ? '' : 's'} removed`, others && `${others} more cleared`].filter(Boolean).join(', ');
+    toastUndo(o.name + ' is retired' + (said ? ` (${said})` : ''), () => {
       restoreSnapshot(was, 'Retirement undone by ' + who());
       /* Only the relations and contract entries the retirement took away come back: anything added since stays. */
       for (const r of relsWas) if (!rels.includes(r)) rels.push(r);

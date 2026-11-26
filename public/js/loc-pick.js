@@ -15,11 +15,15 @@ const roomOf = l => String(l || '').split(' / ').slice(1).join(' / ');
 export function locOptions(sel, { none = 'No location' } = {}){
   const opt = (v, label) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(label)}</option>`;
   const sites = [...SITES, ...new Set(LOCS.map(siteOf).filter(x => !SITES.includes(x)))];
+  /* A room name more than one site has (Lager in Zürich and in Bern) says its site too, so the closed list tells them
+     apart; the others keep the short name, for typing its first letters. */
+  const twice = new Set(); { const seen = new Set(); for (const l of LOCS){ const r = roomOf(l).toLowerCase(); if (!r) continue; if (seen.has(r)) twice.add(r); seen.add(r); } }
+  const name = l => !l.includes(' / ') ? `${l} (whole site)` : twice.has(roomOf(l).toLowerCase()) ? `${roomOf(l)} (${siteOf(l)})` : roomOf(l);
   let out = none === null ? '' : opt('', none);
   if (sel && !LOCS.includes(sel)) out += `<optgroup label="Now">${opt(sel, sel)}</optgroup>`;
   for (const site of sites){
     const rooms = LOCS.filter(l => siteOf(l) === site).sort((a, b) => roomOf(a).localeCompare(roomOf(b)));
-    if (rooms.length) out += `<optgroup label="${esc(site)}">${rooms.map(l => opt(l, l.includes(' / ') ? roomOf(l) : `${l} (whole site)`)).join('')}</optgroup>`;
+    if (rooms.length) out += `<optgroup label="${esc(site)}">${rooms.map(l => opt(l, name(l))).join('')}</optgroup>`;
   }
   if (isAdmin() && SITES.length) out += `<optgroup label="Add"><option value="${NEW}">New room…</option></optgroup>`;
   return out;

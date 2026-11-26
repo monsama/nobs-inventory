@@ -51,10 +51,11 @@ try {
   await page.fill('#ctName', 'Switch maintenance');
   await page.fill('#ctSupplier', 'HPE');
   await page.fill('#ctEnd', day(70));
-  // renewal, contract number, contacts and note are under More details
-  assert.equal(await page.isVisible('#ctRenew'), false);
-  await page.click('#ctMore > summary');
+  // a new contract ends by itself: the notice period shows once it renews; number, contacts and note are under More details
+  assert.equal(await page.isVisible('#ctNotice'), false);
   await page.selectOption('#ctRenew', '12');
+  assert.equal(await page.isVisible('#ctNotice'), true);
+  await page.click('#ctMore > summary');
   await page.fill('#ctNotice', '1');
   await page.fill('#ctCost', '1200');
   await page.fill('#ctDevQ', 'SW-CO');
@@ -71,7 +72,7 @@ try {
   assert.deepEqual((await core()).contracts[0].contacts, ['k1']);
   await page.click('[data-ctcontact=k1]'); await page.waitForSelector('#mdl'); assert.match(await page.textContent('#mdl .mh'), /Petra Netz/); await page.click('#mdl .mf button:text("Cancel")');
   assert.match(await page.textContent('table.contracts'), /Switch maintenance.*Maintenance.*HPE.*1.*CHF 1.?200.*per year.*Give notice by/s);
-  assert.match(await page.textContent('#toolbar'), /1 due within 60 days/);
+  assert.match(await page.textContent('#toolbar'), /1 due or ending within 60 days/);
   const c = (await core()).contracts[0];
   assert.deepEqual([c.name, c.renew, c.notice, c.cost, c.devices], ['Switch maintenance', 12, 1, 1200, ['o1']]);
   // the summary: what the contracts cost this year and the next two (no start date, renews: the whole year each)

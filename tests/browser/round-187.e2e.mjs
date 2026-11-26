@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-r187-'));
 const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
-const dev = (id, type, name, more) => ({ id, code: 'INV-' + id, type, name, status: 'active', loc: 'Zürich / IT', ovr: {}, serial: 'S-' + id, ...more });
+const dev = (id, type, name, more) => ({ id, code: 'INV-' + id, type, name, status: 'active', loc: 'Zürich / IT', ovr: {}, serial: 'S-' + id, model: 'Model X', ...more });
 const s0 = loadState(db);
 saveState(db, { ...s0, locs: ['Zürich / IT', 'Zürich / Office', 'Bern / Lager'], history: { pz: [{ t: '20.11.2026 10:00', msg: 'Taken back into stock from Finn Graf by Admin' }] },
   contacts: [{ id: 'k1', kind: 'internal', name: 'Ivo Intern' }],
@@ -93,12 +93,14 @@ try {
   // 5. Data quality: no responsible is a tip, not a gap
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.person = null; c.st.tab = 'overview'; (await import('/js/07-render.js')).view(); });
   await p.waitForSelector('#ovQuality');
-  assert.match(await p.textContent('#ovQuality'), /No responsible.*a tip, not counted in the score/s);
+  assert.match(await p.textContent('#ovQuality'), /No responsible · a tip\s*Not counted in the score/);
   assert.doesNotMatch(await p.textContent('#ovQuality .hdr'), /0 of/);
 
   // 6. the search at the top: lifetimes and the password, kept outside Settings
   await p.fill('#search', 'lifetime'); await p.waitForSelector('#gsList li[data-i]');
   assert.match(await p.textContent('#gsList'), /Lifetimes and replacement prices\s*Overview → Replacement plan/);
+  await p.fill('#search', 'graf finn'); await p.waitForSelector('#gsList li[data-i]:has-text("Finn Graf")');
+  await p.fill('#search', 'dark'); await p.waitForSelector('#gsList li[data-i]:has-text("Switch light / dark")');
   await p.fill('#search', 'password'); await p.waitForSelector('#gsList li[data-i]:has-text("Change password")');
   await p.click('#gsList li[data-i]:has-text("Change password")'); await p.waitForSelector('#acCur');
 

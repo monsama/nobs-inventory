@@ -64,7 +64,7 @@ export function renderOverview(){
   const wEnded = att.wEnded.length, wSoon = att.wSoon.length;
   const over = licencesOver();
   /* Contracts whose notice is due soon or has passed: the bell's list, so both count the same. */
-  const ctLate = att.contracts.filter(x => x.st.state === 'late').map(x => x.c), ctSoon = att.contracts.filter(x => x.st.state !== 'late').map(x => x.c);
+  const ctLate = att.contracts.filter(x => x.st.state === 'late').map(x => x.c), ctSoon = att.contracts.filter(x => x.st.state !== 'late' && x.c.renew > 0).map(x => x.c), ctEnds = att.contracts.filter(x => x.st.state !== 'late' && !(x.c.renew > 0)).map(x => x.c);
   const few = l => l.slice(0, 3).map(c => c.name).join(', ') + (l.length > 3 ? '…' : '');
   /* Running only: a contract or licence that has ended, or not started yet, costs nothing now. */
   const year = COSTS.contracts.filter(c => runningNow(c)).reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.filter(l => runningNow(l)).reduce((t, l) => t + yearlyCost(l), 0);
@@ -127,6 +127,8 @@ export function renderOverview(){
     [wSoon, 'warn', 'Warranty ends soon', `devices in use, within ${WARRANTY_SOON_DAYS} days`, 'data-ovw="soon"'],
     [ctLate.length, 'bad', 'Contract notice date passed', few(ctLate), 'data-ovtab="contracts"'],
     [ctSoon.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${few(ctSoon)}`, 'data-ovtab="contracts"'],
+    /* A contract that does not renew has no notice to give: it ends, which is worth knowing as such. */
+    [ctEnds.length, 'warn', 'Contract ending', `within ${NOTICE_SOON_DAYS} days: ${few(ctEnds)}`, 'data-ovtab="contracts"'],
     [over.length, 'bad', 'Licences over-used', over.slice(0, 3).map(l => l.name).join(', ') + (over.length > 3 ? '…' : ''), 'data-ovtab="sw"'],
     [missing.ids.length, missing.gone ? 'bad' : 'warn', 'Where are they?', missing.parts.join(' · '), 'data-ovmissing="1"'],
     ...(SYNC.graph ? ['noncompliant', 'unencrypted', 'secureboot'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
@@ -174,7 +176,7 @@ export function renderOverview(){
       ${planHtml(live)}
       <div class="panelbox" id="ovQuality"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar ${qPct >= 90 ? 'ok' : qPct >= 60 ? 'warn' : 'bad'}" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
-        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip ${r.tip ? 'info' : 'warn'}">${compact(r.n)}</span><span><b>${r.label}</b><small>${r.hint}${r.tip ? ' · a tip, not counted in the score' : ''}</small></span></button>`)}</div>`
+        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip ${r.tip ? 'info' : 'warn'}">${compact(r.n)}</span><span><b>${r.label}${r.tip ? ' · a tip' : ''}</b><small>${r.tip ? 'Not counted in the score. ' : ''}${r.hint}</small></span></button>`)}</div>`
           : html`<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>
     </div>
     <details class="ov-stats" id="ovStats" ${statsOpen() ? 'open' : ''}><summary>Statistics <span class="muted">by type, site, status, operating system${showJoin || intuneGroups.length ? ', Entra and Intune' : ''}</span></summary><div class="ov-cols">
