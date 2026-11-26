@@ -2911,3 +2911,36 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 .port-acts{display:flex;gap:8px;flex-wrap:wrap;padding:4px 12px 10px}
 /* A toast breaks between words, not inside a device name (SW-ZH-CORE stays whole). */
 #toast{overflow-wrap:break-word;word-break:normal;hyphens:none}
+/* The views with no filters (Overview, Contracts, Ports …): the tab bar starts where it does with the filters shown, so
+   the tabs stay under the pointer when changing view. */
+@media (min-width:821px){
+  body.noside:not(.side-shut) #tabsbar{padding-left:calc(var(--sidew,250px) + 6px)}
+  body.noside.side-shut #tabsbar{padding-left:calc(var(--railw,14px) + 6px)}
+}
+/* The user in a device's key facts is a link to their devices, set as the other facts are. */
+.obj.otabbed .of>.of-person{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0;text-align:left;max-width:100%}
+/* Contracts on a phone: each a card (name and actions on top, then each field with its name), no table cut off at the
+   right; the totals and amounts stay on one line, and the footer total sits beside its label. */
+@media (max-width:760px){
+  table.grid.contracts, table.grid.contracts tbody{display:block;width:100%!important;min-width:0!important}
+  table.grid.contracts thead{display:none}
+  table.grid.contracts tbody tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bd2);width:100%;box-sizing:border-box}
+  table.grid.contracts tbody td{display:contents;border:0;padding:0}
+  table.grid.contracts td.selcol{display:block;grid-column:1;grid-row:1}
+  table.grid.contracts td.ct-name{display:block;grid-column:2;grid-row:1;white-space:normal;overflow:visible}
+  table.grid.contracts td.ct-acts{display:block;grid-column:3;grid-row:1}
+  table.grid.contracts td.ct-name, table.grid.contracts td.selcol, table.grid.contracts td.ct-acts{height:auto;min-height:0;background:transparent!important;position:static;box-shadow:none}
+  table.grid.contracts td[data-l]:not(:empty){display:block;grid-column:2 / 4;text-align:left;white-space:normal;height:auto;min-height:0;line-height:1.45;background:none}
+  table.grid.contracts td[data-l]:not(:empty)::before{content:attr(data-l) ": ";color:var(--muted);font-size:12px}
+  table.grid.contracts td[colspan]{display:block;grid-column:1 / -1}
+  table.grid.contracts td[data-l="Cost"]{white-space:nowrap}
+  .ct-wrap{overflow-x:visible}
+  .ct-sum .ov-tv, .ct-sum .ct-kind b{white-space:nowrap}
+  .ct-sum .ov-tv{font-size:clamp(15px,5vw,20px)}
+  .ct-sum .ov-tile{min-width:0}
+  .ct-sum .ct-kind{display:flex;justify-content:space-between;gap:8px}
+  table.grid.contracts tfoot{display:block}
+  table.grid.contracts tfoot tr{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px}
+  table.grid.contracts tfoot td{display:block;border:0;padding:0;height:auto;background:none}
+  table.grid.contracts tfoot td:empty{display:none}
+}

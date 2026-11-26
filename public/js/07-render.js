@@ -41,7 +41,14 @@ export function render(opts = {}){
   finally { drawing = false; }
   if (drawAgain){ const again = drawAgain; drawAgain = null; render(again); }
 }
+/* A plain message is about the view it was said in: changing view closes it. One with Undo stays its time. */
+let toastTab = null;
+const closeToastOnViewChange = () => {
+  if (toastTab !== null && toastTab !== st.tab){ const t = document.getElementById('toast'); if (t && !t.classList.contains('off') && !t.querySelector('.t-undo') && !t.classList.contains('err')) t.classList.add('off'); }
+  toastTab = st.tab;
+};
 function renderNow({ save = true } = {}){
+  closeToastOnViewChange();
   /* Pending devices is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */
   if (!tabAllowed(st.tab)) st.tab = ownOnly() ? 'mine' : 'cards';
