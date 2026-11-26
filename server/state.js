@@ -574,7 +574,9 @@ function rowsOf(s) {
    Only changed records are written, so a small edit to a large inventory is a small write. */
 /* Writes what changed and gives each written record a new revision. only: the records a page save touched (their keys);
    then only those are compared and written, not every record of the inventory. */
-function writeDocs(db, s, only = null) {
+/* first: runs inside the same transaction, before anything is written (moving merged people's sign-ins), so both
+   happen or neither does. */
+function writeDocs(db, s, only = null, first = null) {
   let rows = rowsOf(s), current;
   if (only) {
     rows = rows.filter(([kind, id]) => only.has(docKey(kind, id)));
@@ -587,6 +589,7 @@ function writeDocs(db, s, only = null) {
   const bump = (kind, id) => { db.prepare('INSERT INTO revs (kind, id, rev) VALUES (?, ?, 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1').run(kind, id); bumped.push(docKey(kind, id)); };
   db.exec('BEGIN');
   try {
+    if (first) first();
     const put = db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data');
     const del = db.prepare('DELETE FROM docs WHERE kind = ? AND id = ?');
     for (const [kind, id, value] of rows) {
@@ -664,7 +667,8 @@ export function virtualType(o) {
 /* What the type rules make of a device's model, Lansweeper type, name and chassis: virtual (their target vm). */
 export const virtualByRules = (s, o) => typeMapSaysVm(s, o) || typeByRules(s.typeRules, { type: (o.feed && o.feed.assetType) || '', model: o.model || '', name: o.name || '', chassis: (o.feed && o.feed.chassis) || '' }).type === 'vm';
 const typeMapSaysVm = (s, o) => { const t = String((o.feed && o.feed.assetType) || '').toLowerCase(), m = s.typeMap || {}; const k = t && Object.keys(m).find(x => x.toLowerCase() === t); return !!k && m[k] === 'vm'; };
-export function saveState(db, s, { restore = false } = {}) {
+/* merged: [{ keep, drop, hadLogin }] people merged by hand, whose entry sheets and sign-in move in the save's transaction. */
+export function saveState(db, s, { restore = false, merged = [] } = {}) {
   normalizeVirtual(s);
   /* What is attached to a device is where it is (follow-host.js); a restored backup is taken as it was. */
   if (!restore && s && Array.isArray(s.objs)) { const at = new Date().toISOString(); followHosts(s.objs, s.rels, (o, msg) => { if (s.history && typeof s.history === 'object') (s.history[o.id] ??= []).unshift({ t: at, msg }); }); }
@@ -675,9 +679,8 @@ export function saveState(db, s, { restore = false } = {}) {
   for (const k of ['codeN', 'seq', 'rseq']) s[k] = Math.max(Number(s[k]) || 0, Number(settingOf(db, k)) || 0);
   for (const id of Object.keys(s.history || {})) if (Array.isArray(s.history[id]) && s.history[id].length > HISTORY_KEEP) s.history[id] = s.history[id].slice(0, HISTORY_KEEP);
   /* People a sync merged (people-match.js): their entry sheets and sign-in follow them, as for a merge made by hand.
-     Moved before the docs are written: writing them deletes the password and sign-ins of the person merged away. */
-  for (const m of s[MERGED] || []) movePersonRows(db, m.keep, m.drop, m.hadLogin);
-  writeDocs(db, s);
+     Moved first, in the same transaction: writing the docs deletes the password and sign-ins of the person merged away. */
+  writeDocs(db, s, null, () => { for (const m of [...(s[MERGED] || []), ...merged]) movePersonRows(db, m.keep, m.drop, m.hadLogin); });
   /* Each written to the log by name, so a merge a sync made can be found and, if wrong, undone from a backup. */
   const SOURCE = { ldap: 'AD', entra: 'Entra', lansweeper: 'Lansweeper', manual: 'by hand' };
   for (const m of s[MERGED] || []) {

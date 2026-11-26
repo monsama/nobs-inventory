@@ -81,6 +81,8 @@ try {
   await p.waitForFunction(() => /handed out/.test(document.querySelector('.fb-past')?.textContent || ''));
 
   // 4. the Table: Location, User and Status right after the model
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.person = null; c.st.tab = 'table'; (await import('/js/07-render.js')).view(); });
+  await p.waitForSelector('table.grid thead th');
   const heads = await p.$$eval('table.grid thead th', t => t.map(x => x.textContent.trim()).filter(Boolean));
   const at = k => heads.indexOf(k);
   assert.ok(at('Model') >= 0 && at('Location') === at('Model') + 1 && at('User') === at('Model') + 2 && at('Status') === at('Model') + 3, heads.join(' | '));
