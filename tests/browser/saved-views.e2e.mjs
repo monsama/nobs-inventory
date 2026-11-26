@@ -50,14 +50,14 @@ try {
   await a.click('#view thead th:has-text("Name")'); await a.click('#view thead th:has-text("Name")');
   await until(a, () => [...document.querySelectorAll('#view tbody .rowopen')].map(x => x.textContent).join() === 'ZH-PC-0142,ZH-NB-0201');
   const want = { rows: await rows(a), heads: await heads(a) };
-  assert.deepEqual(want.heads, ['Name', 'Type', 'IP', 'MAC', 'Location', 'Connected to', 'Status', 'Last seen']);
+  assert.deepEqual(want.heads, ['Name', 'Type', 'Location', 'Status', 'IP', 'MAC', 'Connected to', 'Last seen']);
 
   await a.click('#toolbar .tb-more .menu-btn'); await a.click('#svSave'); await a.fill('#svName', 'Office PCs'); await a.click('#svOk');
   await a.waitForSelector('#viewList .item.sel:has-text("Office PCs")');
   await storedBy(() => loadState(db), s => s.savedViews.length === 1 && s.savedViews[0].name === 'Office PCs');
   const saved = loadState(db).savedViews[0];
   assert.deepEqual([saved.tab, saved.q, saved.filters, saved.sort, saved.colFilters], ['table', 'ZH', { type: 'pc' }, { col: 'name', dir: -1 }, { loc: 'Büro' }]);
-  assert.deepEqual(saved.cols, ['name', 'type', 'ip', 'mac', 'loc', 'conn', 'status', 'seen'], 'the columns in the order shown');
+  assert.deepEqual(saved.cols, ['name', 'type', 'loc', 'status', 'ip', 'mac', 'conn', 'seen'], 'the columns in the order shown');
 
   /* Everything changed: filters cleared, other columns, the Cards. */
   await a.click('#clearF');

@@ -1,6 +1,6 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { REGISTERED, REGISTERED_LABEL, registeredOnly, whereOf, COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, objs, st, tico, toast } from './01-core.js';
+import { REGISTERED, REGISTERED_LABEL, registeredOnly, whereOf, COMPANY, SITES, QUALITY, QUALITY_TIPS, qualityGap, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, objs, st, tico, toast } from './01-core.js';
 import { attention as attentionLists } from './notices.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { lifeOf, replacementPlan } from './lifecycle.js';
@@ -100,8 +100,9 @@ export function renderOverview(){
     ['To clean up', ['stale', 'duplicates', 'missing', 'ambiguous']],
   ]).map(([title, keys]) => [title, keys.map(k => ({ key: k, label: GRAPH_FILTERS[k][0], n: live.filter(GRAPH_FILTERS[k][2]).length })).filter(r => r.n)]).filter(g => g[1].length) : [];
   /* Data quality: how many devices are complete, and what the others lack. */
-  const qRows = Object.entries(QUALITY).map(([k, [label, hint, test]]) => ({ key: k, label, hint, n: live.filter(test).length })).filter(r => r.n);
-  const complete = live.filter(o => !Object.values(QUALITY).some(q => q[2](o))).length;
+  const qRows = Object.entries(QUALITY).map(([k, [label, hint, test]]) => ({ key: k, label, hint, tip: QUALITY_TIPS.includes(k), n: live.filter(test).length })).filter(r => r.n);
+  /* The tips (a responsible) are listed, but do not make a device incomplete. */
+  const complete = live.filter(o => !qualityGap(o)).length;
   const qPct = live.length ? Math.round(complete / live.length * 100) : 100;
   const waiting = att.review.length;
   /* People who left (deactivated) and still have devices that are not in stock or retired: the oldest first. */
@@ -173,7 +174,7 @@ export function renderOverview(){
       ${planHtml(live)}
       <div class="panelbox" id="ovQuality"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar ${qPct >= 90 ? 'ok' : qPct >= 60 ? 'warn' : 'bad'}" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
-        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${r.label}</b><small>${r.hint}</small></span></button>`)}</div>`
+        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip ${r.tip ? 'info' : 'warn'}">${compact(r.n)}</span><span><b>${r.label}</b><small>${r.hint}${r.tip ? ' · a tip, not counted in the score' : ''}</small></span></button>`)}</div>`
           : html`<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>
     </div>
     <details class="ov-stats" id="ovStats" ${statsOpen() ? 'open' : ''}><summary>Statistics <span class="muted">by type, site, status, operating system${showJoin || intuneGroups.length ? ', Entra and Intune' : ''}</span></summary><div class="ov-cols">

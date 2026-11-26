@@ -68,10 +68,16 @@ export function renderPorts(){
     if (!lsDiff.has(+pl.port)) lsDiff.set(+pl.port, []);
     lsDiff.get(+pl.port).push(o);
   }
+  /* A link between two pieces of network gear (switch, router, firewall) is an uplink, also when it was made as a plain
+     connection (by hand, or by Lansweeper's switch scan). */
+  const GEAR = ['switch', 'router', 'firewall'];
+  const upish = r => !!r && (isUplink(r.kind) || (r.kind === 'connected' && GEAR.includes(sw.type) && GEAR.includes((byId(r.from === sw.id ? r.to : r.from) || {}).type)));
+  /* The uplinks of this device itself (to the switch or router above it): listed in the port map too. */
+  const ownUps = rels.filter(r => r.from === sw.id && (isUplink(r.kind) || upish(r)) && byId(r.to));
   const portBtn = p => {
     const inc = onPort(p), lu = lagUse(p);
     const dev = inc[0] ? byId(inc[0].from) : lu ? lu.d : null;
-    const isUp = (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
+    const isUp = upish(inc[0]) || (lu && upish(lu.r));
     const poe = dev && (dev.type === 'sip');
     /* No description of its own: the description of the device plugged in, if it has one. */
     const note = (sw.portNotes || {})[p] || (dev && dev.purpose) || '';
@@ -117,7 +123,7 @@ export function renderPorts(){
   const portInfo = x => {
     const d = x.d, note = (sw.portNotes || {})[st.portNo];
     const rows = [['Type', TYPES[d.type] ? TYPES[d.type].label : d.type], ['Model', d.model], ['IP address', d.ip], ['MAC address', d.mac], ['User', d.user],
-      ['Description', d.purpose], ['Location', d.loc], ['Link', isUplink(x.r.kind) ? 'Uplink / trunk' : 'Device'], ['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')],
+      ['Description', d.purpose], ['Location', d.loc], ['Link', upish(x.r) ? 'Uplink / trunk' : 'Device'], ['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (upish(x.r) ? 'Trunk' : '')],
       ['Port description', note || ''], ['Status', d.status !== 'active' && STATUS[d.status] ? STATUS[d.status].label : '']].filter(([, v]) => v);
     return html`<dl class="kv portinfo">${rows.map(([k, v]) => html`<dt>${k}</dt><dd${/IP|MAC/.test(k) ? html` class="mono"` : ''}>${v}</dd>`)}${seenChip(d) ? html`<dt>Last seen</dt><dd>${rawHtml(seenChip(d))}</dd>` : ''}</dl>`;
   };
@@ -134,8 +140,9 @@ export function renderPorts(){
       <div class="relist">${groups0.length ? groups0.map((g, i) => html`<div class="relrow"><span class="k">${g.name}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${pfxOf(sw) + g.from}${g.from === g.to ? '' : '-' + pfxOf(sw) + g.to}${g.kind ? ` · ${g.kind}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${g.name}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${g.name}">×</button></div>`) : html`<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>`}</div>
       <div class="addrel" data-edit>${pgEditing ? html`<span class="muted">Edit ${pgEditing.name}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${pgEditing ? pgEditing.name : ''}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${pgEditing ? pgEditing.kind || '' : ''}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? html`<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>` : html`<button id="pgAdd">Add group</button>`}</div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => html`<tr><td class="n">${typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p}</td><td class="n">${x.via ? viaHtml(x.via) : html`<a class="link" data-open="${x.d.id}">${x.d.name}</a>`}</td><td>${isUplink(x.r.kind) ? 'Uplink' : x.via ? (x.via.device ? TYPES[x.via.device.type].short : 'Patch') : TYPES[x.d.type].short}</td><td>${x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')}</td>
+      ${rows.map(x => html`<tr><td class="n">${typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p}</td><td class="n">${x.via ? viaHtml(x.via) : html`<a class="link" data-open="${x.d.id}">${x.d.name}</a>`}</td><td>${upish(x.r) ? 'Uplink' : x.via ? (x.via.device ? TYPES[x.via.device.type].short : 'Patch') : TYPES[x.d.type].short}</td><td>${x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')}</td>
         <td>${x.sub.map((s, i) => html`${i ? ', ' : ''}<a class="link mono" data-open="${s.d.id}">${s.d.name}</a>`)}</td></tr>`)}
+      ${ownUps.map(r => { const t = byId(r.to); return html`<tr class="own-up"><td class="n muted">Its uplink</td><td class="n"><a class="link" data-open="${t.id}">${t.name}</a></td><td>Uplink</td><td>${r.vlan ? vlanLabel(r.vlan) : 'Trunk'}</td><td class="muted">${r.port != null ? `on port ${pfxOf(t) + r.port} of ${t.name}` : `to ${t.name}`}</td></tr>`; })}
     </tbody></table></div></div>`;
   /* The setup is done once, so it comes last; a device without ports yet has only it. */
   const setup = html`

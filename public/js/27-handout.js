@@ -39,13 +39,16 @@ export function officeRoom(u){
 const hereText = list => { const rooms = [...new Set(list.map(o => o.loc || ''))]; return rooms.length === 1 ? `Leave it where it is (${rooms[0] || 'no location'})` : 'Leave each where it is'; };
 /* Where the devices go: where they are (the default), or a room; the one marked "office" is the person's. */
 const locField = (id = 'hoLoc', office = '', now = 'Where it is now') => html`<label for="${id}" class="ho-l">Where</label><select id="${id}"><option value="" data-now="${now}">${now}</option>${LOCS.map(l => html`<option value="${l}">${l}${l === office ? ' (their office)' : ''}</option>`)}</select>`;
-const locPicked = (id = 'hoLoc') => ($('#' + id) && $('#' + id).value) || '';
+const locPicked = (id = 'hoLoc') => { const v = ($('#' + id) && $('#' + id).value) || ''; return v === PICK ? '' : v; };
+/* The first choice of Where for devices in a store room: nothing yet, so a room or Leave it there is picked on purpose. */
+const PICK = '__pick';
 /* A person picked: their office room is proposed, unless a room was chosen already. */
 const proposeOffice = u => {
   const sel = $('#hoLoc'), room = officeRoom(u); if (!sel) return;
-  for (const o of sel.options) o.textContent = o.value ? o.value + (o.value === room ? ' (their office)' : '') : (o.dataset.now || 'Where it is now');
-  if (room && (!sel.value || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
-  else if (!room && sel.dataset.auto){ sel.value = ''; delete sel.dataset.auto; }
+  for (const o of sel.options) if (o.value !== PICK) o.textContent = o.value ? o.value + (o.value === room ? ' (their office)' : '') : (o.dataset.now || 'Where it is now');
+  const none = !sel.value || sel.value === PICK, start = sel.querySelector(`option[value="${PICK}"]`) ? PICK : '';
+  if (room && (none || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
+  else if (!room && sel.dataset.auto){ sel.value = start; delete sel.dataset.auto; }
 };
 /* Take back into stock: asked where they go (where they are, or a room; the room last used for this is proposed,
    kept in this browser), then done with Undo. */
@@ -152,13 +155,17 @@ export function handOutModal(ids){
   /* In a store room: "where it is now" would list it there while someone uses it, so where it goes is asked for. */
   const stores = new Set(Object.values(st.stockRooms || {}));
   const inStore = list.every(o => o.loc && stores.has(o.loc)) ? list[0].loc : '';
-  if (inStore){ const o0 = $('#hoLoc').options[0], rooms = new Set(list.map(o => o.loc)); o0.textContent = rooms.size > 1 ? `Leave them in their store rooms (${rooms.size})` : `Leave ${list.length > 1 ? 'them' : 'it'} in the store room (${inStore})`; }
-  let storeOk = false;
+  if (inStore){
+    const sel = /** @type {HTMLSelectElement} */ ($('#hoLoc')), o0 = sel.options[0], rooms = new Set(list.map(o => o.loc));
+    o0.textContent = o0.dataset.now = rooms.size > 1 ? `Leave them in their store rooms (${rooms.size})` : `Leave ${list.length > 1 ? 'them' : 'it'} in the store room (${inStore})`;
+    const pick = document.createElement('option'); pick.value = PICK; pick.disabled = true; pick.textContent = `Pick where ${list.length === 1 ? 'it goes' : 'they go'}`;
+    sel.prepend(pick); sel.value = PICK;
+  }
   const ok0 = $('#hoOk').onclick;
   $('#hoOk').onclick = e => {
-    if (inStore && picked && !locPicked() && !storeOk){
-      storeOk = true; $('#hoLoc').focus();
-      $('#hoSays').innerHTML = String(html`<span class="ho-warn">${list.length === 1 ? 'It is' : 'They are'} in the store room ${inStore}: pick where ${list.length === 1 ? 'it goes' : 'they go'}, or Hand out again to leave ${list.length === 1 ? 'it' : 'them'} listed there.</span>`);
+    if (inStore && picked && $('#hoLoc').value === PICK){
+      $('#hoLoc').focus();
+      $('#hoSays').innerHTML = String(html`<span class="ho-warn">${list.length === 1 ? 'It is' : 'They are'} in the store room ${inStore}: pick where ${list.length === 1 ? 'it goes' : 'they go'}, or Leave ${list.length === 1 ? 'it' : 'them'} in the store room.</span>`);
       return;
     }
     ok0.call($('#hoOk'), e);

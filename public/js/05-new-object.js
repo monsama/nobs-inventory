@@ -1,4 +1,4 @@
-import { listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
+import { listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
@@ -205,9 +205,17 @@ export function linkObjModal(pre = {}){
   const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + p.name : ''; };
   /* From a free port the dialog says which port, and no device is chosen for the person: they pick it. */
   const atPort = into && pre.port != null;
+  /* From a port: the devices not plugged in anywhere first, then those in the switch's room, then its site; each with
+     its room. Find narrows the list by name, type, room or user. */
+  const site = l => String(l || '').split(' / ')[0];
+  const near = o => !into ? 0 : (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
+  const sorted = list.sort((a, b) => near(a) - near(b) || a.name.localeCompare(b.name));
+  const label = o => `${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${atPort && o.loc ? ' · ' + o.loc : ''}${where(o)}`;
+  const objOptions = q => { const w = q.trim().toLowerCase(); const hits = sorted.filter(o => !w || [label(o), o.user].some(v => String(v || '').toLowerCase().includes(w)));
+    return String(html`${atPort && html`<option value="">${hits.length ? `Choose a device… (${hits.length})` : 'No device matches'}</option>`}${hits.map(o => html`<option value="${o.id}">${label(o)}</option>`)}`); };
   modal(html`<div class="mh">${atPort ? `Plug into ${into.name} · ${pfxOf(into) + pre.port}` : 'Link device'}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="lkObj">${atPort ? 'Device' : 'Object'}</label><select id="lkObj">${atPort && html`<option value="">Choose a device…</option>`}${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => html`<option value="${o.id}">${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${where(o)}</option>`)}</select>
+      ${atPort ? html`<label for="lkQ">Find</label><input id="lkQ" type="search" placeholder="Name, type, room or user" autocomplete="off">` : ''}<label for="lkObj">${atPort ? 'Device' : 'Object'}</label><select id="lkObj">${rawHtml(objOptions(''))}</select>
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
     </div><p class="note" id="lkNote">Only the link is added; the device's details stay as they are.</p></div>
@@ -231,7 +239,12 @@ export function linkObjModal(pre = {}){
   $('#lkTo').addEventListener('change', () => portNote('lkPort', ''));
   $('#lkPort').addEventListener('input', () => portNote('lkPort', ''));
   $('#lkObj').onchange = fit;
-  $('#lkObj').focus();
+  const q = /** @type {HTMLInputElement | null} */ ($('#lkQ'));
+  if (q){
+    q.oninput = () => { const sel = /** @type {HTMLSelectElement} */ ($('#lkObj')), keep = sel.value; sel.innerHTML = objOptions(q.value); if (keep && [...sel.options].some(x => x.value === keep)) sel.value = keep; else if (q.value.trim() && sel.options.length === 2) sel.selectedIndex = 1; fit(); };
+    q.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); if ($('#lkObj').value) $('#lkOk').click(); else $('#lkObj').focus(); } };
+    q.focus();
+  } else $('#lkObj').focus();
   $('#lkCancel').onclick = closeModal;
   $('#lkOk').onclick = () => {
     if (!$('#lkObj').value){ $('#lkObj').focus(); toast('Choose the device to plug in.'); return; }
@@ -250,11 +263,15 @@ export function linkObjModal(pre = {}){
     if (val != null) releaseRetiredPort(t, val);
     if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('lkPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
     if (val != null && lagOfPort(t, val)){ portNote('lkPort', `Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
+    const snap = snapshot([e, t, ...leave.map(r => byId(r.to)).filter(Boolean)]), relsWas = [...rels];
     for (const r of leave){ rels.splice(rels.indexOf(r), 1); const was = byId(r.to); if (was) hist(was, now(), `${e.name} moved from here to ${t.name} by ${who()}`); }
-    rels.push({id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: null});
+    const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: null};
+    rels.push(made);
     const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into', uplink: 'Uplink to'}[kind];
     const from = leave.length ? byId(leave[0].to) : null;
     hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''}${from ? ' (before: ' + from.name + ')' : ''} by ${who()}`);
-    closeModal(); toast(`${e.name}: ${verb.toLowerCase()} ${t.name}`); render();
+    closeModal(); render();
+    /* One Undo: the link goes, and the one it replaced comes back. */
+    toastUndo(`${e.name}: ${verb.toLowerCase()} ${t.name}`, () => { const i = rels.indexOf(made); if (i >= 0) rels.splice(i, 1); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); restoreSnapshot(snap, 'Link undone by ' + who()); render(); });
   };
 }

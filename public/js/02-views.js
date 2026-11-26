@@ -209,6 +209,8 @@ document.addEventListener('click', e => {
 });
 /* The filters in force, as chips over the list (Cards, Table, Relationships): what each is, and × to take it off, so a
    short list is never a mystery. Nothing is shown when nothing narrows the list. */
+/* What a person last had (pastOf in the filter bar), by person id; read again once they have devices and lose them. */
+const PAST = new Map();
 export function renderFilterBar(){
   const bar = $('#fbar'); if (!bar) return;
   const list = ['cards', 'table', 'map'].includes(st.tab);
@@ -264,10 +266,23 @@ export function renderFilterBar(){
       const segs = !waitAll.length ? '' : html`${seg('Why they wait', WHY.filter(([k]) => !k || whyN(k) || st.rvWhy === k).map(([k, l]) => html`<button type="button" class="${st.rvWhy === k ? 'on' : ''}" aria-pressed="${st.rvWhy === k}" data-ckwhy="${k}">${l} <span class="cnt">${whyN(k)}</span></button>`))}${srcs.length > 1 ? seg('Found by', [['', 'All sources', ofType.length], ...srcs].map(([k, l, c]) => html`<button type="button" class="${st.rvSrc === k ? 'on' : ''}" aria-pressed="${st.rvSrc === k}" data-cksrc="${k}">${l} <span class="cnt">${c}</span></button>`)) : ''}`;
       return segs || ign ? html`<div class="fb-person fb-check fb-ckrow">${segs}${ign}</div>` : '';
     })();
+  /* A person with no devices now: said, with the last devices handed out to them or taken back from them (History). */
+  /* Read from the server once per person (the page loads without the History), then drawn again. */
+  const pastOf = p => {
+    const past = PAST.get(p.id);
+    if (past === undefined && isAdmin() && SERVER.on){
+      PAST.set(p.id, null);
+      fetch(`api/people/${encodeURIComponent(p.id)}/past`, {credentials: 'same-origin'}).then(r => r.ok ? r.json() : { past: [] })
+        .then(j => { PAST.set(p.id, j.past || []); if (st.person === p.id) render(); }).catch(() => PAST.delete(p.id));
+    }
+    const list = past || [];
+    return html`<div class="fb-person fb-past"><span class="muted">No devices now.${list.length ? ' Last:' : ''}</span>${list.filter(x => byId(x.id)).map(x => html`<button type="button" class="link" data-open="${x.id}">${byId(x.id).name}</button><span class="muted">${x.back ? 'taken back' : 'handed out'} ${String(x.t).slice(0, 10)}</span>`)}</div>`;
+  };
   /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
+  if (person && mine.length) PAST.delete(person.id);
   const who = !list || !person ? '' : html`<div class="fb-person"><b>${person.name}</b>${person.active === false ? html` <span class="chip warn">left</span>` : ''}<span class="muted">${[person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · ')}</span>
-    <span class="grow"></span>${SERVER.on && mine.length ? html`<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${person.name} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && isAdmin() ? html`<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>` : ''}${isAdmin() ? html`<button type="button" data-pact="give" title="Give them devices from the stock">Hand out a device…</button>` : ''}${isAdmin() && mine.length ? html`<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
+    <span class="grow"></span>${SERVER.on && mine.length ? html`<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${person.name} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && isAdmin() ? html`<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>` : ''}${isAdmin() ? html`<button type="button" data-pact="give" title="Give them devices from the stock">Hand out a device…</button>` : ''}${isAdmin() && mine.length ? html`<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>${!mine.length ? pastOf(person) : ''}`;
   /* Values set by hand in one field: given back to the sources, which write them again at their next sync. */
   const hf = list && st.handField && isAdmin() ? html`<div class="fb-person fb-qfix"><b>Set by hand: ${SYNC_FIELD_LABEL[st.handField] || st.handField}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
   const qf = st.tab === 'table' && st.quality !== 'locnew' && qfix() && QUALITY_FIX[st.quality] && QUALITY[st.quality];

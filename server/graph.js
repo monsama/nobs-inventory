@@ -308,7 +308,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
     if (u && !taken.has(u.id)) {
       /* Switched off by Entra before (marked, or from before the mark: inactive while Entra said disabled). */
       const entraOff = !!p.entraOff || (p.active === false && !!p.entra && p.entra.enabled === false);
-      taken.add(u.id); p.entra = ref(u); counts.inEntra++;
+      taken.add(u.id); p.entra = freshen(p.entra, ref(u)); counts.inEntra++;
       /* Title, phones, office, manager and e-mail: Entra's, unless the directory gave them (it is where Entra got them). */
       if (!p.profile || p.profile.from === 'entra') { const pr = profileOfEntra(u); if (pr) p.profile = pr; else delete p.profile; }
       const name = clean(u.displayName).slice(0, 120), dept = clean(u.department).slice(0, 120);
@@ -359,6 +359,14 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
   return counts;
 }
 
+/* A record read again with nothing new but the time it was read keeps the one saved, the same day: a sync that finds
+   nothing changed does not write every device and person again. Read shows the first read of the day then. */
+const sameDay = (a, b) => String(a || '').slice(0, 10) === String(b || '').slice(0, 10);
+export function freshen(old, next) {
+  if (!old || typeof old !== 'object' || !sameDay(old.seen, next.seen)) return next;
+  const strip = x => JSON.stringify({ ...x, seen: undefined });
+  return strip(old) === strip(next) ? old : next;
+}
 /* What Graph keeps on a device: how it is joined and managed, its compliance, encryption, primary user and when it was
    last seen, as Graph reports them. Shown on the device; never edited there. */
 /* aadId is Entra's device ID (the one on the device: dsregcmd /status), entraId the object ID of its record in Entra,
@@ -447,8 +455,7 @@ export function applyGraph(s, records, now = new Date()) {
     /* Graph keeps a device it added up to date, until Lansweeper takes it over; then Graph only fills gaps, like everywhere. */
     const owns = !!before.added && !o.feed;
     if (r.secureBootKeep && o.graph && o.graph.secureBoot) { r.secureBoot = o.graph.secureBoot; if (o.graph.secureBootAt) r.secureBootAt = o.graph.secureBootAt; }
-    o.graph = graphOf(r, at, owns);
-    if (list.length > 1) o.graph.others = othersOf(list, r);
+    { const g = graphOf(r, at, owns); if (list.length > 1) g.others = othersOf(list, r); o.graph = freshen(o.graph, g); }
     /* What Intune says of each field, as of its last check-in, beside the field (o.vals), to pick from on the page. */
     for (const k of Object.keys(FILL)) noteValue(o, k, 'graph', r[k], r.lastCheckIn || r.lastSync || at);
     /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
@@ -575,7 +582,7 @@ export function applyAutopilot(s, list, now = new Date()) {
     const info = Object.fromEntries(Object.entries({ groupTag: clean(a.groupTag).slice(0, 60), order: clean(a.purchaseOrderIdentifier).slice(0, 60),
       state: clean(a.enrollmentState).slice(0, 40), lastContact: clean(a.lastContactedDateTime).slice(0, 40) }).filter(([, v]) => v));
     const o = bySerial.get(low(serial));
-    if (o) { o.autopilot = { ...info, seen: at }; hit.add(o); counts.autopilot++; continue; }
+    if (o) { o.autopilot = freshen(o.autopilot, { ...info, seen: at }); hit.add(o); counts.autopilot++; continue; }
     do { s.codeN = (s.codeN || 0) + 1; } while (codes.has('INV-' + String(s.codeN).padStart(4, '0')));
     do { s.seq = (s.seq || 100) + 1; } while (ids.has('o' + s.seq));
     const code = 'INV-' + String(s.codeN).padStart(4, '0'), id = 'o' + s.seq;
@@ -617,7 +624,7 @@ export function applyDefender(s, machines, now = new Date()) {
     if (o.status === 'retired') continue;
     const name = low(o.name), short = name.split('.')[0];
     const m = (o.graph && o.graph.aadId && byAad.get(low(o.graph.aadId))) || (name && !(short !== name && names.has(short) && !o.notTwin) && (byName.get(name) || byName.get(short)));
-    if (m) { o.defender = defenderOf(m, at); n++; } else delete o.defender;
+    if (m) { o.defender = freshen(o.defender, defenderOf(m, at)); n++; } else delete o.defender;
   }
   return n;
 }

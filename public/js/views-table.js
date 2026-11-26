@@ -33,12 +33,14 @@ export const TABLE_COLS = [
   /* How many virtual machines run on a host (not retired ones). */
   {k:'vms', w:80, label:'VMs', cell: o => { const n = o.type === 'server' && kindOf(o) !== 'vm' ? vmsOn(o).length : 0; return String(html`<td class="num">${n || ''}</td>`); }},
   {k:'model', w:210, label:'Model', cell: o => String(html`<td>${o.model}</td>`)},
+  /* Where it is, who has it and its status next to the model: in view without scrolling sideways. */
+  {k:'loc', w:190, label:'Location', cell: o => String(html`<td>${o.loc}</td>`)},
+  {k:'user', w:160, label:'User', cell: o => String(o.user || !(registeredOnly(o) && o.graph && !o.graph.gone && (o.graph.ownerName || o.graph.owner)) ? html`<td>${o.user || ''}</td>` : html`<td class="muted" title="Owner as Intune names them: a personal device, only registered in Entra">${o.graph.ownerName || o.graph.owner}</td>`)},
+  {k:'status', w:110, label:'Status', cell: o => String(html`<td>${STATUS[o.status].label}</td>`)},
   {k:'ip', w:130, label:'IP', cell: o => String(html`<td class="n">${o.ip || ''}</td>`)},
   {k:'mac', w:150, label:'MAC', cell: o => String(html`<td class="n">${o.mac || ''}</td>`)},
   {k:'serial', w:160, label:'Serial', cell: o => String(html`<td class="n">${o.serial}</td>`)},
-  {k:'loc', w:190, label:'Location', cell: o => String(html`<td>${o.loc}</td>`)},
   {k:'rack', w:130, label:'Rack', cell: o => String(html`<td class="n">${o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : ''}</td>`)},
-  {k:'user', w:160, label:'User', cell: o => String(o.user || !(registeredOnly(o) && o.graph && !o.graph.gone && (o.graph.ownerName || o.graph.owner)) ? html`<td>${o.user || ''}</td>` : html`<td class="muted" title="Owner as Intune names them: a personal device, only registered in Entra">${o.graph.ownerName || o.graph.owner}</td>`)},
   {k:'warranty', w:130, label:'Warranty ends', cell: o => String(html`<td>${o.warranty ? html`<span class="wty ${warrantyState(o)}">${dayText(o.warranty)}</span>` : ''}</td>`)},
   /* Replacement planning: when it was bought, the year it is due (and why), and what replacing it costs. */
   {k:'purchased', w:130, label:'Purchased', cell: o => String(html`<td>${o.purchased ? dayText(o.purchased) : ''}</td>`)},
@@ -59,7 +61,6 @@ export const TABLE_COLS = [
     return String(html`<td class="n">${t ? html`${t.name}${up.port != null ? html` · ${portLabel(t, up.port)}` : ''}` : ''}</td>`); }},
   {k:'urls', w:200, label:'Links', cell: o => String(html`<td>${(o.urls || []).map((l, i) => html`${i ? ' · ' : ''}<a class="lnk" href="${linkHref(l.url)}" target="_blank" rel="noopener noreferrer" title="${l.url}">${l.label || linkKind(l.url)}</a>`)}</td>`)},
   {k:'resp', w:200, label:'Responsible', cell: o => String(html`<td>${respText(o)}</td>`)},
-  {k:'status', w:110, label:'Status', cell: o => String(html`<td>${STATUS[o.status].label}</td>`)},
   /* The date first, so the column sorts by it. */
   {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return String(html`<td>${s ? html`<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${s.at} by ${s.src}">${dayText(s.day)}</span> <span class="muted">· ${s.src}</span>` : ''}</td>`); }},
   /* The sources that no longer list it, or every one it was in. */

@@ -638,6 +638,10 @@ export const intuneOwnerOf = o => {
   if (!g || g.gone || !g.owner) return null;
   return PEOPLE_LIST.find(p => p.active !== false && isOwner(p, g)) || null;
 };
+/* Checks that are a tip, not a gap: listed in Data quality, but left out of its score (a responsible is optional). */
+export const QUALITY_TIPS = ['noresp'];
+/* A device Data quality counts as not complete: a check that is no tip finds something. */
+export const qualityGap = (/** @type {any} */ o) => Object.entries(QUALITY).some(([k, q]) => !QUALITY_TIPS.includes(k) && q[2](o));
 /** @type {Record<string, [string, string, (o: any) => boolean]>} */
 export const QUALITY = {
   /* Devices only registered in Entra (most often personal) are no company assets: left out of the asset checks. */
