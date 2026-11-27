@@ -8,6 +8,7 @@ import { openObj } from './02-views.js';
 import { HOST_KINDS, NET_GEAR, kindProblem, linkKind, relationProblem } from './relations.js';
 import { html, rawHtml } from './html.js';
 import { anyOutlets } from './24-patch.js';
+import { intoStock } from './27-handout.js';
 import { findOutlet, outletLabel } from './cabling.js';
 import { locOptions } from './loc-pick.js';
 /* The New device and Link device dialogs: type, name, place, what it plugs into (a switch port, a panel port or a
@@ -74,6 +75,7 @@ export function newObjModal(pre={}){
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
+      ${VLANS.length ? html`<label for="nVlan">VLAN</label><select id="nVlan"><option value="">None</option>${VLANS.map(v => html`<option value="${v.vid}">${vlanLabel(v.vid)}</option>`)}</select>` : ''}
       ${outletField('nOutlet')}
     </div></details><p class="note">The device gets its own code (INV-…). If a data source (Lansweeper, AD, Intune) later finds the same serial number, it updates this device instead of adding a second one.</p></div>
     <div class="mf"><button id="nCancel">Cancel</button><button id="nOk" class="primary">Create</button></div>`, 'sm');
@@ -83,7 +85,9 @@ export function newObjModal(pre={}){
   /* Opened on a device's page: a device of its kind (a notebook beside a notebook), unless others plug into it
      (a switch, a panel, a rack), where the new one is most likely what goes in. */
   else if (!c && ctx && TYPES[ctx.type] && !hasPorts(ctx) && !['patch', 'rack', 'server'].includes(ctx.type)) $('#nType').value = ctx.type;
-  const loc = pre.loc || (!c && ctx && ctx.loc) || '';
+  /* From a switch port: where the switch is (the device is plugged in there). */
+  const swDev = pre.sw ? byId(pre.sw) : null;
+  const loc = pre.loc || (swDev && swDev.loc) || (!c && ctx && ctx.loc) || '';
   if (loc && LOCS.includes(loc)) $('#nLoc').value = loc;
   /* The form follows the type: its examples, how it is connected, and a rack's height. */
   const show = (id, on) => { const el = $('#' + id); el.hidden = !on; if (el.closest('.combo')) el.closest('.combo').hidden = !on; $(`label[for="${id}"]`).hidden = !on; if (!on && id === 'nPort') portNote('nPort', ''); };
@@ -92,7 +96,7 @@ export function newObjModal(pre={}){
     $('#nName').placeholder = ex[0] ? 'e.g. ' + ex[0] : 'A name';
     $('#nModel').placeholder = ex[1] ? 'e.g. ' + ex[1] : 'Model';
     show('nUnits', type === 'rack');
-    show('nUp', !!link); show('nPort', !!(link && link.port));
+    show('nUp', !!link); show('nPort', !!(link && link.port)); if ($('#nVlan')) show('nVlan', !!(link && link.port));
     if ($('#nOutlet')) show('nOutlet', !!(link && link.kind === 'connected'));
     if (link){
       $('label[for="nUp"]').textContent = link.label;
@@ -113,7 +117,8 @@ export function newObjModal(pre={}){
   /* The status follows the user until it is chosen here: a computer or phone nobody has yet is in stock, one given to
      somebody is in use; other devices are in use. */
   let statusTouched = false;
-  const fitStatus = () => { if (!statusTouched) $('#nStatus').value = PERSONAL.includes($('#nType').value) && !$('#nUser').value ? 'stock' : 'active'; };
+  /* Plugged into a port it is in use; else a personal device with nobody is in stock. */
+  const fitStatus = () => { if (!statusTouched) $('#nStatus').value = !pre.sw && PERSONAL.includes($('#nType').value) && !$('#nUser').value ? 'stock' : 'active'; };
   $('#nStatus').onchange = () => { statusTouched = true; };
   $('#nUser').onchange = fitStatus;
   if (c && c.status && c.status !== 'retired'){ $('#nStatus').value = c.status; statusTouched = true; }
@@ -168,7 +173,7 @@ export function newObjModal(pre={}){
       if (p) releaseRetiredPort(t, p);
       const link = LINK_OF(picked) || {kind: 'connected', port: true};
       /* Network gear put on network gear is its uplink. */
-      rels.push({id:'r'+rid(), from:o.id, to:up, kind: link.kind === 'connected' ? linkKind(o, t) : link.kind, port: link.port ? p || null : null, vlan:null}); }
+      rels.push({id:'r'+rid(), from:o.id, to:up, kind: link.kind === 'connected' ? linkKind(o, t) : link.kind, port: link.port ? p || null : null, vlan: link.port && $('#nVlan') && $('#nVlan').value !== '' ? Number($('#nVlan').value) : null}); }
     if (c){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && (o[k] === undefined || ['ports','sfp','pfx'].includes(k))) o[k] = c[k]; });
       { const sw = c.software || SW.map.get(c.id); if (sw) o.software = sw.map(x => ({...x})); }
@@ -197,6 +202,8 @@ export function newObjModal(pre={}){
 const linkOf = o => LINK_OF(o.type === 'server' && o.kind === 'vm' ? 'vm' : o.type);
 /* Link object: connect an object that already exists. How it is linked follows its type: a monitor is attached to a
    computer, a virtual machine runs on a server, anything else is plugged into a port. Its details are not changed. */
+/* The store room of a device's site (Settings → Locations), or ''. */
+const storeRoomOf = o => { const r = (st.stockRooms || {})[String(o.loc || '').split(' / ')[0]]; return r && LOCS.includes(r) ? r : ''; };
 export function linkObjModal(pre = {}){
   /* From a free port (pre.to, pre.port): only what plugs into a port, and devices not plugged in anywhere yet first. */
   const into = pre.to ? byId(pre.to) : null;
@@ -212,7 +219,8 @@ export function linkObjModal(pre = {}){
      its room. Find narrows the list by name, type, room or user. */
   const site = l => String(l || '').split(' / ')[0];
   /* Phones and tablets are seldom on a switch port: last. */
-  const near = o => !into ? 0 : (['mobile', 'ios', 'android'].includes(o.type) ? 8 : 0) + (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
+  /* In stock of the switch's site before devices in use: a port is most often filled from the store room. */
+  const near = o => !into ? 0 : (['mobile', 'ios', 'android'].includes(o.type) ? 16 : 0) + (plugOf(o) ? 8 : 0) + (o.loc && site(o.loc) === site(into.loc) ? 0 : 4) + (o.status === 'stock' ? 0 : 2) + (o.loc && o.loc === into.loc ? 0 : 1);
   /* Network gear and servers keep their other cables: one already on this switch is moved from its port there instead. */
   const onInto = o => into && (NET_GEAR.includes(o.type) || o.type === 'server') && rels.some(r => r.from === o.id && r.to === into.id);
   /* Nor the device this one is itself plugged into (its uplink): that would be a loop. */
@@ -227,7 +235,7 @@ export function linkObjModal(pre = {}){
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
       ${atPort && VLANS.length ? html`<label for="lkVlan">VLAN</label><select id="lkVlan"><option value="">None</option>${VLANS.map(v => html`<option value="${v.vid}" ${swap && swap.vlan === v.vid ? 'selected' : ''}>${vlanLabel(v.vid)}</option>`)}</select>` : ''}
-    </div><p class="note" id="lkNote">${swapped ? `${swapped.name} is unplugged and stays in the inventory; the one picked takes its port and VLAN.` : 'Only the link is added; the device\'s details stay as they are.'}</p><p class="fieldnote warn" id="lkWarn" hidden></p></div>
+    </div><p class="note" id="lkNote">${swapped ? `${swapped.name} is unplugged and stays in the inventory; the one picked takes its port and VLAN.` : 'Only the link is added; the device\'s details stay as they are.'}</p><p class="fieldnote warn" id="lkWarn" hidden></p>${swapped ? html`<label class="pchk"><input type="checkbox" id="lkStock"> Put ${swapped.name} in stock: nobody has it${storeRoomOf(swapped) ? `, in ${storeRoomOf(swapped)}` : ''}</label>` : ''}</div>
     <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">${swapped ? 'Replace' : atPort ? 'Plug in' : 'Link'}</button></div>`, 'sm');
   /* Opened on a device's page: that device is the one to link, or, when it cannot be linked itself (a switch), the one to
      link to. */
@@ -300,6 +308,9 @@ export function linkObjModal(pre = {}){
     const vEl = /** @type {HTMLSelectElement | null} */ ($('#lkVlan')), vPick = vEl && vEl.value !== '' ? Number(vEl.value) : null;
     const made = {id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: vEl ? vPick : took ? swap.vlan ?? null : null};
     rels.push(made);
+    /* The device replaced, put in stock when asked: nobody has it, in its site's store room. */
+    const toStock = took && /** @type {HTMLInputElement | null} */ ($('#lkStock'))?.checked;
+    if (toStock){ const room = storeRoomOf(swapped), moved = intoStock(swapped, room); hist(swapped, now(), `Taken back into stock${moved ? ', to ' + room : ''}: replaced on ${t.name}, by ${who()}`); }
     const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into', uplink: 'Uplink to'}[kind];
     const from = leave.length ? byId(leave[0].to) : null;
     hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''}${from ? ' (before: ' + from.name + ')' : ''} by ${who()}`);

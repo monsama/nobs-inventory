@@ -60,7 +60,8 @@ export function renderOverview(){
   const live = objs.filter(o => o.status !== 'retired');
   const inUse = objs.filter(o => o.status === 'active');
   /* The same lists as the bell and the weekly e-mail (public/js/notices.js). */
-  const att = attentionLists({ objs: [...objs, ...REVIEW], contracts: COSTS.contracts });
+  const att = attentionLists({ objs: [...objs, ...REVIEW], contracts: COSTS.contracts, licences: COSTS.licences });
+  const ctEnded = att.ctEnded.map(x => x.c), licSoon = att.licences.filter(x => x.days >= 0).map(x => x.l), licEnded = att.licences.filter(x => x.days < 0).map(x => x.l);
   const wEnded = att.wEnded.length, wSoon = att.wSoon.length;
   const over = licencesOver();
   /* Contracts whose notice is due soon or has passed: the bell's list, so both count the same. */
@@ -128,6 +129,9 @@ export function renderOverview(){
     [ctLate.length, 'bad', 'Contract notice date passed', few(ctLate), 'data-ovtab="contracts" data-ovdue="1"'],
     [ctSoon.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${few(ctSoon)}`, 'data-ovtab="contracts" data-ovdue="1"'],
     /* A contract that does not renew has no notice to give: it ends, which is worth knowing as such. */
+    [ctEnded.length, 'bad', 'Contract ended', `in the last 30 days: ${few(ctEnded)}`, 'data-ovtab="contracts"'],
+    [licEnded.length, 'bad', 'Licence ended', `in the last 30 days: ${licEnded.slice(0, 3).map(l => l.name).join(', ')}${licEnded.length > 3 ? '…' : ''}`, 'data-ovtab="sw"'],
+    [licSoon.length, 'warn', 'Licence ending', `within ${NOTICE_SOON_DAYS} days: ${licSoon.slice(0, 3).map(l => l.name).join(', ')}${licSoon.length > 3 ? '…' : ''}`, 'data-ovtab="sw"'],
     [ctEnds.length, 'warn', 'Contract ending', `within ${NOTICE_SOON_DAYS} days: ${few(ctEnds)}`, 'data-ovtab="contracts" data-ovdue="1"'],
     [over.length, 'bad', 'Licences over-used', over.slice(0, 3).map(l => l.name).join(', ') + (over.length > 3 ? '…' : ''), 'data-ovtab="sw"'],
     [missing.ids.length, missing.gone ? 'bad' : 'warn', 'Where are they?', missing.parts.join(' · '), 'data-ovmissing="1"'],
@@ -227,7 +231,7 @@ export function renderOverview(){
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
   v.querySelectorAll('[data-ovcert]').forEach(b => b.onclick = () => { st.setTab = 'maintenance'; openSettings(); });
   /* A contract line opens Contracts with only those that need someone now (Only due). */
-  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.q = ''; st.tab = b.dataset.ovtab; if (b.dataset.ovdue) st.ctDue = true; view(); });
+  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.q = ''; st.tab = b.dataset.ovtab; st.ctDue = !!b.dataset.ovdue; view(); });
 }
 
 /* Replacement planning (public/js/lifecycle.js): the devices due each year from now, with what replacing them costs. */

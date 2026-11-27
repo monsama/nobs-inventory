@@ -1,4 +1,5 @@
 import { pad2, stamp, stampTime } from './dates.js';
+import { isPlaceholderSerial } from './serials.js';
 import { goneAllWith, sourcesOfWith } from './gone.js';
 import { html } from './html.js';
 import { graphSeen, isIntune, otherManager } from './intune.js';
@@ -642,12 +643,16 @@ export const intuneOwnerOf = o => {
 export const QUALITY_TIPS = ['noresp'];
 /* A device Data quality counts as not complete: a check that is no tip finds something. */
 export const qualityGap = (/** @type {any} */ o) => Object.entries(QUALITY).some(([k, q]) => !QUALITY_TIPS.includes(k) && q[2](o));
+/* How many devices not retired have each serial number (placeholders such as "To be filled by O.E.M." left out). */
+const serialCount = oncePerDraw(() => { const m = new Map(); for (const o of objs) if (o.status !== 'retired' && o.serial && !isPlaceholderSerial(o.serial)) { const k = String(o.serial).trim().toLowerCase(); m.set(k, (m.get(k) || 0) + 1); } return m; });
 /** @type {Record<string, [string, string, (o: any) => boolean]>} */
 export const QUALITY = {
   /* Devices only registered in Entra (most often personal) are no company assets: left out of the asset checks. */
   noloc: ['No location', 'Where it is is not recorded', o => !o.loc && !registeredOnly(o)],
   noresp: ['No responsible', 'No internal responsible, though there are internal contacts', o => !o.respIn && !registeredOnly(o) && CONTACTS.list.some(c => c.kind === 'internal')],
   noserial: ['No serial number', 'A physical device without its serial number', o => !o.serial && o.kind !== 'vm' && !['vm', 'rack', 'patch'].includes(o.type) && !registeredOnly(o)],
+  inusestore: ['In use, but in a store room', 'Handed out or in use, yet its room is a store room (Settings → Locations): set where it is now', o => o.status === 'active' && !!o.loc && Object.values(st.stockRooms || {}).includes(o.loc)],
+  dupserial: ['Serial number used twice', 'Another device not retired has the same serial number: one of them is a duplicate, or a serial was typed wrong', o => o.status !== 'retired' && !!o.serial && (serialCount().get(String(o.serial).trim().toLowerCase()) || 0) > 1],
   nomodel: ['No model', 'A physical device without its model', o => !String(o.model || '').trim() && o.kind !== 'vm' && !['vm', 'rack', 'patch'].includes(o.type) && !registeredOnly(o)],
   nouser: ['No user', 'A computer or phone in use that nobody is assigned to', o => PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk && !registeredOnly(o)],
   unseen: ['Not seen for 90 days', 'No source has seen it for over 90 days: is it still there?', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],

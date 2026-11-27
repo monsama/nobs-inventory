@@ -175,6 +175,8 @@ let QFIX = null;
 export const qfix = () => QFIX;
 /* Draws the Table tab: the toolbar (columns, Export CSV, and for admins the imports), then the filtered rows with the
    column filters and sort applied to the data first. The first SHOW_FIRST rows are drawn, the rest after Show all. */
+/* The row ticked last, where a Shift + click range starts. */
+let lastSel = null;
 export function renderTable(){
   let list = filtered();
   const colOpen = !!$('#colMenu .menubox:popover-open');
@@ -283,7 +285,14 @@ export function renderTable(){
   const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = viewSig(); renderTable(); };
   bindHiddenHits();
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
-  $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
+  /* Shift + click ticks (or unticks) every row from the one ticked last to this one, in the order shown, as in the List. */
+  const order = rowsOf.map(o => o.id);
+  $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onclick = e => {
+    const id = c.dataset.sel, from = lastSel ? order.indexOf(lastSel) : -1, to = order.indexOf(id);
+    const ids = e.shiftKey && from >= 0 && to >= 0 ? order.slice(Math.min(from, to), Math.max(from, to) + 1) : [id];
+    for (const x of ids) c.checked ? st.bulk.add(x) : st.bulk.delete(x);
+    lastSel = id; renderTable();
+  }; });
   const all = $('#selAll'); selBox(all);
   /* Only the rows shown: a row hidden by a column filter is not selected. */
   /* Every device the filters leave, also those past the first 500 rows not drawn. */

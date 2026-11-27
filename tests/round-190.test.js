@@ -14,7 +14,7 @@ test('a one-word name merged away is no alias; a full name and a Lansweeper logi
   assert.deepEqual(one.users[0].aliases || [], []);
   const two = { objs: [], history: {}, users: [{ id: 'k', name: 'Max Muster', login: 'mmuster', source: 'ldap', role: 'none' }, { id: 'd', name: 'Max M.', source: 'manual', role: 'none' }, { id: 'l', name: 'mmax', source: 'lansweeper', role: 'none' }] };
   mergePeople(two, 'k', 'd'); mergePeople(two, 'k', 'l');
-  assert.deepEqual(two.users[0].aliases, ['Max M.', 'mmax']);
+  assert.deepEqual(two.users[0].aliases, ['mmax', 'Max M.'], 'logins first');
 });
 
 test('the push: a login finds nobody by name; a full name finds the person, whatever their login', () => {

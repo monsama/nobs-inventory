@@ -77,13 +77,16 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
     const a = scope(keep), b = scope(drop), both = a.sites && b.sites ? a.sites.filter(x => b.sites.includes(x)) : null;
     setScope(both && !both.length ? { sites: null, own: true } : { sites: both || a.sites || b.sites, own: a.own || b.own });
   }
-  if (drop.active !== false && keep.active === false && keep.source !== 'ldap') { keep.active = true; delete keep.leftAt; delete keep.leftBy; }
+  /* Switched back on only when Entra had switched the kept record off: one an admin switched off (or a restore brought
+     back off) stays off, whatever the other record was. */
+  if (drop.active !== false && keep.active === false && keep.source !== 'ldap' && keep.entraOff === true) { keep.active = true; delete keep.entraOff; delete keep.leftAt; delete keep.leftBy; }
   const aliases = new Set(keep.aliases || []);
   /* The other record's login and aliases, and its name when it is a full name (with a space) or a login Lansweeper used
      as the name: a one-word name such as "Max" would read as a login, and find the person by someone else's account. */
   const dropName = /\s/.test(String(drop.name || '').trim()) || lsLoginName(drop) ? drop.name : '';
   for (const v of [drop.login, dropName, ...(drop.aliases || [])]) if (v && low(v) !== low(keep.login) && low(v) !== low(keep.name)) aliases.add(String(v).slice(0, 120));
-  if (aliases.size) keep.aliases = [...aliases].slice(0, 20);
+  /* At most 20: logins first (they find the person; a name only suggests), so a merged login is never the one cut. */
+  if (aliases.size) keep.aliases = [...aliases].sort((x, y) => +/\s/.test(x) - +/\s/.test(y)).slice(0, 20);
   s.users = s.users.filter(u => u !== drop);
   return { moved };
 }

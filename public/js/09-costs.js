@@ -170,8 +170,10 @@ export function contractModal(c, preset = []){
     /* The matches can all be taken at once; the count of devices covered stays in view. */
     const bar = q && more.length ? html`<div class="ct-devbar"><span class="muted">${more.length === 60 ? 'First 60' : more.length} found · ${picked.size} covered</span><button type="button" id="ctAddAll">Add ${more.length === 1 ? 'it' : `all ${more.length}`}</button></div>` : '';
     const shown = [...mine, ...more];
-    const none = q && !more.length ? html`<p class="note">No device matches “${q}”.</p>` : '';
-    $('#ctDevs').innerHTML = bar || shown.length ? html`${none}${bar}${shown.map(o => html`<label class="pchk">${rawHtml(tico(o.type, 'tico sm'))}<input type="checkbox" data-ctdev="${o.id}" ${picked.has(o.id) ? 'checked' : ''}> <b>${o.name}</b> <span class="muted">${[o.code, o.model].filter(Boolean).join(' · ')}</span></label>`)}`
+    /* Said only when no device at all matches, covered ones included; with the words as typed. */
+    const typed = $('#ctDevQ').value.trim(), hitMine = q && mine.some(o => words.every(w => [o.name, o.code, o.serial, o.model, o.user, o.loc].filter(Boolean).join(' ').toLowerCase().includes(w) || fold([o.name, o.code, o.serial, o.model, o.user, o.loc].filter(Boolean).join(' ')).includes(fold(w))));
+    const none = q && !more.length ? html`<p class="note">${hitMine ? `No other device matches “${typed}”.` : `No device matches “${typed}”.`}</p>` : '';
+    $('#ctDevs').innerHTML = bar || shown.length ? html`${none}${bar}${shown.map(o => html`<label class="pchk">${rawHtml(tico(o.type, 'tico sm'))}<input type="checkbox" data-ctdev="${o.id}" ${picked.has(o.id) ? 'checked' : ''}> <b>${o.name}</b>${o.status === 'retired' ? html` <span class="chip warn">retired${c && c.kind === 'lease' ? ': return it' : ''}</span>` : ''} <span class="muted">${[o.code, o.model].filter(Boolean).join(' · ')}</span></label>`)}`
       : html`<p class="note">${q ? 'No device matches.' : 'No devices yet. Find them by name, code, serial number, model or user.'}</p>`;
     $('#ctDevs').querySelectorAll('[data-ctdev]').forEach(x => x.onchange = () => { if (x.checked) picked.add(x.dataset.ctdev); else picked.delete(x.dataset.ctdev); });
     const all = $('#ctAddAll'); if (all) all.onclick = () => { more.forEach(o => picked.add(o.id)); $('#ctDevQ').value = ''; devs(); $('#ctDevQ').focus(); };
@@ -290,6 +292,9 @@ function deleteLicence(l){
     toastUndo(`Licence ${l.name} deleted`, () => { if (!COSTS.licences.some(x => x.id === l.id)) COSTS.licences.splice(Math.min(i, COSTS.licences.length), 0, l); queueServerSave(); render(); }, { anyEpoch: true });
   }
 }
+/* A licence's end as the contracts show theirs: amber within NOTICE_SOON_DAYS, red once ended, else the date. */
+const licEnd = end => { const d = Math.round((Date.parse(end + 'T00:00:00Z') - Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')) / 864e5);
+  return d < 0 ? html`<span class="chip bad">Ended ${dayText(end)}</span>` : d <= NOTICE_SOON_DAYS ? html`<span class="chip warn">Ends ${dayText(end)}</span>` : dayText(end); };
 /* The Licences box over the Software tab, as HTML: each licence with its seats used, a bar, its cost and end. New
    licence is for admins. */
 /* A licence's use: counted here when every device's software is read, else as the server counted it (api/licence-use). */
@@ -301,7 +306,7 @@ export function licencesPanel(){
     const u = useOf(l), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
     return html`<tr${lsel.has(l.id) ? html` class="picked"` : ''}>${admin ? html`<td class="selcol"><input type="checkbox" data-licsel="${l.id}" aria-label="${`Select ${l.name}`}" ${lsel.has(l.id) ? 'checked' : ''}></td>` : ''}<td><button class="link" data-lic="${l.id}"><b>${l.name}</b></button></td>
       <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
-      <td class="num">${l.cost > 0 ? html`${rawHtml(money(l.cost))} <span class="muted">${PERIODS[l.per || 'year']}</span>` : ''}</td><td>${l.end ? dayText(l.end) : ''}</td><td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-lic="${l.id}"`), l.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-licdel="${l.id}"`), l.name)) : ''}</span></td></tr>`;
+      <td class="num">${l.cost > 0 ? html`${rawHtml(money(l.cost))} <span class="muted">${PERIODS[l.per || 'year']}</span>` : ''}</td><td>${l.end ? licEnd(l.end) : ''}</td><td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-lic="${l.id}"`), l.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-licdel="${l.id}"`), l.name)) : ''}</span></td></tr>`;
   });
   const over = licencesOver().length;
   return String(html`<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length} ${COSTS.licences.length === 1 ? 'licence' : 'licences'}${over ? `, ${over} over-used` : ''}</span></div>
