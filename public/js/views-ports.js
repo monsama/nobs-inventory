@@ -125,7 +125,8 @@ export function renderPorts(){
   const portInfo = x => {
     const d = x.d, note = (sw.portNotes || {})[st.portNo];
     const rows = [['Type', TYPES[d.type] ? TYPES[d.type].label : d.type], ['Model', d.model], ['IP address', d.ip], ['MAC address', d.mac], ['User', d.user],
-      ['Description', d.purpose], ['Location', d.loc], ['Link', upish(x.r) ? 'Uplink / trunk' : 'Device'], ['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (upish(x.r) ? 'Trunk' : '')],
+      ['Description', d.purpose], ['Location', d.loc], ['Link', upish(x.r) ? 'Uplink / trunk' : 'Device'], /* An admin changes the VLAN in the list under the details: said once there, not here as well. */
+      ...(isAdmin() && VLANS.length && !upish(x.r) && !x.via && typeof x.p === 'number' ? [] : [['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (upish(x.r) ? 'Trunk' : '')]]),
       ['Port description', note || ''], ['Status', d.status !== 'active' && STATUS[d.status] ? STATUS[d.status].label : '']].filter(([, v]) => v);
     return html`<dl class="kv portinfo">${rows.map(([k, v]) => html`<dt>${k}</dt><dd${/IP|MAC/.test(k) ? html` class="mono"` : ''}>${v}</dd>`)}${seenChip(d) ? html`<dt>Last seen</dt><dd>${rawHtml(seenChip(d))}</dd>` : ''}</dl>`;
   };

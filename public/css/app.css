@@ -2999,3 +2999,12 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 /* A notice's text wraps inside its row and ends before the × (a button keeps its text on one line otherwise). */
 .bell-go{white-space:normal}
 .bell-t{flex:1}
+/* The Table's Type column: the type's icon, small, on the line of the text. */
+.tico.xs{width:16px;height:16px;border-radius:4px}.tico.xs svg{width:10px;height:10px}
+.tdot .tico.xs{margin-right:6px;vertical-align:middle}
+/* Arrows over the ends of the views bar while it scrolls (phone, narrow windows). */
+#content{position:relative}
+.tabs-more{position:absolute;top:0;height:var(--bar);width:28px;min-height:0!important;min-width:0!important;padding:0;border:0;border-radius:0;z-index:5;font-size:20px;line-height:1;color:var(--fg);background:var(--panel2);display:grid;place-items:center}
+.tabs-more[hidden]{display:none}
+.tabs-more.l{left:0;box-shadow:6px 0 8px -4px rgba(0,0,0,.18)}
+.tabs-more.r{right:0;box-shadow:-6px 0 8px -4px rgba(0,0,0,.18)}
