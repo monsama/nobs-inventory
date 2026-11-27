@@ -1,4 +1,4 @@
-import { pickHand, listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot, VLANS, vlanLabel } from './01-core.js';
+import { feedLinked, markHand, pickHand, listTypes, pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast, toastUndo, snapshot, restoreSnapshot, VLANS, vlanLabel } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
@@ -235,7 +235,7 @@ export function linkObjModal(pre = {}){
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
       ${atPort && VLANS.length ? html`<label for="lkVlan">VLAN</label><select id="lkVlan"><option value="">None</option>${VLANS.map(v => html`<option value="${v.vid}" ${swap && swap.vlan === v.vid ? 'selected' : ''}>${vlanLabel(v.vid)}</option>`)}</select>` : ''}
-    </div><p class="note" id="lkNote">${swapped ? `${swapped.name} is unplugged and stays in the inventory; the one picked takes its port and VLAN.` : 'Only the link is added; the device\'s details stay as they are.'}</p><p class="fieldnote warn" id="lkWarn" hidden></p>${swapped ? html`<label class="pchk"><input type="checkbox" id="lkStock"> Put ${swapped.name} in stock: nobody has it${storeRoomOf(swapped) ? `, in ${storeRoomOf(swapped)}` : ''}</label>` : ''}</div>
+    </div><p class="note" id="lkNote">${swapped ? `${swapped.name} is unplugged and stays in the inventory; the one picked takes its port, VLAN and room, in use${swapped.user ? ` (and goes to ${swapped.user} when ${swapped.name} goes to stock)` : ''}.` : 'Only the link is added; the device\'s details stay as they are.'}</p><p class="fieldnote warn" id="lkWarn" hidden></p>${swapped ? html`<label class="pchk"><input type="checkbox" id="lkStock"> Put ${swapped.name} in stock: nobody has it${storeRoomOf(swapped) ? `, in ${storeRoomOf(swapped)}` : ''}</label>` : ''}</div>
     <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">${swapped ? 'Replace' : atPort ? 'Plug in' : 'Link'}</button></div>`, 'sm');
   /* Opened on a device's page: that device is the one to link, or, when it cannot be linked itself (a switch), the one to
      link to. */
@@ -310,7 +310,16 @@ export function linkObjModal(pre = {}){
     rels.push(made);
     /* The device replaced, put in stock when asked: nobody has it, in its site's store room. */
     const toStock = took && /** @type {HTMLInputElement | null} */ ($('#lkStock'))?.checked;
+    /* The device that takes the port takes the old one's place: in use, in its room; and when the old one goes to stock,
+       its person has the new one. */
+    const had = took ? { uid: swapped.uid || null, user: swapped.user, hot: !!swapped.hotdesk, loc: swapped.loc || '' } : null;
     if (toStock){ const room = storeRoomOf(swapped), moved = intoStock(swapped, room); hist(swapped, now(), `Taken back into stock${moved ? ', to ' + room : ''}: replaced on ${t.name}, by ${who()}`); }
+    if (took && had){
+      if (e.status !== 'active'){ e.status = 'active'; delete e.stockAuto; }
+      if (had.loc && e.loc !== had.loc){ if (feedLinked(e) || (e.graph && e.graph.added)) pickHand(e, 'loc'); e.loc = had.loc; markHand(e, 'loc'); }
+      if (toStock && (had.uid || had.hot) && !e.uid && !e.hotdesk){ if (had.hot) e.hotdesk = true; else { e.uid = had.uid; e.user = had.user; } if (feedLinked(e) || (e.graph && e.graph.added)) pickHand(e, 'user'); }
+      hist(e, now(), `In place of ${swapped.name} on ${t.name} port ${pfxOf(t) + val}${had.loc ? ', in ' + had.loc : ''}${toStock && had.user ? ', for ' + had.user : ''}, by ${who()}`);
+    }
     const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into', uplink: 'Uplink to'}[kind];
     const from = leave.length ? byId(leave[0].to) : null;
     hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''}${from ? ' (before: ' + from.name + ')' : ''} by ${who()}`);

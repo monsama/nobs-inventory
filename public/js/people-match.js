@@ -69,8 +69,9 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
   const rk = ROLE[keep.role] ?? 0, rd = ROLE[drop.role] ?? 0;
   /* Where the role came from goes with it (roleBy: the group rule that gave it), so leaving the group still takes it
      away; with the same role on both, a role given by hand wins. */
-  if (rd > rk) { keep.role = drop.role; setScope(scope(drop)); if (drop.roleBy) keep.roleBy = drop.roleBy; else delete keep.roleBy; }
-  else if (rd === rk && rd > 0) {
+  /* A record switched off gives no role: it cannot sign in, and a merge must not lend it to one that can. */
+  if (rd > rk && drop.active !== false) { keep.role = drop.role; setScope(scope(drop)); if (drop.roleBy) keep.roleBy = drop.roleBy; else delete keep.roleBy; }
+  else if (rd === rk && rd > 0 && drop.active !== false) {
     if (!(keep.roleBy && drop.roleBy)) delete keep.roleBy;
     /* Both limited to sites: only those both may see; none in common leaves Own devices, the narrowest (an empty list
        would mean every site). */
@@ -113,6 +114,9 @@ export function mergeSamePeople(s, stamp = '') {
     const keep = keepOf(live);
     for (const drop of live) {
       if (drop === keep || !['lansweeper', 'entra'].includes(drop.source) || skip.has(pairKey(keep.id, drop.id))) continue;
+      /* Not when either is switched off (by an admin, or brought back off by a restore): a sync would take an off record's
+         role into a live account, or a live account into an off one. Such a pair stays under Duplicates for an admin. */
+      if (keep.active === false || drop.active === false) continue;
       const hadLogin = !!keep.login, what = { keep: keep.id, drop: drop.id, hadLogin, keepName: keep.name, dropName: drop.name, dropSource: drop.source, keepSource: keep.source };
       mergePeople(s, keep.id, drop.id, stamp); n++;
       (s[MERGED] ||= []).push(what);

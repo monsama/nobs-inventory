@@ -209,6 +209,9 @@ document.addEventListener('click', e => {
 });
 /* The filters in force, as chips over the list (Cards, Table, Relationships): what each is, and × to take it off, so a
    short list is never a mystery. Nothing is shown when nothing narrows the list. */
+/* The views bar's arrows, checked again when the window changes size (a phone turned: nothing may scroll then). */
+let tabEdges = () => {};
+addEventListener('resize', () => tabEdges());
 /* What a person last had (pastOf in the filter bar), by person id; read again once they have devices and lose them. */
 const PAST = new Map(); let PAST_FOR = null;
 export function renderFilterBar(){
@@ -522,7 +525,21 @@ export function renderTabs(){
     if (on && strip.scrollWidth > strip.clientWidth) on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
   /* On a narrow screen the bar scrolls: a fade on the side where more tabs are says so, and the tab shown is scrolled
      into view. */
-  const tb = $('#tabsbar'), edges = () => { tb.classList.toggle('more-r', tb.scrollLeft + tb.clientWidth < tb.scrollWidth - 2); tb.classList.toggle('more-l', tb.scrollLeft > 2); };
+  /* With arrows at either edge (shown only where more tabs are), so it is plain that the bar scrolls; a tap scrolls it. */
+  const tb = $('#tabsbar');
+  for (const side of ['l', 'r']) if (!document.getElementById('tabsMore' + side)) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'tabsMore' + side; b.className = 'tabs-more ' + side; b.hidden = true; b.tabIndex = -1;
+    b.setAttribute('aria-label', side === 'l' ? 'More views to the left' : 'More views to the right'); b.textContent = side === 'l' ? '‹' : '›';
+    b.onclick = () => tb.scrollBy({ left: (side === 'l' ? -1 : 1) * tb.clientWidth * 0.6, behavior: 'smooth' });
+    tb.after(b);
+  }
+  const edges = () => {
+    const r = tb.scrollLeft + tb.clientWidth < tb.scrollWidth - 2, l = tb.scrollLeft > 2;
+    tb.classList.toggle('more-r', r); tb.classList.toggle('more-l', l);
+    /** @type {[string, boolean][]} */ const arrows = [['#tabsMorel', l], ['#tabsMorer', r]];
+    for (const [id, on] of arrows){ const b = /** @type {HTMLElement} */ ($(id)); b.hidden = !on; b.style.height = tb.offsetHeight + 'px'; }
+  };
+  tabEdges = edges;
   const act = /** @type {HTMLElement|null} */ (tb.querySelector('.tab.active'));
   if (act && tb.scrollWidth > tb.clientWidth) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   edges(); tb.onscroll = edges;

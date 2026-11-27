@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { registeredOnly, typeSelLabel, sourceMark, sourcesDisagree, vmsOn, dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol, toast } from './01-core.js';
+import { registeredOnly, typeSelLabel, sourceMark, sourcesDisagree, vmsOn, dirLocOf, SRV_KIND_TEXT, kindOf, GRAPH_TYPES, joinBadges, typeText, listCount, listCountShown, MORE_DOTS, closeMoreOnPick, scopePool, SEEN_FILTERS, sourcesOf, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tico, toast } from './01-core.js';
 import { SERVER, viewSig } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -25,7 +25,7 @@ export const TABLE_COLS = [
   {k:'code', w:100, label:'Code', cell: o => String(html`<td class="code">${o.code}</td>`)},
   /* The name opens the device, from the keyboard too (Tab to it, Enter): one stop per row, not the whole row as well. */
   {k:'name', w:220, label:'Name', fixed: true, cell: o => String(html`<td class="n"><a class="link rowopen" data-open="${o.id}"><b>${o.name}</b></a>${rawHtml(markHtml(o))}</td>`)},
-  {k:'type', w:160, label:'Type', cell: o => String(html`<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${typeText(o)}</span></td>`)},
+  {k:'type', w:160, label:'Type', cell: o => String(html`<td><span class="tdot">${rawHtml(tico(o.type, 'tico xs'))}${typeText(o)}</span></td>`)},   /* the type's icon, as in the List */
   /* A server's Kind (virtual, physical, not known); empty for the other types. */
   {k:'kind', w:140, label:'Kind', cell: o => String(html`<td>${o.type === 'server' ? SRV_KIND_TEXT[kindOf(o)] : ''}</td>`)},
   /* The host a virtual machine runs on. */

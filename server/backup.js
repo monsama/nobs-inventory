@@ -1,4 +1,4 @@
-import { exactKeys } from '../public/js/people-match.js';
+import { exactKeys, loginCore } from '../public/js/people-match.js';
 import { purgeOrphanImages, imageType, cleanImage, ensureImagesTable, PHOTO_TYPES } from './device-images.js';
 import { storeBackup, collectParts } from './backup-store.js';
 import { openSheet, sealSheet } from './sheets.js';
@@ -124,10 +124,11 @@ export function restoreBackup(db, data, sheetKey = null, { photosFrom = null } =
      never with old sign-ins: an admin switches them on again, and a directory user is switched on by the next LDAP sync
      when still in the group. A login now used by another account is not taken twice. */
   const users = new Map(cur.users.map(u => [String(u.id), u]));
-  const logins = new Set(cur.users.map(u => String(u.login || '').toLowerCase()).filter(Boolean)), restored = new Set();
+  /* Logins as the sign-in compares them, without a domain: CORP\jdoe is jdoe, already here. */
+  const logins = new Set(cur.users.map(u => loginCore(u.login)).filter(Boolean)), restored = new Set();
   for (const u of b.users) {
     if (users.has(String(u.id))) continue;
-    const login = String(u.login || '').toLowerCase();
+    const login = loginCore(u.login);
     if (login && logins.has(login)) continue;
     if (login) logins.add(login);
     users.set(String(u.id), { ...u }); restored.add(String(u.id));
