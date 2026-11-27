@@ -3,7 +3,7 @@
    test or backup copy that failed. The bell in the top bar lists them (notices); the weekly e-mail is made from the same
    lists (attention). Each notice has an id and a fingerprint of what it says, so one hidden comes back once it changes.
    No DOM: the server and the tests import it. */
-import { contractStatus } from './costs.js';
+import { NOTICE_SOON_DAYS, contractStatus } from './costs.js';
 import { dateText } from './dates.js';
 import { MAINT_SOON_DAYS, dueTasks, todayDay } from './maintenance.js';
 import { scheduleOf, syncState } from './schedule.js';
@@ -29,6 +29,11 @@ export function attention(s, today = new Date(), { maintWithin = MAINT_SOON_DAYS
     wEnded: inUse.filter(o => warrantyState(o, today) === 'ended').sort(byDay),
     wSoon: inUse.filter(o => warrantyState(o, today) === 'soon').sort(byDay),
     contracts: (s.contracts || []).map(c => ({ c, st: contractStatus(c, today) })).filter(x => ['soon', 'late'].includes(x.st.state)).sort((a, b) => (a.st.days ?? 0) - (b.st.days ?? 0)),
+    /* Ended within the last 30 days: worth knowing (nothing covers its devices now), then let go. */
+    ctEnded: (s.contracts || []).map(c => ({ c, st: contractStatus(c, today) })).filter(x => x.st.state === 'ended' && (x.st.days ?? -999) >= -30),
+    /* Licences that end within NOTICE_SOON_DAYS, or ended within the last 30 days. */
+    licences: (s.licences || []).filter(l => l && l.end).map(l => ({ l, days: Math.round((Date.parse(l.end + 'T00:00:00Z') - Date.parse(today.toISOString().slice(0, 10) + 'T00:00:00Z')) / 86400000) }))
+      .filter(x => x.days >= -30 && x.days <= NOTICE_SOON_DAYS).sort((a, b) => a.days - b.days),
     maint: dueTasks(live, todayDay(today), maintWithin),
     reported: live.filter(o => o.reported && !o.reported.done).sort((a, b) => String(a.reported.at).localeCompare(String(b.reported.at))),
     review: all.filter(o => o.review && !o.review.ignored),
@@ -54,7 +59,7 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
   const inSite = o => !sites || sites.includes(String(o.loc || '').split(' / ')[0]);
   const objs = (s.objs || []).filter(inSite), seen = new Set(objs.map(o => o.id));
   const contracts = sites ? (s.contracts || []).filter(c => (c.devices || []).some(id => seen.has(id))) : s.contracts || [];
-  const a = attention({ objs, contracts }, today);
+  const a = attention({ objs, contracts, licences: sites ? [] : s.licences }, today);
   const out = [];
   const devices = (list, table) => list.length === 1 ? { device: list[0].id } : { table };
   if (a.wEnded.length) out.push({ id: 'warranty-ended', sev: 'bad', title: 'Warranty ended', text: `${plural(a.wEnded.length, 'device', 'devices')} in use: ${names(a.wEnded)}`,
@@ -67,6 +72,10 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
     go: late.length === 1 ? { device: late[0].o.id } : { overview: 'ovMaint' } });
   if (due.length) out.push({ id: 'maint-due', sev: 'warn', title: `Maintenance due within ${MAINT_SOON_DAYS} days`, text: names(due, task), fp: fingerprint(due.map(taskKey)),
     go: due.length === 1 ? { device: due[0].o.id } : { overview: 'ovMaint' } });
+  for (const { c, st } of a.ctEnded) out.push({ id: `contract-ended-${c.id}`, sev: 'bad', title: `Contract ended: ${c.name}`, text: `It ended on ${dateText(st.end)}${(c.devices || []).length ? `: ${plural(c.devices.length, 'device has', 'devices have')} no cover from it now` : ''}`,
+    fp: `ended|${st.end}`, go: { tab: 'contracts' } });
+  for (const { l, days } of a.licences) out.push({ id: `licence-${l.id}`, sev: days < 0 ? 'bad' : 'warn', title: days < 0 ? `Licence ended: ${l.name}` : `Licence ending: ${l.name}`,
+    text: `${days < 0 ? 'It ended' : 'It ends'} on ${dateText(l.end)}`, fp: `lic|${l.end}`, go: { tab: 'sw' } });
   for (const { c, st } of a.contracts) out.push({ id: `contract-${c.id}`, sev: st.state === 'late' ? 'bad' : 'warn',
     title: st.state === 'late' ? `Notice date passed: ${c.name}` : c.renew > 0 ? `Contract notice due: ${c.name}` : `Contract ending: ${c.name}`,
     text: st.state === 'late' ? `It renews on ${dateText(st.end)}` : st.noticeBy ? `Give notice by ${dateText(st.noticeBy)}` : `It ends on ${dateText(st.end)}`,
