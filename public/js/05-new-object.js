@@ -85,7 +85,9 @@ export function newObjModal(pre={}){
   /* Opened on a device's page: a device of its kind (a notebook beside a notebook), unless others plug into it
      (a switch, a panel, a rack), where the new one is most likely what goes in. */
   else if (!c && ctx && TYPES[ctx.type] && !hasPorts(ctx) && !['patch', 'rack', 'server'].includes(ctx.type)) $('#nType').value = ctx.type;
-  const loc = pre.loc || (!c && ctx && ctx.loc) || '';
+  /* From a switch port: where the switch is (the device is plugged in there). */
+  const swDev = pre.sw ? byId(pre.sw) : null;
+  const loc = pre.loc || (swDev && swDev.loc) || (!c && ctx && ctx.loc) || '';
   if (loc && LOCS.includes(loc)) $('#nLoc').value = loc;
   /* The form follows the type: its examples, how it is connected, and a rack's height. */
   const show = (id, on) => { const el = $('#' + id); el.hidden = !on; if (el.closest('.combo')) el.closest('.combo').hidden = !on; $(`label[for="${id}"]`).hidden = !on; if (!on && id === 'nPort') portNote('nPort', ''); };
@@ -115,7 +117,8 @@ export function newObjModal(pre={}){
   /* The status follows the user until it is chosen here: a computer or phone nobody has yet is in stock, one given to
      somebody is in use; other devices are in use. */
   let statusTouched = false;
-  const fitStatus = () => { if (!statusTouched) $('#nStatus').value = PERSONAL.includes($('#nType').value) && !$('#nUser').value ? 'stock' : 'active'; };
+  /* Plugged into a port it is in use; else a personal device with nobody is in stock. */
+  const fitStatus = () => { if (!statusTouched) $('#nStatus').value = !pre.sw && PERSONAL.includes($('#nType').value) && !$('#nUser').value ? 'stock' : 'active'; };
   $('#nStatus').onchange = () => { statusTouched = true; };
   $('#nUser').onchange = fitStatus;
   if (c && c.status && c.status !== 'retired'){ $('#nStatus').value = c.status; statusTouched = true; }
@@ -216,7 +219,8 @@ export function linkObjModal(pre = {}){
      its room. Find narrows the list by name, type, room or user. */
   const site = l => String(l || '').split(' / ')[0];
   /* Phones and tablets are seldom on a switch port: last. */
-  const near = o => !into ? 0 : (['mobile', 'ios', 'android'].includes(o.type) ? 8 : 0) + (plugOf(o) ? 4 : 0) + (o.loc && o.loc === into.loc ? 0 : o.loc && site(o.loc) === site(into.loc) ? 1 : 2);
+  /* In stock of the switch's site before devices in use: a port is most often filled from the store room. */
+  const near = o => !into ? 0 : (['mobile', 'ios', 'android'].includes(o.type) ? 16 : 0) + (plugOf(o) ? 8 : 0) + (o.loc && site(o.loc) === site(into.loc) ? 0 : 4) + (o.status === 'stock' ? 0 : 2) + (o.loc && o.loc === into.loc ? 0 : 1);
   /* Network gear and servers keep their other cables: one already on this switch is moved from its port there instead. */
   const onInto = o => into && (NET_GEAR.includes(o.type) || o.type === 'server') && rels.some(r => r.from === o.id && r.to === into.id);
   /* Nor the device this one is itself plugged into (its uplink): that would be a loop. */

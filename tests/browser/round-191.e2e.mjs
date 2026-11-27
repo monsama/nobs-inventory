@@ -20,7 +20,7 @@ saveState(db, { ...s0, locs: ['Zürich / IT', 'Zürich / Lager'], stockRooms: { 
   contracts: [{ id: 'c1', name: 'Old support', kind: 'support', cost: 100, per: 'year', end: day(-10), renew: 0, devices: [] }],
   licences: [{ id: 'l1', name: 'Office Suite', seats: 5, end: day(20) }],
   objs: [dev('core', 'switch', 'SW-CORE', { ports: 24 }), dev('pa', 'pc', 'PC-A', { uid: 'p1', user: 'Ana Bell' }), dev('pb', 'pc', 'PC-B'),
-    ...[1, 2, 3, 4].map(i => dev('t' + i, 'notebook', 'NB-T' + i))],
+    ...[1, 2, 3, 4].map(i => dev('t' + i, 'notebook', 'NB-T' + i)), dev('d1', 'pc', 'PC-DUP1', { serial: 'SN-SAME' }), dev('d2', 'pc', 'PC-DUP2', { serial: 'SN-SAME' })],
   rels: [{ id: 'r1', from: 'pa', to: 'core', kind: 'connected', port: 5, vlan: 20 }] });
 const stored = check => storedBy(() => loadState(db), check);
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
@@ -49,13 +49,21 @@ try {
   await p.waitForSelector('#nName'); await p.fill('#nName', 'PRN-NEW');
   await p.evaluate(() => { const d = document.getElementById('nMore'); if (d) d.open = true; });
   await p.selectOption('#nVlan', '20'); await p.click('#nOk');
-  await stored(st => { const o = st.objs.find(x => x.name === 'PRN-NEW'); return o && st.rels.some(r => r.from === o.id && r.port === 9 && r.vlan === 20); });
+  await stored(st => { const o = st.objs.find(x => x.name === 'PRN-NEW'); return o && o.loc === 'Zürich / IT' && o.status === 'active' && st.rels.some(r => r.from === o.id && r.port === 9 && r.vlan === 20); });
+
+  //    Take back of a device on a port: unplugged too (ticked), with Undo
+  await p.evaluate(async () => (await import('/js/27-handout.js')).takeBackModal([(await import('/js/01-core.js')).byId('pa')]));
+  await p.waitForSelector('#tbUnplug'); assert.equal(await p.isChecked('#tbUnplug'), true); await p.click('#tbOk');
+  await stored(st => st.objs.find(o => o.id === 'pa').status === 'stock' && !st.rels.some(r => r.id === 'r1'));
+  await p.click('#toast .t-undo');
+  await stored(st => st.objs.find(o => o.id === 'pa').status === 'active' && st.rels.some(r => r.id === 'r1'));
 
   // 3. Needs attention: the contract that ended, the licence ending
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).view(); });
   await p.waitForSelector('#view');
   const ov = await p.textContent('#view');
   assert.match(ov, /Contract ended.*Old support/s); assert.match(ov, /Licence ending.*Office Suite/s);
+  assert.match(ov, /Serial number used twice/);
 
   // 4. Table: Shift + click ticks the rows between
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'table'; c.st.q = 'NB-T'; c.st.bulk = new Set(); (await import('/js/07-render.js')).view(); });

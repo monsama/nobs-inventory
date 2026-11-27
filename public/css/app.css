@@ -2994,3 +2994,8 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
   body:has(#toolbar .pickrow) #toast{bottom:calc(var(--pickbar-h, 72px) + 48px + env(safe-area-inset-bottom, 0px))}
   body:has(#toolbar .pickrow) #view{padding-bottom:calc(var(--pickbar-h, 72px) + 40px)}
 }
+/* Desktop with the filters shown: the selection bar is centred over the list, not over the filters. */
+@media (min-width:821px){ body:not(.noside):not(.side-shut) #toolbar .pickrow{left:calc(50% + var(--sidew, 250px) / 2);max-width:calc(100vw - var(--sidew, 250px) - 32px)} }
+/* A notice's text wraps inside its row and ends before the × (a button keeps its text on one line otherwise). */
+.bell-go{white-space:normal}
+.bell-t{flex:1}

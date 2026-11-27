@@ -1,7 +1,8 @@
 /* Handing devices out and taking them back, in one step each. Hand out: a person (found by name, or added on the spot),
    the device is then in use with them; an admin can print the entry sheet right after. Take back: the device is in
    stock again, with nobody. Both with Undo, and in the device's history. */
-import { fold, $, LOCS, feedLinked, hist, markHand, now, objs, pickHand, restoreSnapshot, snapshot, st, toastUndo } from './01-core.js';
+import { fold, $, LOCS, byId, feedLinked, hist, markHand, now, objs, pfxOf, pickHand, rels, restoreSnapshot, snapshot, st, toastUndo } from './01-core.js';
+import { PORT_KINDS } from './relations.js';
 import { USERS, ensureUser, isAdmin, who } from './04-settings.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { closeModal, modal } from './19-modal.js';
@@ -81,6 +82,8 @@ export function takeBackModal(list){
   /* The store rooms of the devices' own sites first. */
   const own = new Set(live.map(storeOfSite).filter(Boolean));
   const stores = [...new Set(Object.values(st.stockRooms || {}))].filter(l => LOCS.includes(l)).sort((a, b) => +own.has(b) - +own.has(a) || a.localeCompare(b));
+  /* The switch ports they are plugged into: offered to free, ticked (a device in stock is on no port). */
+  const plugs = rels.filter(r => live.some(o => o.id === r.from) && PORT_KINDS.includes(r.kind) && byId(r.to));
   /* Devices of several sites, each with a store room: each goes to its own, proposed. */
   const eachStore = sites.size > 1 && live.every(o => storeOfSite(o));
   const others = LOCS.filter(l => !stores.includes(l));
@@ -90,6 +93,7 @@ export function takeBackModal(list){
       ? html`<optgroup label="Store rooms">${stores.map(opt)}</optgroup><optgroup label="Other rooms">${others.map(opt)}</optgroup>` : LOCS.map(opt)}</select>
     ${site && !store && isAdmin() ? html`<label class="pchk tb-store" id="tbStoreRow" hidden><input type="checkbox" id="tbStore" checked> Make it the store room of ${site}: proposed here from now on</label>
       <p class="note muted" id="tbNoStore">${site} has no store room yet: pick the room where devices in stock are kept.</p>` : ''}
+    ${plugs.length ? html`<label class="pchk"><input type="checkbox" id="tbUnplug" checked> Unplug ${plugs.length === 1 ? `it from ${byId(plugs[0].to).name}${plugs[0].port != null ? ' port ' + pfxOf(byId(plugs[0].to)) + plugs[0].port : ''}` : `them from their ${plugs.length} ports`}, so the port is free</label>` : ''}
     <p class="note">${live.length === 1 ? 'It is' : 'They are'} in stock from now on, with nobody.</p></div>
     <div class="mf"><button id="tbNo">Cancel</button><button id="tbOk" class="primary">Take back</button></div>`, 'sm');
   if (eachStore) $('#tbLoc').value = EACH_STORE;
@@ -103,7 +107,8 @@ export function takeBackModal(list){
     const row = $('#tbStoreRow');
     if (row && !row.hidden && $('#tbStore').checked && loc){ st.stockRooms = { ...(st.stockRooms || {}), [site]: loc }; queueServerSave(); }
     try { if (loc && loc !== EACH_STORE) localStorage.setItem(STOCK_ROOM, loc); } catch { /* not kept: proposed again next time */ }
-    closeModal(); takeBack(live, loc);
+    const un = $('#tbUnplug') && $('#tbUnplug').checked ? plugs : [];
+    closeModal(); takeBack(live, loc, un);
   };
   $('#tbOk').focus();
 }
@@ -112,10 +117,11 @@ export function takeBackModal(list){
 /* loc: one room for all, or EACH_STORE: each to the store room of its own site (Settings → Locations), else where it is. */
 export const EACH_STORE = '__eachstore';
 const storeOfSite = o => { const sr = st.stockRooms || {}, r = sr[String(o.loc || '').split(' / ')[0]]; return r && LOCS.includes(r) ? r : ''; };
-export function takeBack(list, loc = ''){
+export function takeBack(list, loc = '', unplug = []){
   const live = list.filter(o => o.status !== 'retired');
   if (!live.length) return;
-  const snap = snapshot(live), names = new Set(live.map(o => o.user).filter(Boolean));
+  const snap = snapshot(live), names = new Set(live.map(o => o.user).filter(Boolean)), relsWas = [...rels];
+  for (const r of unplug){ const i = rels.indexOf(r); if (i < 0) continue; rels.splice(i, 1); const d = byId(r.from), sw = byId(r.to); if (d && sw) hist(d, now(), `Unplugged from ${sw.name}${r.port != null ? ' port ' + pfxOf(sw) + r.port : ''}: taken back, by ${who()}`); }
   if (st.bulk) for (const o of live) st.bulk.delete(o.id);
   for (const o of live){
     const had = o.user, to = loc === EACH_STORE ? storeOfSite(o) : loc;
@@ -124,7 +130,7 @@ export function takeBack(list, loc = ''){
     hist(o, now(), `Taken back into stock${had ? ` from ${had}` : ''}${moved ? `, to ${to}` : ''} by ${who()}`);
   }
   queueServerSave(); render();
-  toastUndo(`${live.length === 1 ? live[0].name : `${live.length} devices`} back in stock${names.size === 1 ? ` from ${[...names][0]}` : ''}`, () => { restoreSnapshot(snap, 'Taking back undone'); queueServerSave(); render(); });
+  toastUndo(`${live.length === 1 ? live[0].name : `${live.length} devices`} back in stock${names.size === 1 ? ` from ${[...names][0]}` : ''}`, () => { restoreSnapshot(snap, 'Taking back undone'); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); queueServerSave(); render(); });
 }
 
 /* The people to choose from: active ones first, by name; the search finds by name, login or department. */
