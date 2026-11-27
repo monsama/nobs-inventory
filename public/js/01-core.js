@@ -879,7 +879,17 @@ export const menuHtml = (label, body, { id = '', cls = '', boxCls = '', btn = ''
    (leaving: the dialog is about to go). */
 export function keepToastOnTop(leaving = false){
   const t = $('#toast'), host = (!leaving && $('#mdl:modal')) || document.body;
-  if (t && t.parentNode !== host) host.append(t);
+  if (!t) return;
+  if (t.parentNode !== host) host.append(t);
+  /* Over a dialog: under the dialog's box where there is room, else above it, else at the top; never on its buttons, and
+     not on the top bar when it can be helped. On the page: where the styles put it. */
+  t.style.top = t.style.bottom = '';
+  const box = host !== document.body ? host.querySelector('.box') : null;
+  if (box){
+    const r = box.getBoundingClientRect(), room = 56;
+    if (innerHeight - r.bottom >= room){ t.style.top = 'auto'; t.style.bottom = Math.max(8, (innerHeight - r.bottom - 40) / 2) + 'px'; }
+    else if (r.top >= room){ t.style.bottom = 'auto'; t.style.top = Math.max(8, (r.top - 40) / 2) + 'px'; }
+  }
 }
 /* The timer that hides the message at the bottom: a new message starts it again. */
 let toastTimer;

@@ -2911,12 +2911,9 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 .port-acts{display:flex;gap:8px;flex-wrap:wrap;padding:4px 12px 10px}
 /* A toast breaks between words, not inside a device name (SW-ZH-CORE stays whole). */
 #toast{overflow-wrap:break-word;word-break:normal;hyphens:none}
-/* The views with no filters (Overview, Contracts, Ports …): the tab bar starts where it does with the filters shown, so
-   the tabs stay under the pointer when changing view. */
-@media (min-width:821px){
-  body.noside:not(.side-shut) #tabsbar{padding-left:calc(var(--sidew,250px) + 6px)}
-  body.noside.side-shut #tabsbar{padding-left:calc(var(--railw,14px) + 6px)}
-}
+/* The views bar spans the window above the filters and the view: it stays put whether a view has filters or not, and
+   lines up with what is under it. */
+#tabsrow{position:relative;flex:none}
 /* The user in a device's key facts is a link to their devices, set as the other facts are. */
 .obj.otabbed .of>.of-person{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0;text-align:left;max-width:100%}
 /* Contracts on a phone: each a card (name and actions on top, then each field with its name), no table cut off at the

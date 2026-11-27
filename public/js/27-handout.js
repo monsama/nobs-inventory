@@ -135,7 +135,10 @@ export function takeBack(list, loc = '', unplug = []){
 
 /* The people to choose from: active ones first, by name; the search finds by name, login or department. */
 const SHOWN = 8;
-const people = q => USERS.filter(u => (u.active !== false || q) && (!q || [u.name, u.login, u.dept].some(x => low(x).includes(q) || fold(x).includes(fold(q)))))   /* "schar" finds Schär */
+/* The sign-in account the app makes at first start (u-admin, "Administrator") is nobody to hand devices to: left out,
+   unless it holds devices already. */
+const signInOnly = u => u.id === 'u-admin' && !objs.some(o => o.uid === u.id);
+const people = q => USERS.filter(u => !signInOnly(u) && (u.active !== false || q) && (!q || [u.name, u.login, u.dept].some(x => low(x).includes(q) || fold(x).includes(fold(q)))))   /* "schar" finds Schär */
   .sort((a, b) => +(a.active === false) - +(b.active === false) || a.name.localeCompare(b.name));
 
 /* Hand out the devices (ids) to a person picked here. */
