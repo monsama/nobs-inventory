@@ -78,7 +78,7 @@ export function renderRack(){
   }
   const mounted = inRack.slice().sort((a,b) => (b.u||0) - (a.u||0));
   $('#view').innerHTML = html`<div class="rackbox">
-    <div class="rack" style="grid-template-rows:repeat(${rackUnits(R_)},24px)">${cells}</div>
+    <div class="rack" style="grid-template-rows:repeat(${rackUnits(R_)},var(--ru))">${cells}</div>
     <div class="rackside">
       <div class="panelbox"><div class="hdr">${R_.name}</div>
         <dl class="lsbox plain"><dt>Location</dt><dd>${R_.loc || '-'}</dd><dt>Height</dt><dd>${allU} U, ${Math.max(0, allU - usedU)} free</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
@@ -106,7 +106,8 @@ function moveTo(R_, o, u){
 }
 function bindRackMoves(R_){
   const rack = /** @type {HTMLElement|null} */ ($('#view .rack')); if (!rack) return;
-  const units = rackUnits(R_), ROW = 24;
+  /* A unit's height, as the page draws it (higher on a touch screen). */
+  const units = rackUnits(R_), ROW = parseFloat(getComputedStyle(rack).getPropertyValue('--ru')) || 24;
   /* The U under a point of the rack, 1 at the bottom. */
   const uAt = y => units - Math.floor((y - rack.getBoundingClientRect().top - rack.clientTop) / ROW);
   rack.querySelectorAll('[data-unit]').forEach(n => {

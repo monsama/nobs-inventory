@@ -156,7 +156,8 @@ table.locs td.site{color:var(--muted)}
 .fm-slot{display:inline-block;width:26px;flex:none}
 .fmenu{flex:none;width:26px}
 .fmenu>.menu-btn{height:24px;width:24px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
-.ctlrow:hover>.fmenu>.menu-btn,.fmenu>.menu-btn:focus-visible,.fmenu:has(>:popover-open)>.menu-btn{border-color:var(--bd);background:var(--btn);color:var(--fg)}
+@media (hover:hover){ .ctlrow:hover>.fmenu>.menu-btn{border-color:var(--bd);background:var(--btn);color:var(--fg)} }
+.fmenu>.menu-btn:focus-visible,.fmenu:has(>:popover-open)>.menu-btn{border-color:var(--bd);background:var(--btn);color:var(--fg)}
 .fmenu .menubox{min-width:210px}
 /* Other network adapters under the MAC address: name, address and details on one row each. */
 .nics{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px;min-width:0}
@@ -951,9 +952,9 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 
 /* racks */
 .rackbox{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;padding:14px}
-.rack{display:grid;grid-template-columns:44px minmax(0,1fr);border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel2);width:min(520px,100%);position:relative}
-.rack .uno{font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;height:24px;border-bottom:1px solid var(--bd2);box-sizing:border-box}
-.rack .slot{height:24px;border-bottom:1px solid var(--bd2);background:repeating-linear-gradient(90deg,transparent 0 22px,var(--bd2) 22px 23px);opacity:.6;box-sizing:border-box}
+.rack{--ru:24px;display:grid;grid-template-columns:44px minmax(0,1fr);border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel2);width:min(520px,100%);position:relative}
+.rack .uno{font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;height:var(--ru);border-bottom:1px solid var(--bd2);box-sizing:border-box}
+.rack .slot{height:var(--ru);border-bottom:1px solid var(--bd2);background:repeating-linear-gradient(90deg,transparent 0 22px,var(--bd2) 22px 23px);opacity:.6;box-sizing:border-box}
 .rack .unit:hover{border-color:var(--accent)}
 .rack .unit.movable{cursor:grab;user-select:none}.rack .unit.movable:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .rack .unit.dragging{cursor:grabbing;position:relative;z-index:2;box-shadow:0 4px 14px rgba(0,0,0,.25);border-color:var(--accent)}
@@ -1973,7 +1974,7 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 }
 table.stack>tbody>tr>td{max-width:none}
 .pgroup.sfp{grid-auto-columns:34px}
-@media (pointer:coarse) and (any-hover:none){.pgroup{grid-template-rows:repeat(2,40px);grid-auto-columns:40px}.pgroup .port{width:40px;height:40px;min-height:40px}.hl-row .hl-go{min-height:0}}
+@media (pointer:coarse) and (any-hover:none){.pgroup{grid-template-rows:repeat(2,40px);grid-auto-columns:40px}.pgroup .port{width:40px;height:40px;min-height:40px}.hl-row .hl-go{min-height:36px;display:inline-flex;align-items:center}.pgroup.sfp{grid-auto-columns:40px}}
 .form>.vnote{margin:0}   /* its note keeps the space every field note has (.fieldnote) */
 .form>div:has(>.fm-reveal){padding:4px 0 2px}   /* Show all fields: the same space above as a field's note */
 #ovMaint .ov-row .chip{min-width:168px}
@@ -3026,3 +3027,17 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 .ct-ref{white-space:nowrap}
 /* On a phone the row's icons take a line of their own: an empty slot does not push them in. */
 @media (max-width:760px){ .lrow .c-st .st-ico:empty{display:none} }
+/* The views bar starts where the bars under it start: at the gutter, past the folded filters' rail when they are folded
+   (a view without filters then keeps the rail's room too, so the tabs stay put). */
+#tabsbar{padding-left:var(--gutter)}
+@media (min-width:821px){
+  body.side-shut #tabsbar{padding-left:calc(var(--railw,14px) + var(--gutter))}
+  body.side-shut.noside #content{margin-left:var(--railw,14px)}
+}
+/* A phone: the Settings tabs wrap rather than hide past the edge, and stay clear of the card's border. */
+@media (max-width:760px){ #setTabs .settabs, .settabs.ukinds{flex-wrap:wrap;overflow-x:visible;row-gap:2px} .settabs.ukinds{padding-right:12px} }
+/* Touch screens: a person's link and the rack's units are a tap high too. */
+@media (pointer:coarse) and (any-hover:none){
+  .obj.otabbed .of>button.of-person{padding:10px 0!important;margin:-10px 0!important}
+  .rack{--ru:40px}
+}
