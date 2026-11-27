@@ -77,7 +77,7 @@ export const lastDigest = db => getDoc(db, 'digestRun', null);
 export function buildDigest(s, { link = '', backups = null, copy = null, health = [] } = {}, today = new Date()) {
   const live = (s.objs || []).filter(o => !o.review && o.status !== 'retired');
   /* The same lists as the bell in the page (public/js/notices.js); maintenance due in the next two weeks, as the mail comes weekly. */
-  const { wEnded, wSoon, contracts: due, ctEnded, licences: lics, maint, reported, review: waiting } = attention(s, today, { maintWithin: 14 });
+  const { wEnded, wSoon, contracts: due, ctEnded, licences: lics, returns, maint, reported, review: waiting } = attention(s, today, { maintWithin: 14 });
   const held = new Map();
   for (const o of live) if (o.uid && o.status !== 'stock') held.set(o.uid, (held.get(o.uid) || 0) + 1);
   const leavers = (s.users || []).filter(u => u.active === false && held.get(u.id));
@@ -87,6 +87,7 @@ export function buildDigest(s, { link = '', backups = null, copy = null, health 
   if (wEnded.length) sections.push([`Warranty ended on ${wEnded.length} device${wEnded.length === 1 ? '' : 's'} in use`, list(wEnded, o => `${o.name}${o.code ? ` (${o.code})` : ''}: ended ${dateText(o.warranty)}`)]);
   if (wSoon.length) sections.push([`Warranty ends within ${WARRANTY_SOON_DAYS} days on ${wSoon.length} device${wSoon.length === 1 ? '' : 's'} in use`, list(wSoon, o => `${o.name}${o.code ? ` (${o.code})` : ''}: ${dateText(o.warranty)}`)]);
   if (due.length) sections.push([`Contract notice due on ${due.length} contract${due.length === 1 ? '' : 's'}`, list(due, x => `${x.c.name}: ${x.st.state === 'late' ? 'notice date passed' : 'give notice by'} ${dateText(x.st.noticeBy || x.st.end)}`)]);
+  if (returns.length) sections.push([`Leased devices to return: ${returns.reduce((n, x) => n + x.objs.length, 0)} retired`, list(returns, x => `${x.c.name}: ${x.objs.map(o => o.name).join(', ')}`)]);
   if (ctEnded.length) sections.push([`${ctEnded.length} contract${ctEnded.length === 1 ? '' : 's'} ended in the last 30 days`, list(ctEnded, x => `${x.c.name}: ended ${dateText(x.st.end)}`)]);
   if (lics.length) sections.push([`${lics.length} licence${lics.length === 1 ? '' : 's'} ending or ended`, list(lics, x => `${x.l.name}: ${x.days < 0 ? 'ended' : 'ends'} ${dateText(x.l.end)}`)]);
   if (leavers.length) sections.push([`${leavers.length} ${leavers.length === 1 ? 'person' : 'people'} left with devices still out`, list(leavers, u => `${u.name}: ${held.get(u.id)} device${held.get(u.id) === 1 ? '' : 's'}${u.leftAt ? `, left ${u.leftBy ? 'before ' : ''}${dateText(u.leftAt.slice(0, 10))}` : ''}`)]);

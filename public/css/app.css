@@ -3008,3 +3008,10 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 .tabs-more[hidden]{display:none}
 .tabs-more.l{left:0;box-shadow:6px 0 8px -4px rgba(0,0,0,.18)}
 .tabs-more.r{right:0;box-shadow:-6px 0 8px -4px rgba(0,0,0,.18)}
+/* Touch screens: the views bar is a tap high, so its arrows are too; they take the bar's own colour, also when pressed. */
+@media (pointer:coarse) and (any-hover:none){ #tabsbar{height:max(var(--bar), 36px)} }
+.tabs-more,.tabs-more:hover,.tabs-more:active,.tabs-more:focus{background:var(--panel2);border:0}
+.tabs-more{border-bottom:1px solid var(--bd)!important}
+/* A notice's title breaks too (a long licence name) before the ×; the active view is scrolled clear of the bar's arrows. */
+.bell-t b{overflow-wrap:anywhere}
+#tabsbar{scroll-padding-inline:36px}

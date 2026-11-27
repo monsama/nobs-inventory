@@ -209,6 +209,9 @@ document.addEventListener('click', e => {
 });
 /* The filters in force, as chips over the list (Cards, Table, Relationships): what each is, and × to take it off, so a
    short list is never a mystery. Nothing is shown when nothing narrows the list. */
+/* The views bar's arrows, checked again when the window changes size (a phone turned: nothing may scroll then). */
+let tabEdges = () => {};
+addEventListener('resize', () => tabEdges());
 /* What a person last had (pastOf in the filter bar), by person id; read again once they have devices and lose them. */
 const PAST = new Map(); let PAST_FOR = null;
 export function renderFilterBar(){
@@ -534,8 +537,9 @@ export function renderTabs(){
     const r = tb.scrollLeft + tb.clientWidth < tb.scrollWidth - 2, l = tb.scrollLeft > 2;
     tb.classList.toggle('more-r', r); tb.classList.toggle('more-l', l);
     /** @type {[string, boolean][]} */ const arrows = [['#tabsMorel', l], ['#tabsMorer', r]];
-    for (const [id, on] of arrows){ const b = /** @type {HTMLElement} */ ($(id)); b.hidden = !on; b.style.height = Math.max(36, tb.offsetHeight) + 'px'; }
+    for (const [id, on] of arrows){ const b = /** @type {HTMLElement} */ ($(id)); b.hidden = !on; b.style.height = tb.offsetHeight + 'px'; }
   };
+  tabEdges = edges;
   const act = /** @type {HTMLElement|null} */ (tb.querySelector('.tab.active'));
   if (act && tb.scrollWidth > tb.clientWidth) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   edges(); tb.onscroll = edges;

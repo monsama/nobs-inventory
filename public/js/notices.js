@@ -29,6 +29,8 @@ export function attention(s, today = new Date(), { maintWithin = MAINT_SOON_DAYS
     wEnded: inUse.filter(o => warrantyState(o, today) === 'ended').sort(byDay),
     wSoon: inUse.filter(o => warrantyState(o, today) === 'soon').sort(byDay),
     contracts: (s.contracts || []).map(c => ({ c, st: contractStatus(c, today) })).filter(x => ['soon', 'late'].includes(x.st.state)).sort((a, b) => (a.st.days ?? 0) - (b.st.days ?? 0)),
+    /* Retired devices still on a lease: to be returned to the lessor (taken off the lease once they are). */
+    returns: (s.contracts || []).filter(c => c.kind === 'lease').map(c => ({ c, objs: (c.devices || []).map(id => all.find(o => o.id === id)).filter(o => o && o.status === 'retired') })).filter(x => x.objs.length),
     /* Ended within the last 30 days: worth knowing (nothing covers its devices now), then let go. */
     ctEnded: (s.contracts || []).map(c => ({ c, st: contractStatus(c, today) })).filter(x => x.st.state === 'ended' && (x.st.days ?? -999) >= -30),
     /* Licences that end within NOTICE_SOON_DAYS, or ended within the last 30 days. */
@@ -72,6 +74,8 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
     go: late.length === 1 ? { device: late[0].o.id } : { overview: 'ovMaint' } });
   if (due.length) out.push({ id: 'maint-due', sev: 'warn', title: `Maintenance due within ${MAINT_SOON_DAYS} days`, text: names(due, task), fp: fingerprint(due.map(taskKey)),
     go: due.length === 1 ? { device: due[0].o.id } : { overview: 'ovMaint' } });
+  for (const { c, objs: back } of a.returns) out.push({ id: `lease-return-${c.id}`, sev: 'warn', title: `To return to the lessor: ${c.name}`,
+    text: `${plural(back.length, 'retired device', 'retired devices')} on the lease: ${names(back)}`, fp: fingerprint(back.map(o => o.id)), go: { tab: 'contracts' } });
   for (const { c, st } of a.ctEnded) out.push({ id: `contract-ended-${c.id}`, sev: 'bad', title: `Contract ended: ${c.name}`, text: `It ended on ${dateText(st.end)}${(c.devices || []).length ? `: ${plural(c.devices.length, 'device has', 'devices have')} no cover from it now` : ''}`,
     fp: `ended|${st.end}`, go: { tab: 'contracts' } });
   for (const { l, days } of a.licences) out.push({ id: `licence-${l.id}`, sev: days < 0 ? 'bad' : 'warn', title: days < 0 ? `Licence ended: ${l.name}` : `Licence ending: ${l.name}`,

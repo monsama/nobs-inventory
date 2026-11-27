@@ -644,7 +644,15 @@ export const QUALITY_TIPS = ['noresp'];
 /* A device Data quality counts as not complete: a check that is no tip finds something. */
 export const qualityGap = (/** @type {any} */ o) => Object.entries(QUALITY).some(([k, q]) => !QUALITY_TIPS.includes(k) && q[2](o));
 /* How many devices not retired have each serial number (placeholders such as "To be filled by O.E.M." left out). */
-const serialCount = oncePerDraw(() => { const m = new Map(); for (const o of objs) if (o.status !== 'retired' && o.serial && !isPlaceholderSerial(o.serial)) { const k = String(o.serial).trim().toLowerCase(); m.set(k, (m.get(k) || 0) + 1); } return m; });
+/* Built once and kept for a moment (a draw, or the bell counting every device outside one): asked per device, it would
+   otherwise go through all devices each time. */
+let serialMap = null, serialAt = 0;
+const serialCount = () => {
+  const t = Date.now();
+  if (serialMap && t - serialAt < 300) return serialMap;
+  const m = new Map(); for (const o of objs) if (o.status !== 'retired' && o.serial && !isPlaceholderSerial(o.serial)) { const k = String(o.serial).trim().toLowerCase(); m.set(k, (m.get(k) || 0) + 1); }
+  serialMap = m; serialAt = t; return m;
+};
 /** @type {Record<string, [string, string, (o: any) => boolean]>} */
 export const QUALITY = {
   /* Devices only registered in Entra (most often personal) are no company assets: left out of the asset checks. */

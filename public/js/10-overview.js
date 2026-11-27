@@ -124,11 +124,12 @@ export function renderOverview(){
   const attention = [
     [waiting, 'warn', 'Pending', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [mtLate.length, 'bad', 'Maintenance overdue', mtLate.slice(0, 3).map(x => `${x.o.name}: ${x.m.what}`).join(', ') + (mtLate.length > 3 ? '…' : ''), 'data-ovmt="late"'],
-    [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
-    [wSoon, 'warn', 'Warranty ends soon', `devices in use, within ${WARRANTY_SOON_DAYS} days`, 'data-ovw="soon"'],
+    [wEnded, 'bad', 'Warranty ended', `in use: ${few(att.wEnded)}`, 'data-ovw="ended"'],
+    [wSoon, 'warn', 'Warranty ends soon', `within ${WARRANTY_SOON_DAYS} days, in use: ${few(att.wSoon)}`, 'data-ovw="soon"'],
     [ctLate.length, 'bad', 'Contract notice date passed', few(ctLate), 'data-ovtab="contracts" data-ovdue="1"'],
     [ctSoon.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${few(ctSoon)}`, 'data-ovtab="contracts" data-ovdue="1"'],
     /* A contract that does not renew has no notice to give: it ends, which is worth knowing as such. */
+    [att.returns.length, 'warn', 'Leased devices to return', att.returns.map(x => `${x.c.name}: ${x.objs.length}`).slice(0, 3).join(', '), 'data-ovtab="contracts"'],
     [ctEnded.length, 'bad', 'Contract ended', `in the last 30 days: ${few(ctEnded)}`, 'data-ovtab="contracts"'],
     [licEnded.length, 'bad', 'Licence ended', `in the last 30 days: ${licEnded.slice(0, 3).map(l => l.name).join(', ')}${licEnded.length > 3 ? '…' : ''}`, 'data-ovtab="sw"'],
     [licSoon.length, 'warn', 'Licence ending', `within ${NOTICE_SOON_DAYS} days: ${licSoon.slice(0, 3).map(l => l.name).join(', ')}${licSoon.length > 3 ? '…' : ''}`, 'data-ovtab="sw"'],
@@ -180,7 +181,7 @@ export function renderOverview(){
       ${planHtml(live)}
       <div class="panelbox" id="ovQuality"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar ${qPct >= 90 ? 'ok' : qPct >= 60 ? 'warn' : 'bad'}" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
-        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip ${r.tip ? 'info' : 'warn'}">${compact(r.n)}</span><span><b>${r.label}${r.tip ? ' · a tip' : ''}</b><small>${r.tip ? 'Not counted in the score. ' : ''}${r.hint}</small></span></button>`)}</div>`
+        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip ${r.tip ? 'info' : 'warn'}">${compact(r.n)}</span><span title="${r.hint}"><b>${r.label}${r.tip ? ' · a tip' : ''}</b><small>${r.tip ? 'Not counted in the score. ' : ''}${r.hint}</small></span></button>`)}</div>`
           : html`<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>
     </div>
     <details class="ov-stats" id="ovStats" ${statsOpen() ? 'open' : ''}><summary>Statistics <span class="muted">by type, site, status, operating system${showJoin || intuneGroups.length ? ', Entra and Intune' : ''}</span></summary><div class="ov-cols">

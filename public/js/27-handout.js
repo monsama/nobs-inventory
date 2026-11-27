@@ -1,7 +1,7 @@
 /* Handing devices out and taking them back, in one step each. Hand out: a person (found by name, or added on the spot),
    the device is then in use with them; an admin can print the entry sheet right after. Take back: the device is in
    stock again, with nobody. Both with Undo, and in the device's history. */
-import { fold, $, LOCS, byId, feedLinked, hist, markHand, now, objs, pfxOf, pickHand, rels, restoreSnapshot, snapshot, st, toastUndo } from './01-core.js';
+import { fold, $, LOCS, byId, feedLinked, hist, markHand, now, objs, pfxOf, pickHand, rels, restoreSnapshot, snapshot, st, toast, toastUndo } from './01-core.js';
 import { PORT_KINDS } from './relations.js';
 import { USERS, ensureUser, isAdmin, who } from './04-settings.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
@@ -226,6 +226,13 @@ export function handOutToModal(u){
   $('#hoNo').onclick = closeModal;
   $('#hoOk').onclick = () => {
     const list = [...chosen].map(id => objs.find(o => o.id === id)).filter(Boolean); if (!list.length) return;
+    /* From the stock: where it goes is asked, as on the device (left as it is, it would be in use in the store room). */
+    const stores = new Set(Object.values(st.stockRooms || {}));
+    if (!locPicked() && list.some(o => o.loc && stores.has(o.loc))){
+      $('#hoLoc').classList.add('bad'); $('#hoLoc').focus();
+      $('#hoLoc').addEventListener('change', () => $('#hoLoc').classList.remove('bad'), { once: true });
+      toast(`${list.length === 1 ? 'It is' : 'They are'} in a store room: pick where ${list.length === 1 ? 'it goes' : 'they go'} under Where.`); return;
+    }
     const sheet = $('#hoSheet') && $('#hoSheet').checked, snap = snapshot(list);
     give(list, u, locPicked());
     closeModal(); queueServerSave(); render();
