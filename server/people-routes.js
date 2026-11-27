@@ -20,7 +20,8 @@ export function registerPeopleRoutes(app, { db, requireUser, requireAdmin, mailT
       const s = loadState(db), k = s.users.find(u => u.id === keep), d = s.users.find(u => u.id === drop);
       if (!k || !d) throw new HttpError(404, 'No such person.');
       if (d.id === req.user.id) throw new HttpError(400, 'Your own account cannot be merged away: keep it.');
-      const hadLogin = !!k.login;
+      /* A record switched off hands on no password: it is removed with the record. */
+      const hadLogin = !!k.login || d.active === false;
       autoBackup(db, 'before merging two people');
       let r;
       try { r = mergePeople(s, k.id, d.id, stamp(new Date())); } catch (e) { throw new HttpError(400, e.message); }

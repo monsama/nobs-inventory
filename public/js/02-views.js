@@ -435,7 +435,15 @@ $('#sideGrip').addEventListener('keydown', e => {
 });
 /* The filter drawer on a phone closes like a menu: Escape, or a tap beside it. */
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('side-open') && !$('#modalHost').childElementCount){ document.body.classList.remove('side-open'); $('#sideBtn').focus(); } });
-document.addEventListener('pointerdown', e => { if (!document.body.classList.contains('side-open')) return; const t = evEl(e); if (t.closest && !t.closest('#side, #sideBtn')) document.body.classList.remove('side-open'); }, true);
+document.addEventListener('pointerdown', e => {
+  if (!document.body.classList.contains('side-open')) return; const t = evEl(e);
+  if (!t.closest || t.closest('#side, #sideBtn')) return;
+  document.body.classList.remove('side-open');
+  /* The tap only closes the drawer: the click it makes does not also open what was under the dimmed view. */
+  const eat = /** @param {Event} ev */ ev => { ev.preventDefault(); ev.stopPropagation(); };
+  document.addEventListener('click', eat, { capture: true, once: true });
+  setTimeout(() => document.removeEventListener('click', eat, true), 700);
+}, true);
 document.addEventListener('click', e => { if (evEl(e).closest && evEl(e).closest('[data-empty-new]')) newObjModal(); });
 document.addEventListener('click', async e => {
   const b = evEl(e).closest && evEl(e).closest('#reloadBtn'); if (!b || b.disabled) return;

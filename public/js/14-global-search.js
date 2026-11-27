@@ -8,7 +8,7 @@ import { settingHits, openSetting } from './settings-find.js';
 import { newObjModal } from './05-new-object.js';
 import { importCsvModal } from './views-csv.js';
 import { clearConfirm } from './server-save.js';
-import { handOutToModal } from './27-handout.js';
+import { handOutToModal, signInOnly } from './27-handout.js';
 import { openObj, tabAllowed } from './02-views.js';
 import { render } from './07-render.js';
 import { showDevicesOf } from './settings-users.js';
@@ -59,7 +59,7 @@ function actions(q){
   /* A view this person may not open (a viewer limited to their own devices) is not offered. */
   const list = ACTIONS.filter(([l, w, a, go]) => (admin || !a) && (!TAB_OF.has(go) || tabAllowed(TAB_OF.get(go))) && has(q, l, w)).map(([l, , , go]) => ({ label: l, sub: '', go }));
   /* Handing out to a person found by name. */
-  if (admin && q.length > 1) for (const u of USERS.filter(x => x.active !== false && hasWords(q, x.name)).slice(0, 2)) list.push({ label: `Hand out a device to ${u.name}…`, sub: u.dept || '', go: () => handOutToModal(u) });
+  if (admin && q.length > 1) for (const u of USERS.filter(x => x.active !== false && !signInOnly(x) && hasWords(q, x.name)).slice(0, 2)) list.push({ label: `Hand out a device to ${u.name}…`, sub: u.dept || '', go: () => handOutToModal(u) });
   return list;
 }
 /* Every kind of thing the search knows, each with what to show and where it opens. */

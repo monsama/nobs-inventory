@@ -29,6 +29,7 @@
   <button id="setBtn" class="icon" title="Settings" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 </header>
 
+<div id="tabsrow"><nav id="tabsbar" aria-label="Views"></nav></div>
 <div id="main">
   <button type="button" id="sideRail" aria-label="Show the filters" aria-controls="side" title="Show the filters: click, or drag to the right"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
   <aside id="side" aria-label="Filters">
@@ -66,7 +67,6 @@
   <div id="sideGrip" role="separator" aria-orientation="vertical" aria-controls="side" aria-label="Width of the filters: drag, or use the arrow keys; Enter hides or shows them" tabindex="0" title="Drag to change the width; drag to the left edge to hide"><span class="side-fold" aria-hidden="true" title="Hide the filters"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></span></div>
 
   <main id="content">
-    <nav id="tabsbar" aria-label="Views"></nav>
     <nav id="objbar" aria-label="Open devices" hidden></nav>
     <div id="toolbar" class="toolbar"></div>
     <div id="fbar" class="fbar" hidden aria-label="Active filters"></div>

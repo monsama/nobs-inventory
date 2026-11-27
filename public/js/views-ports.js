@@ -1,5 +1,5 @@
 /* A switch's ports: setup, front panel, groups and the port map (split out of 02-views.js, which re-exports it). */
-import { VLANS, portRangeError, seenChip, lagLinkOf, hasPorts, vlanLabel, $, STATUS, TYPES, byId, isUplink, isAttached, reachesPort, objs, pfxOf, rels, st, tico, toast, used, hist, now, snapshot, restoreSnapshot, toastUndo } from './01-core.js';
+import { VLANS, portRangeError, seenChip, lagLinkOf, hasPorts, vlanLabel, $, STATUS, TYPES, byId, isUplink, isAttached, reachesPort, objs, pfxOf, rels, st, tico, toast, used, hist, now, snapshot, restoreSnapshot, toastUndo, portTakenBy } from './01-core.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { isAdmin, who } from './04-settings.js';
@@ -212,7 +212,9 @@ export function renderPorts(){
     const d = byId(r.from), was = snapshot([d, sw]), at = rels.indexOf(r);
     rels.splice(at, 1); hist(d, now(), `Unplugged from ${sw.name} port ${pfxOf(sw) + r.port} by ${who()}`);
     queueServerSave(); render();
-    toastUndo(`${d.name}: unplugged from ${sw.name} port ${pfxOf(sw) + r.port}`, () => { if (!rels.includes(r)) rels.splice(Math.min(at, rels.length), 0, r); restoreSnapshot(was, 'Unplug undone by ' + who()); render(); });
+    toastUndo(`${d.name}: unplugged from ${sw.name} port ${pfxOf(sw) + r.port}`, () => {
+      const other = portTakenBy(r); if (other){ toast(`Port ${pfxOf(sw) + r.port} is in use by ${byId(other.from)?.name || 'another device'} now: ${d.name} is not plugged back in.`); return; }
+      if (!rels.includes(r)) rels.splice(Math.min(at, rels.length), 0, r); restoreSnapshot(was, 'Unplug undone by ' + who()); render(); });
   }; });
   /* The VLAN of a device on a port, changed in place, with Undo. */
   document.querySelectorAll('[data-portvlan]').forEach(el => { const sel = /** @type {HTMLSelectElement} */ (el); sel.onchange = () => {
@@ -220,6 +222,8 @@ export function renderPorts(){
     const d = byId(r.from), was = r.vlan ?? null, to = sel.value === '' ? null : Number(sel.value), snap = snapshot([d]);
     r.vlan = to; hist(d, now(), `VLAN on ${sw.name} port ${pfxOf(sw) + r.port} set to ${to == null ? 'none' : vlanLabel(to)} by ${who()}`);
     queueServerSave(); render();
+    /* The select is drawn again: it keeps the focus, so the keys go on stepping through the VLANs. */
+    const again = /** @type {HTMLElement|null} */ (document.querySelector(`[data-portvlan="${CSS.escape(r.id)}"]`)); if (again) again.focus();
     toastUndo(`${d.name}: VLAN ${to == null ? 'removed' : vlanLabel(to)}`, () => { r.vlan = was; restoreSnapshot(snap, 'VLAN change undone by ' + who()); render(); });
   }; });
   /* Replace: the plug-in dialog for this port, which unplugs the device on it once another is picked. */
@@ -241,7 +245,9 @@ export function renderPorts(){
       const to = +$('#mpPort').value, was = r.port, snap = snapshot([d, sw]);
       r.port = to; hist(d, now(), `Moved from ${sw.name} port ${pfxOf(sw) + was} to port ${pfxOf(sw) + to} by ${who()}`);
       closeModal(); st.portNo = to; queueServerSave(); render();
-      toastUndo(`${d.name}: moved to ${sw.name} port ${pfxOf(sw) + to}`, () => { r.port = was; restoreSnapshot(snap, 'Port move undone by ' + who()); st.portNo = was; render(); });
+      toastUndo(`${d.name}: moved to ${sw.name} port ${pfxOf(sw) + to}`, () => {
+        const other = portTakenBy({ ...r, port: was }); if (other){ toast(`Port ${pfxOf(sw) + was} is in use by ${byId(other.from)?.name || 'another device'} now: ${d.name} stays on ${pfxOf(sw) + r.port}.`); return; }
+        r.port = was; restoreSnapshot(snap, 'Port move undone by ' + who()); st.portNo = was; render(); });
     };
   }; });
   const ab = $('#assignBtn'); if (ab) ab.onclick = () => { if (!portRangeError(sw, st.portNo)) linkObjModal({to: sw.id, port: st.portNo}); };
