@@ -170,7 +170,9 @@ export function contractModal(c, preset = []){
     /* The matches can all be taken at once; the count of devices covered stays in view. */
     const bar = q && more.length ? html`<div class="ct-devbar"><span class="muted">${more.length === 60 ? 'First 60' : more.length} found · ${picked.size} covered</span><button type="button" id="ctAddAll">Add ${more.length === 1 ? 'it' : `all ${more.length}`}</button></div>` : '';
     const shown = [...mine, ...more];
-    const none = q && !more.length ? html`<p class="note">No device matches “${q}”.</p>` : '';
+    /* Said only when no device at all matches, covered ones included; with the words as typed. */
+    const typed = $('#ctDevQ').value.trim(), hitMine = q && mine.some(o => words.every(w => [o.name, o.code, o.serial, o.model, o.user, o.loc].filter(Boolean).join(' ').toLowerCase().includes(w) || fold([o.name, o.code, o.serial, o.model, o.user, o.loc].filter(Boolean).join(' ')).includes(fold(w))));
+    const none = q && !more.length ? html`<p class="note">${hitMine ? `No other device matches “${typed}”.` : `No device matches “${typed}”.`}</p>` : '';
     $('#ctDevs').innerHTML = bar || shown.length ? html`${none}${bar}${shown.map(o => html`<label class="pchk">${rawHtml(tico(o.type, 'tico sm'))}<input type="checkbox" data-ctdev="${o.id}" ${picked.has(o.id) ? 'checked' : ''}> <b>${o.name}</b> <span class="muted">${[o.code, o.model].filter(Boolean).join(' · ')}</span></label>`)}`
       : html`<p class="note">${q ? 'No device matches.' : 'No devices yet. Find them by name, code, serial number, model or user.'}</p>`;
     $('#ctDevs').querySelectorAll('[data-ctdev]').forEach(x => x.onchange = () => { if (x.checked) picked.add(x.dataset.ctdev); else picked.delete(x.dataset.ctdev); });

@@ -42,7 +42,7 @@ export function renderBell(changed = false){
     bellKey = key;
     /* A viewer limited to some sites gets only their devices from the server; the notices keep to them as well. */
     const sites = !admin && u && !u.own && Array.isArray(u.sites) && u.sites.length ? u.sites : null;
-    NOTICES = !u ? [] : notices({ objs: [...objs, ...REVIEW], rels, contracts: COSTS.contracts, syncRuns: st.syncRuns, syncSchedule: st.syncSchedule, restoreTest: st.restoreTest, backupExportRun: st.backupExportRun },
+    NOTICES = !u ? [] : notices({ objs: [...objs, ...REVIEW], rels, contracts: COSTS.contracts, licences: COSTS.licences, syncRuns: st.syncRuns, syncSchedule: st.syncSchedule, restoreTest: st.restoreTest, backupExportRun: st.backupExportRun },
       { admin, sites, sources: admin ? sources().map(([k]) => k) : [] });
   }
   drawBell();
@@ -69,7 +69,8 @@ function goNotice(g){
   else if (g.settings){ st.setTab = SOURCES[g.settings] ? SOURCES[g.settings].settings : g.settings; openSettings(); }
   else {
     if (g.table || g.review){ resetFilters(); Object.assign(st, { scope: g.review ? 'review' : null, rvSrc: '', rvKnown: false, rvOld: false, bulk: new Set() }, g.table || {}); }
-    if (g.tab) st.q = '';
+    /* Contracts opened from a notice show every contract (Only due would hide one that ended). */
+    if (g.tab){ st.q = ''; if (g.tab === 'contracts') st.ctDue = false; }
     st.tab = g.table ? 'table' : g.review ? 'cards' : g.overview ? 'overview' : g.tab;
     view();
     /* The part of the Overview it leads to is scrolled to and flashed, once drawn. */

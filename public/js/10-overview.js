@@ -231,7 +231,7 @@ export function renderOverview(){
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
   v.querySelectorAll('[data-ovcert]').forEach(b => b.onclick = () => { st.setTab = 'maintenance'; openSettings(); });
   /* A contract line opens Contracts with only those that need someone now (Only due). */
-  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.q = ''; st.tab = b.dataset.ovtab; if (b.dataset.ovdue) st.ctDue = true; view(); });
+  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.q = ''; st.tab = b.dataset.ovtab; st.ctDue = !!b.dataset.ovdue; view(); });
 }
 
 /* Replacement planning (public/js/lifecycle.js): the devices due each year from now, with what replacing them costs. */

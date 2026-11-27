@@ -75,7 +75,7 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
   for (const { c, st } of a.ctEnded) out.push({ id: `contract-ended-${c.id}`, sev: 'bad', title: `Contract ended: ${c.name}`, text: `It ended on ${dateText(st.end)}${(c.devices || []).length ? `: ${plural(c.devices.length, 'device has', 'devices have')} no cover from it now` : ''}`,
     fp: `ended|${st.end}`, go: { tab: 'contracts' } });
   for (const { l, days } of a.licences) out.push({ id: `licence-${l.id}`, sev: days < 0 ? 'bad' : 'warn', title: days < 0 ? `Licence ended: ${l.name}` : `Licence ending: ${l.name}`,
-    text: `${days < 0 ? 'It ended' : 'It ends'} on ${dateText(l.end)}`, fp: `lic|${l.end}`, go: { tab: 'sw' } });
+    text: `${days < 0 ? 'It ended' : 'It ends'} on ${dateText(l.end)}`, fp: `lic|${days < 0 ? 'ended' : 'soon'}|${l.end}`, go: { tab: 'sw' } });
   for (const { c, st } of a.contracts) out.push({ id: `contract-${c.id}`, sev: st.state === 'late' ? 'bad' : 'warn',
     title: st.state === 'late' ? `Notice date passed: ${c.name}` : c.renew > 0 ? `Contract notice due: ${c.name}` : `Contract ending: ${c.name}`,
     text: st.state === 'late' ? `It renews on ${dateText(st.end)}` : st.noticeBy ? `Give notice by ${dateText(st.noticeBy)}` : `It ends on ${dateText(st.end)}`,

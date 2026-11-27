@@ -160,7 +160,7 @@ function applyDepartments(s, records) {
     }
     if (!p) continue;
     if (p.source === 'lansweeper') {
-      if (!p.login && isLogin && !byLogin.has(login)) { p.login = r.user; byLogin.set(login, p); n++; }
+      if (!p.login && isLogin && !byLogin.has(loginCore(r.user))) { p.login = r.user; byLogin.set(loginCore(r.user), p); n++; }
       if (r.userName && p.name !== r.userName.slice(0, 120) && low(p.name) === low(p.login || r.user)) { p.name = r.userName.slice(0, 120); n++; }
       /* Lansweeper's department goes before one Entra gave (deptFrom), never before one set in the directory or by hand. */
       if (r.userDept && (!p.dept || (p.deptFrom === 'entra' && p.dept !== r.userDept.slice(0, 120)))) { p.dept = r.userDept.slice(0, 120); delete p.deptFrom; n++; }

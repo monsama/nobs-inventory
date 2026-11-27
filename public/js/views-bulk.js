@@ -72,7 +72,11 @@ export function pickBar(list){
 }
 /* The picked devices that are still among those shown (the inventory, or Pending devices): a pick does not reach across. */
 export const pickedInPool = () => { const ids = new Set(scopePool().map(o => o.id)); return new Set([...(st.bulk || [])].filter(id => ids.has(id))); };
+/* The floating selection bar's height (it wraps on narrow screens) as --pickbar-h: the message and the list's end keep
+   clear of it. */
+const pickObs = typeof ResizeObserver === 'function' ? new ResizeObserver(es => { for (const e of es) document.documentElement.style.setProperty('--pickbar-h', Math.ceil(e.contentRect.height + 16) + 'px'); }) : null;
 export function bindPickBar(){
+  const bar = document.querySelector('#toolbar .pickrow'); if (bar && pickObs){ pickObs.disconnect(); pickObs.observe(bar); }
   const o = $('#cdOpen'); if (o) o.onclick = () => openObjs([...st.bulk]);
   const e = $('#cdEdit'); if (e) e.onclick = () => bulkEditModal([...st.bulk]);
   const gv = $('#cdGive'); if (gv) gv.onclick = () => handOutModal([...st.bulk]);

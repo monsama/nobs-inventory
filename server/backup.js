@@ -154,7 +154,9 @@ export function restoreBackup(db, data, sheetKey = null, { photosFrom = null } =
      an alias that reads as a login) loses their role. A backup file cannot bring in someone who signs in. */
   for (const u of s.users) {
     if (!restored.has(String(u.id))) continue;
-    if (u.login) { if (u.source === 'ldap' && u.active !== false) u.syncOff = true; u.active = false; }
+    /* Off as an admin's doing (entraOff false): an Entra sync does not switch them on; the directory's own sync may
+       (syncOff), as it decides who signs in with it. */
+    if (u.login) { if (u.source === 'ldap' && u.active !== false) u.syncOff = true; else delete u.syncOff; u.active = false; u.entraOff = false; }
     else if ((u.entra || (u.profile && u.profile.mail) || exactKeys(u).size) && u.role && u.role !== 'none') u.role = 'none';
   }
   saveState(db, s, { restore: true });

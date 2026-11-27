@@ -8,6 +8,7 @@ import { openObj } from './02-views.js';
 import { HOST_KINDS, NET_GEAR, kindProblem, linkKind, relationProblem } from './relations.js';
 import { html, rawHtml } from './html.js';
 import { anyOutlets } from './24-patch.js';
+import { intoStock } from './27-handout.js';
 import { findOutlet, outletLabel } from './cabling.js';
 import { locOptions } from './loc-pick.js';
 /* The New device and Link device dialogs: type, name, place, what it plugs into (a switch port, a panel port or a
@@ -305,7 +306,7 @@ export function linkObjModal(pre = {}){
     rels.push(made);
     /* The device replaced, put in stock when asked: nobody has it, in its site's store room. */
     const toStock = took && /** @type {HTMLInputElement | null} */ ($('#lkStock'))?.checked;
-    if (toStock){ const room = storeRoomOf(swapped); swapped.status = 'stock'; swapped.uid = null; delete swapped.hotdesk; delete swapped.stockAuto; if (room) swapped.loc = room; hist(swapped, now(), `Taken back into stock${room ? ', to ' + room : ''}: replaced on ${t.name}, by ${who()}`); }
+    if (toStock){ const room = storeRoomOf(swapped), moved = intoStock(swapped, room); hist(swapped, now(), `Taken back into stock${moved ? ', to ' + room : ''}: replaced on ${t.name}, by ${who()}`); }
     const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into', uplink: 'Uplink to'}[kind];
     const from = leave.length ? byId(leave[0].to) : null;
     hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''}${from ? ' (before: ' + from.name + ')' : ''} by ${who()}`);

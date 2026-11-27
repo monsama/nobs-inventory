@@ -19,6 +19,12 @@ function moveTo(o, loc){
   o.loc = loc; markHand(o, 'loc');
   return true;
 }
+/* One device into stock, as Take back does it (a synced device keeps nobody and the room from the next sync); room ''
+   leaves it where it is. true when it moved. */
+export function intoStock(o, room = ''){
+  o.uid = null; delete o.hotdesk; o.status = 'stock'; delete o.stockAuto; keepUser(o);
+  return moveTo(o, room);
+}
 function give(list, u, loc = ''){
   /* Done with: no longer picked, so no later bulk action reaches them out of sight. */
   if (st.bulk) for (const o of list) st.bulk.delete(o.id);
