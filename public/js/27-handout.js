@@ -1,7 +1,7 @@
 /* Handing devices out and taking them back, in one step each. Hand out: a person (found by name, or added on the spot),
    the device is then in use with them; an admin can print the entry sheet right after. Take back: the device is in
    stock again, with nobody. Both with Undo, and in the device's history. */
-import { fold, $, LOCS, byId, feedLinked, hist, markHand, now, objs, pfxOf, pickHand, rels, restoreSnapshot, snapshot, st, toast, toastUndo } from './01-core.js';
+import { fold, $, LOCS, byId, feedLinked, hist, markHand, now, objs, pfxOf, pickHand, rels, restoreSnapshot, snapshot, st, toast, toastUndo, portTakenBy } from './01-core.js';
 import { PORT_KINDS } from './relations.js';
 import { USERS, ensureUser, isAdmin, who } from './04-settings.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
@@ -92,7 +92,7 @@ export function takeBackModal(list){
     <label for="tbLoc" class="ho-l">Where</label><select id="tbLoc"><option value="">${stay}</option>${eachStore ? html`<option value="${EACH_STORE}">Each to its site's store room</option>` : ''}${stores.length
       ? html`<optgroup label="Store rooms">${stores.map(opt)}</optgroup><optgroup label="Other rooms">${others.map(opt)}</optgroup>` : LOCS.map(opt)}</select>
     ${site && !store && isAdmin() ? html`<label class="pchk tb-store" id="tbStoreRow" hidden><input type="checkbox" id="tbStore" checked> Make it the store room of ${site}: proposed here from now on</label>
-      <p class="note muted" id="tbNoStore">${site} has no store room yet: pick the room where devices in stock are kept.</p>` : ''}
+      <p class="note muted" id="tbNoStore">${site} has no store room yet: pick under Where the room where devices in stock are kept, and it can become the store room.</p>` : ''}
     ${plugs.length ? html`<label class="pchk"><input type="checkbox" id="tbUnplug" checked> Unplug ${plugs.length === 1 ? `it from ${byId(plugs[0].to).name}${plugs[0].port != null ? ' port ' + pfxOf(byId(plugs[0].to)) + plugs[0].port : ''}` : `them from their ${plugs.length} ports`}, so the port is free</label>` : ''}
     <p class="note">${live.length === 1 ? 'It is' : 'They are'} in stock from now on, with nobody.</p></div>
     <div class="mf"><button id="tbNo">Cancel</button><button id="tbOk" class="primary">Take back</button></div>`, 'sm');
@@ -130,14 +130,20 @@ export function takeBack(list, loc = '', unplug = []){
     hist(o, now(), `Taken back into stock${had ? ` from ${had}` : ''}${moved ? `, to ${to}` : ''} by ${who()}`);
   }
   queueServerSave(); render();
-  toastUndo(`${live.length === 1 ? live[0].name : `${live.length} devices`} back in stock${names.size === 1 ? ` from ${[...names][0]}` : ''}`, () => { restoreSnapshot(snap, 'Taking back undone'); for (const r of relsWas) if (!rels.includes(r)) rels.push(r); queueServerSave(); render(); });
+  toastUndo(`${live.length === 1 ? live[0].name : `${live.length} devices`} back in stock${names.size === 1 ? ` from ${[...names][0]}` : ''}`, () => {
+    restoreSnapshot(snap, 'Taking back undone');
+    /* A port taken by another device since stays with it: the device is not plugged back in there. */
+    let left = 0; for (const r of relsWas) if (!rels.includes(r)){ if (portTakenBy(r)) left++; else rels.push(r); }
+    queueServerSave(); render();
+    if (left) toast(`${left === 1 ? 'One port is' : `${left} ports are`} in use by another device now: not plugged back in.`);
+  });
 }
 
 /* The people to choose from: active ones first, by name; the search finds by name, login or department. */
 const SHOWN = 8;
 /* The sign-in account the app makes at first start (u-admin, "Administrator") is nobody to hand devices to: left out,
    unless it holds devices already. */
-const signInOnly = u => u.id === 'u-admin' && !objs.some(o => o.uid === u.id);
+export const signInOnly = u => u.id === 'u-admin' && !objs.some(o => o.uid === u.id);
 const people = q => USERS.filter(u => !signInOnly(u) && (u.active !== false || q) && (!q || [u.name, u.login, u.dept].some(x => low(x).includes(q) || fold(x).includes(fold(q)))))   /* "schar" finds Schär */
   .sort((a, b) => +(a.active === false) - +(b.active === false) || a.name.localeCompare(b.name));
 
@@ -155,9 +161,11 @@ export function handOutModal(ids){
     <div class="mf"><button id="hoNo">Cancel</button><button id="hoOk" class="primary" disabled>Hand out</button></div>`, 'sm');
   const draw = () => {
     const q = low($('#hoQ').value), all = people(q), found = all.slice(0, SHOWN), exact = all.some(u => low(u.name) === q);
+    /* The sign-in account's name or login typed: not offered as a new person, which would hand the devices to it. */
+    const signIn = q ? USERS.find(u => signInOnly(u) && [u.name, u.login, ...(u.aliases || [])].some(x => low(x) === q)) : null;
     /* Someone who has left is found too (so the name is not offered as a new person), but cannot be picked. */
     $('#hoList').innerHTML = html`${found.map(u => u.active === false ? html`<button type="button" class="ho-p" disabled title="Has left: reactivate in Settings → Users first"><b>${u.name}</b><span class="muted">has left${u.login ? ' · ' + u.login : ''}</span></button>` : html`<button type="button" class="ho-p${picked && picked.id === u.id ? ' sel' : ''}" data-hop="${u.id}" role="option" aria-selected="${String(picked && picked.id === u.id)}"><b>${u.name}</b><span class="muted">${[u.login, u.dept].filter(Boolean).join(' · ')}</span></button>`)}${
-      q && !exact ? html`<button type="button" class="ho-p ho-new${picked && picked.isNew ? ' sel' : ''}" data-honew="1" role="option"><b>New person: ${$('#hoQ').value.trim()}</b><span class="muted">added to Settings → Users, without a sign-in</span></button>` : ''}${
+      signIn ? html`<p class="note">${signIn.name} is the account to sign in with, not a person to hand devices to.</p>` : q && !exact ? html`<button type="button" class="ho-p ho-new${picked && picked.isNew ? ' sel' : ''}" data-honew="1" role="option"><b>New person: ${$('#hoQ').value.trim()}</b><span class="muted">added to Settings → Users, without a sign-in</span></button>` : ''}${
       all.length > SHOWN ? html`<p class="note">${SHOWN} of ${all.length} shown: type to narrow.</p>` : ''}${
       !found.length && !q ? html`<p class="note">Type a name.</p>` : ''}`;
     $('#hoList').querySelectorAll('[data-hop]').forEach(b => b.onclick = () => { picked = USERS.find(u => u.id === b.dataset.hop); $('#hoQ').value = picked.name; proposeOffice(picked); draw(); });

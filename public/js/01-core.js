@@ -910,6 +910,10 @@ export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
    into records that are no longer the page's, so it is refused instead. */
 export const UNDO = { epoch: 0 };
 /* anyEpoch: an Undo that finds its records again by id, so a reload in between does not stop it. */
+/* A link put back by an Undo whose port another device has taken in the meantime: the port's other link, else null. */
+export function portTakenBy(r){
+  return r.port == null ? null : rels.find(x => x !== r && x.to === r.to && x.port != null && String(x.port) === String(r.port)) || null;
+}
 export function toastUndo(msg, undo, { anyEpoch = false } = {}){
   const t = $('#toast'), epoch = UNDO.epoch; keepToastOnTop();
   t.innerHTML = html`<span>${msg}</span><button type="button" class="t-undo">Undo</button>`;

@@ -393,8 +393,8 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 #tabsbar>*{flex:none}
 #tabsbar.more-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
-#tabsbar.more-l{-webkit-mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent)}
-#tabsbar.more-l.more-r{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+#tabsbar.more-l{-webkit-mask-image:linear-gradient(to right,transparent 28px,#000 64px);mask-image:linear-gradient(to right,transparent 28px,#000 64px)}
+#tabsbar.more-l.more-r{-webkit-mask-image:linear-gradient(to right,transparent 28px,#000 64px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,transparent 28px,#000 64px,#000 calc(100% - 28px),transparent)}
 #tabsbar>.grow{flex:1 1 auto}
 /* On a phone the bar scrolls sideways: Sync and Pending devices come first, so they are never out of sight. */
 @media (max-width:760px){#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
@@ -1292,6 +1292,8 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .bell-n{position:absolute;top:-4px;right:-6px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;font-size:11px;font-weight:700;line-height:17px;text-align:center;color:#fff;background:var(--warnbtn);box-shadow:0 0 0 2px var(--panel)}
 .bell-n.bad{background:var(--danger-bg)}
 .bell-pop{width:min(380px,calc(100vw - 16px));padding:0;gap:0}
+/* On a phone the bell's list is as wide as the screen less a margin each side, under the top bar. */
+@media (max-width:600px){ .bell-pop{position-area:none;inset:60px 8px auto 8px;width:auto;margin:0} }
 .bell-hdr{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--bd)}
 .bell-list{display:flex;flex-direction:column;padding:4px}
 .bell-item{display:flex;align-items:flex-start;gap:2px;border-radius:var(--r-m);border-left:3px solid transparent}
@@ -2518,6 +2520,10 @@ table.grid:is(.ips,.prns,.sw,.contracts) tbody tr:hover td{background:var(--card
 .obj.otabbed[data-otab="details"] [data-pane="details"],.obj.otabbed[data-otab="relations"] [data-pane="relations"],
 .obj.otabbed[data-otab="sources"] [data-pane="sources"],.obj.otabbed[data-otab="history"] [data-pane="history"]{display:grid}
 .obj.otabbed [data-pane="sources"]{max-width:980px}
+/* A device's page narrower than 800px (a small window with the filters shown): one column, so the fields have room for
+   their values. */
+.obj.otabbed{container-type:inline-size;container-name:obj}
+@container obj (max-width:800px){ .obj.otabbed .ogrid{grid-template-columns:minmax(0,1fr)} }
 @media (max-width:760px){ .obj.otabbed .ogrid{grid-template-columns:minmax(0,1fr)} .obj.otabbed .otabs{overflow-x:auto} .obj.otabbed .ofacts{gap:6px 18px} }
 /* Filters as a drawer on a wide screen too (unless kept open): the Filters button in the bar opens them over the list. */
 #sideBtn .side-lbl,#sideBtn .side-n{display:none}
@@ -3006,9 +3012,17 @@ dialog.modal:has([data-cmpdlg]){align-items:flex-start;padding-top:max(16px,6vh)
 .tabs-more.l{left:0;box-shadow:6px 0 8px -4px rgba(0,0,0,.18)}
 .tabs-more.r{right:0;box-shadow:-6px 0 8px -4px rgba(0,0,0,.18)}
 /* Touch screens: the views bar is a tap high, so its arrows are too; they take the bar's own colour, also when pressed. */
-@media (pointer:coarse) and (any-hover:none){ #tabsbar{height:max(var(--bar), 36px)} }
+@media (pointer:coarse) and (any-hover:none){ #tabsbar{height:max(var(--bar), 44px)} }
+.tabs-more{bottom:0;height:auto}
 .tabs-more,.tabs-more:hover,.tabs-more:active,.tabs-more:focus{background:var(--panel2);border:0}
 .tabs-more{border-bottom:1px solid var(--bd)!important}
 /* A notice's title breaks too (a long licence name) before the ×; the active view is scrolled clear of the bar's arrows. */
 .bell-t b{overflow-wrap:anywhere}
 #tabsbar{scroll-padding-inline:36px}
+
+/* Touch screens: the small tabs of Settings and the contracts' notice chip are a tap high too. */
+@media (pointer:coarse) and (any-hover:none){ .settabs.setsub .tab, #ctDueBtn{min-height:36px} }
+/* A contract's number stays on one line (LA-2024-117), beside the name or under it. */
+.ct-ref{white-space:nowrap}
+/* On a phone the row's icons take a line of their own: an empty slot does not push them in. */
+@media (max-width:760px){ .lrow .c-st .st-ico:empty{display:none} }

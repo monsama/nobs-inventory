@@ -48,6 +48,28 @@ try {
   const names = await p.$$eval('#hoList [data-hop]', b => b.map(x => x.textContent));
   assert.ok(names.some(n => /Finn Graf/.test(n)), names.join('|'));
   assert.ok(!names.some(n => /Administrator/.test(n)), names.join('|'));
+  //    nor as a new person when its name or login is typed
+  await p.fill('#hoQ', 'admin'); await p.waitForTimeout(100);
+  assert.equal(await p.$('#hoList [data-honew]'), null, 'no new person for the sign-in account');
+  assert.match(await p.textContent('#hoList'), /account to sign in with/);
+  await p.click('#hoNo');
+  //    nor in the search
+  await p.fill('#search', 'admini'); await p.waitForTimeout(400);
+  assert.doesNotMatch(await p.textContent('#gsList'), /Hand out a device to Administrator/);
+  await p.fill('#search', ''); await p.keyboard.press('Escape');
+
+  // 4. a phone: the tabs fit their bar; a tap beside the filter drawer only closes it
+  const { devices } = await import('playwright');
+  const ph = await browser.newContext({ ...devices['Pixel 7'] });
+  await ph.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch { /* none */ } });
+  const m = await ph.newPage(); m.on('pageerror', e => errors.push(e.message));
+  await m.goto(base); await m.waitForSelector('#lgUser'); await m.fill('#lgUser', 'admin'); await m.fill('#lgPw', 'adminpass123'); await m.click('#lgOk'); await m.waitForSelector('#cards .lrow');
+  assert.equal(await m.evaluate(() => { const b = document.getElementById('tabsbar').getBoundingClientRect(); return [...document.querySelectorAll('#tabsbar .tab')].every(t => { const r = t.getBoundingClientRect(); return r.top >= b.top && r.bottom <= b.bottom; }); }), true, 'the tabs are whole');
+  await m.click('#sideBtn'); await m.waitForFunction(() => document.body.classList.contains('side-open'));
+  const row = await m.$eval('#cards .lrow', e => { const r = e.getBoundingClientRect(); return { x: innerWidth - 20, y: r.top + r.height / 2 }; });
+  await m.touchscreen.tap(row.x, row.y); await m.waitForTimeout(300);
+  assert.equal(await m.evaluate(() => document.body.classList.contains('side-open')), false, 'the drawer closed');
+  assert.equal(await m.evaluate(async () => (await import('/js/01-core.js')).st.open.length), 0, 'nothing opened under it');
 
   assert.deepEqual(errors, []);
   console.log('round 193: all checks passed');
