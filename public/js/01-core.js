@@ -646,12 +646,15 @@ export const qualityGap = (/** @type {any} */ o) => Object.entries(QUALITY).some
 /* How many devices not retired have each serial number (placeholders such as "To be filled by O.E.M." left out). */
 /* Built once and kept for a moment (a draw, or the bell counting every device outside one): asked per device, it would
    otherwise go through all devices each time. */
-let serialMap = null, serialAt = 0;
+/* The serials counted once per draw; outside a draw once per task (a list checked device by device), so a serial changed
+   since is never counted from before. */
+const countSerials = () => { const m = new Map(); for (const o of objs) if (o.status !== 'retired' && o.serial && !isPlaceholderSerial(o.serial)) { const k = String(o.serial).trim().toLowerCase(); m.set(k, (m.get(k) || 0) + 1); } return m; };
+const serialsPerDraw = oncePerDraw(countSerials);
+/** @type {Map<string, number>|null} */ let serialMap = null;
 const serialCount = () => {
-  const t = Date.now();
-  if (serialMap && t - serialAt < 300) return serialMap;
-  const m = new Map(); for (const o of objs) if (o.status !== 'retired' && o.serial && !isPlaceholderSerial(o.serial)) { const k = String(o.serial).trim().toLowerCase(); m.set(k, (m.get(k) || 0) + 1); }
-  serialMap = m; serialAt = t; return m;
+  if (cacheOn) return serialsPerDraw();
+  if (!serialMap){ serialMap = countSerials(); queueMicrotask(() => { serialMap = null; }); }
+  return serialMap;
 };
 /** @type {Record<string, [string, string, (o: any) => boolean]>} */
 export const QUALITY = {
